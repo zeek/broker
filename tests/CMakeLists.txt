@@ -7,6 +7,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
+  # cpp/integration.cc
+  # cpp/internal/data_generator.cc
+  # cpp/internal/generator_file_writer.cc
+  # cpp/internal/meta_command_writer.cc
+  # cpp/internal/meta_data_writer.cc
+  # cpp/ssl.cc
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
@@ -16,21 +22,15 @@ set(tests
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
-  # cpp/integration.cc
   cpp/internal/channel.cc
   cpp/internal/core_actor.cc
-  cpp/internal/json_type_mapper.cc
-  # cpp/internal/data_generator.cc
-  # cpp/internal/generator_file_writer.cc
-  # cpp/internal/meta_command_writer.cc
-  # cpp/internal/meta_data_writer.cc
+  cpp/internal/json.cc
   cpp/internal/metric_collector.cc
   cpp/internal/metric_exporter.cc
   cpp/internal/wire_format.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
-  # cpp/ssl.cc
   cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc

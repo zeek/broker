@@ -239,6 +239,52 @@ OutIter encode(const enum_value& value, OutIter out) {
   return write_bytes(value.name, out);
 }
 
+// Note: enable_if trickery to suppress implicit conversions.
+template <class Data, class OutIter>
+std::enable_if_t<std::is_same_v<Data, data>, OutIter> encode(const Data& value,
+                                                             OutIter out);
+
+template <class OutIter>
+OutIter encode(const broker::set& values, OutIter out) {
+  out = write_unsigned(data::type::set, out);
+  out = write_varbyte(values.size(), out);
+  for (const auto& x : values)
+    out = encode(x, out);
+  return out;
+}
+
+template <class OutIter>
+OutIter encode(const broker::table& values, OutIter out) {
+  out = write_unsigned(data::type::table, out);
+  out = write_varbyte(values.size(), out);
+  for (const auto& [key, val] : values) {
+    out = encode(key, out);
+    out = encode(val, out);
+  }
+  return out;
+}
+
+template <class OutIter>
+OutIter encode(const broker::vector& values, OutIter out) {
+  out = write_unsigned(data::type::list, out);
+  out = write_varbyte(values.size(), out);
+  for (const auto& x : values)
+    out = encode(x, out);
+  return out;
+}
+
+template <class Data, class OutIter>
+std::enable_if_t<std::is_same_v<Data, data>, OutIter> encode(const Data& value,
+                                                             OutIter out) {
+  return std::visit([&](auto&& x) { return encode(x, out); }, value.get_data());
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out);
+
+template <class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out);
+
 template <class OutIter>
 OutIter encode(const variant_data& value, OutIter out);
 
@@ -274,7 +320,7 @@ OutIter encode(const variant_data::set* values, OutIter out) {
 
 template <class OutIter>
 OutIter encode(const variant_data::table* values, OutIter out) {
-  out = write_unsigned(data::type::set, out);
+  out = write_unsigned(data::type::table, out);
   out = write_varbyte(values->size(), out);
   for (const auto& [key, val] : *values) {
     out = encode(key, out);

@@ -31,7 +31,7 @@ public:
 
   /// Attempts to deserialize an envelope from the given message in Broker's
   /// write format.
-  static expected<envelope_ptr>
+  static expected<data_envelope_ptr>
   deserialize(const endpoint_id& sender, const endpoint_id& receiver,
               uint16_t ttl, std::string_view topic_str,
               const std::byte* payload, size_t payload_size);

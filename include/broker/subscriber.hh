@@ -3,8 +3,8 @@
 #include "broker/data.hh"
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
-#include "broker/envelope.hh"
 #include "broker/fwd.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 #include "broker/worker.hh"
 
@@ -21,6 +21,10 @@ public:
   friend class endpoint;
 
   friend class status_subscriber;
+
+  // -- member types -----------------------------------------------------------
+
+  using optional_data_message = std::optional<data_message>;
 
   // --- constructors and destructors ------------------------------------------
 
@@ -41,21 +45,21 @@ public:
   // --- access to values ------------------------------------------------------
 
   /// Returns all currently available values without blocking.
-  std::vector<data_envelope_ptr> poll();
+  std::vector<data_message> poll();
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available.
-  data_envelope_ptr get();
+  data_message get();
 
   /// Returns `num` values, blocking the caller if necessary.
-  std::vector<data_envelope_ptr> get(size_t num);
+  std::vector<data_message> get(size_t num);
 
   /// Pulls `num` values out of the stream. Blocks the current thread until
   /// `num` elements are available or a timeout occurs. Returns a partially
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
   template <class Duration>
-  std::vector<data_envelope_ptr>
+  std::vector<data_message>
   get(size_t num, std::chrono::time_point<clock, Duration> abs_timeout) {
     using std::chrono::time_point_cast;
     return do_get(num, time_point_cast<timespan>(abs_timeout));
@@ -66,7 +70,7 @@ public:
   /// filled or empty vector on timeout, otherwise a vector containing exactly
   /// `num` elements.
   template <class Rep, class Period>
-  std::vector<data_envelope_ptr>
+  std::vector<data_message>
   get(size_t num, std::chrono::duration<Rep, Period> rel_timeout) {
     if (rel_timeout != infinite)
       return do_get(num, now() + rel_timeout);
@@ -77,22 +81,23 @@ public:
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
   template <class Duration>
-  data_envelope_ptr get(std::chrono::time_point<clock, Duration> abs_timeout) {
-    data_envelope_ptr result;
+  optional_data_message
+  get(std::chrono::time_point<clock, Duration> abs_timeout) {
+    optional_data_message result;
     auto tmp = get(1, abs_timeout);
     if (tmp.size() == 1)
-      result = std::move(tmp.front());
+      result.emplace(std::move(tmp.front()));
     return result;
   }
 
   /// Pulls a single value out of the stream. Blocks the current thread until
   /// at least one value becomes available or a timeout occurred.
   template <class Rep, class Period>
-  data_envelope_ptr get(std::chrono::duration<Rep, Period> rel_timeout) {
-    data_envelope_ptr result;
+  optional_data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
+    optional_data_message result;
     auto tmp = get(1, rel_timeout);
     if (tmp.size() == 1)
-      result = std::move(tmp.front());
+      result.emplace(std::move(tmp.front()));
     return result;
   }
 
@@ -132,9 +137,9 @@ private:
 
   void update_filter(topic x, bool add, bool block);
 
-  std::vector<data_envelope_ptr> do_get(size_t num, timestamp abs_timeout);
+  std::vector<data_message> do_get(size_t num, timestamp abs_timeout);
 
-  void do_get(std::vector<data_envelope_ptr>& buf, size_t num,
+  void do_get(std::vector<data_message>& buf, size_t num,
               timestamp abs_timeout);
 
   void wait();

@@ -55,8 +55,8 @@ master_state::metrics_t::metrics_t(caf::actor_system& sys,
 master_state::master_state(
   caf::event_based_actor* ptr, endpoint_id this_endpoint, std::string nm,
   backend_pointer bp, caf::actor parent, endpoint::clock* ep_clock,
-  caf::async::consumer_resource<command_envelope_ptr> in_res,
-  caf::async::producer_resource<command_envelope_ptr> out_res)
+  caf::async::consumer_resource<command_message> in_res,
+  caf::async::producer_resource<command_message> out_res)
   : super(ptr), output(this), metrics(ptr->system(), nm) {
   super::init(this_endpoint, ep_clock, std::move(nm), std::move(parent),
               std::move(in_res), std::move(out_res));
@@ -75,13 +75,13 @@ master_state::master_state(
   BROKER_INFO("attached master" << id << "to" << store_name);
 }
 
-void master_state::dispatch(const command_envelope_ptr& msg) {
+void master_state::dispatch(const command_message& msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or clone.
   // Clones can only send control messages (they are always consumers). Writers
   // can send us either actions or control messages (they are producers).
-  auto& cmd = msg->value();
+  auto& cmd = get_command(msg);
   auto seq = cmd.seq;
   auto tag = detail::tag_of(cmd);
   auto type = detail::type_of(cmd);
@@ -207,7 +207,7 @@ void master_state::set_expire_time(const data& key,
 
 // -- callbacks for the consumer -----------------------------------------------
 
-void master_state::consume(consumer_type*, command_envelope_ptr& msg) {
+void master_state::consume(consumer_type*, command_message& msg) {
   auto f = [this](auto& cmd) { consume(cmd); };
   auto val = msg->value();
   std::visit(f, val.content);
@@ -395,7 +395,7 @@ void master_state::close(consumer_type* src, const error& reason) {
 void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
   auto dst = ptr->producer();
   BROKER_DEBUG(BROKER_ARG(ack) << BROKER_ARG(dst));
-  auto msg = command_envelope::make(
+  auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, cumulative_ack_command{ack.seq}});
   self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
@@ -404,7 +404,7 @@ void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
 void master_state::send(consumer_type* ptr, channel_type::nack nack) {
   auto dst = ptr->producer();
   BROKER_DEBUG(BROKER_ARG(nack) << BROKER_ARG(dst));
-  auto msg = command_envelope::make(
+  auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, nack_command{std::move(nack.seqs)}});
   self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
@@ -414,10 +414,10 @@ void master_state::send(consumer_type* ptr, channel_type::nack nack) {
 
 void master_state::send(producer_type*, const entity_id& whom,
                         const channel_type::event& what) {
-  auto& val = what.content->value();
-  BROKER_DEBUG("send event with seq" << val.seq << "and type"
-                                     << val.content.index() << "to" << whom);
-  BROKER_ASSERT(what.seq == val.seq);
+  BROKER_DEBUG("send event with seq"
+               << get_command(what.content).seq << "and type"
+               << get_command(what.content).content.index() << "to" << whom);
+  BROKER_ASSERT(what.seq == get_command(what.content).seq);
   self->send(core, atom::publish_v, what.content, whom.endpoint);
 }
 
@@ -428,7 +428,7 @@ void master_state::send(producer_type*, const entity_id& whom,
     auto ss = backend->snapshot();
     if (!ss)
       detail::die("failed to snapshot master");
-    auto cmd = command_envelope::make(
+    auto cmd = make_command_message(
       clones_topic,
       internal_command{msg.offset, id, whom,
                        ack_clone_command{msg.offset, msg.heartbeat_interval,
@@ -443,7 +443,7 @@ void master_state::send(producer_type*, const entity_id& whom,
 void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::retransmit_failed msg) {
   BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
-  auto cmd = command_envelope::make(
+  auto cmd = make_command_message(
     clones_topic,
     internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
   BROKER_DEBUG("send retransmit_failed with seq" << msg.seq << "to" << whom);
@@ -453,17 +453,17 @@ void master_state::send(producer_type*, const entity_id& whom,
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
   BROKER_TRACE(BROKER_ARG(msg));
   BROKER_DEBUG("broadcast keepalive_command with seq" << msg.seq);
-  auto cmd = command_envelope::make(
-    clones_topic,
-    internal_command{0, id, entity_id::nil(), keepalive_command{msg.seq}});
+  auto cmd = make_command_message(clones_topic,
+                                  internal_command{0, id, entity_id::nil(),
+                                                   keepalive_command{msg.seq}});
   self->send(core, atom::publish_v, std::move(cmd));
 }
 
 void master_state::broadcast(producer_type*, const channel_type::event& what) {
-  auto& val = what.content->value();
-  BROKER_ASSERT(what.seq == val.seq);
-  BROKER_DEBUG("broadcast event with seq" << val.seq << "and type"
-                                          << val.content.index());
+  BROKER_ASSERT(what.seq == get_command(what.content).seq);
+  BROKER_DEBUG("broadcast event with seq"
+               << get_command(what.content).seq << "and type"
+               << get_command(what.content).content.index());
   self->send(core, atom::publish_v, what.content);
 }
 

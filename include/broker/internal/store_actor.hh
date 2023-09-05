@@ -21,7 +21,6 @@
 #include "broker/detail/store_state.hh"
 #include "broker/endpoint.hh"
 #include "broker/entity_id.hh"
-#include "broker/envelope.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/channel.hh"
 #include "broker/internal/type_id.hh"
@@ -54,7 +53,7 @@ public:
   /// Allows us to apply this state as a visitor to internal commands.
   using result_type = void;
 
-  using channel_type = channel<entity_id, command_envelope_ptr>;
+  using channel_type = channel<entity_id, command_message>;
 
   using local_request_key = std::pair<entity_id, request_id>;
 
@@ -71,8 +70,8 @@ public:
   /// @pre `clock != nullptr`
   void init(endpoint_id this_endpoint, endpoint::clock* clock, std::string&& id,
             caf::actor&& core,
-            caf::async::consumer_resource<command_envelope_ptr> in_res,
-            caf::async::producer_resource<command_envelope_ptr> out_res);
+            caf::async::consumer_resource<command_message> in_res,
+            caf::async::producer_resource<command_message> out_res);
 
   template <class Backend, class Base>
   void init(channel_type::producer<Backend, Base>& out) {
@@ -171,7 +170,7 @@ public:
 
   // -- callbacks for the behavior ---------------------------------------------
 
-  virtual void dispatch(const command_envelope_ptr& msg) = 0;
+  virtual void dispatch(const command_message& msg) = 0;
 
   /// Creates a snapshot that summarizes the current status of the store actor.
   virtual table status_snapshot() const = 0;
@@ -254,7 +253,7 @@ public:
   ///       terminates.
   std::unordered_map<detail::shared_store_state_ptr, size_t> attached_states;
 
-  caf::flow::item_publisher<command_envelope_ptr> out;
+  caf::flow::item_publisher<command_message> out;
 };
 
 } // namespace broker::internal

@@ -49,8 +49,8 @@ public:
   value_type get(Duration relative_timeout) {
     value_type result;
     do {
-      if (auto msg = impl_.get(relative_timeout))
-        result = convert(msg);
+      if (auto maybe_msg = impl_.get(relative_timeout))
+        result = convert(*maybe_msg);
     } while (std::holds_alternative<none>(result)
              && relative_timeout == infinite);
     return result;

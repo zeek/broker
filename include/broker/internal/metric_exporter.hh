@@ -11,14 +11,12 @@
 #include <caf/stateful_actor.hpp>
 #include <caf/telemetry/importer/process.hpp>
 
-#include "broker/data_envelope.hh"
 #include "broker/detail/next_tick.hh"
-#include "broker/envelope.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/metric_scraper.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/p2p_message_type.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 
 namespace broker::internal {
@@ -80,8 +78,7 @@ public:
           impl.scrape(self->system().metrics());
           // Send nothing if we only have meta data (or nothing) to send.
           if (const auto& rows = impl.rows(); rows.size() > 1)
-            self->send(core, atom::publish_v,
-                       data_envelope::make(target, rows));
+            self->send(core, atom::publish_v, make_data_message(target, rows));
           auto t = detail::next_tick(tick_init, self->clock().now(), interval);
           self->scheduled_send(self, t, caf::tick_atom_v);
         }

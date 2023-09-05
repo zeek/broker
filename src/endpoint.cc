@@ -14,7 +14,6 @@
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
-#include "broker/message.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
@@ -810,27 +809,27 @@ void endpoint::forward(std::vector<topic> ts) {
   caf::anon_send(native(core_), atom::subscribe_v, std::move(ts));
 }
 
-void endpoint::publish(topic t, const data& d) {
+void endpoint::publish(topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d));
   caf::anon_send(native(core_), atom::publish_v,
-                 make_data_message(std::move(t), d));
+                 make_data_message(std::move(t), std::move(d)));
 }
 
-void endpoint::publish(const endpoint_info& dst, topic t, const data& d) {
-  BROKER_INFO("publishing" << d << "on topic" << t << "to" << dst.node);
+void endpoint::publish(const endpoint_info& dst, topic t, data d) {
+  BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
   caf::anon_send(native(core_), atom::publish_v,
-                 make_data_message(std::move(t), d), dst);
+                 make_data_message(std::move(t), std::move(d)), dst);
 }
 
-void endpoint::publish(data_envelope_ptr x) {
+void endpoint::publish(data_message x) {
   BROKER_INFO("publishing" << x);
   caf::anon_send(native(core_), atom::publish_v, std::move(x));
 }
 
-void endpoint::publish(const std::vector<data_envelope_ptr>& xs) {
+void endpoint::publish(std::vector<data_message> xs) {
   BROKER_INFO("publishing" << xs.size() << "messages");
   for (auto& x : xs)
-    publish(x);
+    publish(std::move(x));
 }
 
 publisher endpoint::make_publisher(topic ts) {

@@ -7,6 +7,7 @@
 #include "broker/ping_envelope.hh"
 #include "broker/pong_envelope.hh"
 #include "broker/routing_update_envelope.hh"
+#include "broker/topic.hh"
 #include "broker/variant.hh"
 
 // -- backwards compatibility API ----------------------------------------------

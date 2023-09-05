@@ -1,20 +1,20 @@
-#define SUITE internal.json_type_mapper
+#define SUITE internal.json
 
-#include "broker/internal/json_type_mapper.hh"
+#include "broker/internal/json.hh"
 
 #include "test.hh"
 
-#include <caf/json_reader.hpp>
+#include <caf/json_object.hpp>
+#include <caf/json_value.hpp>
 #include <caf/json_writer.hpp>
 
 using namespace broker;
-
-using namespace std::literals;
 
 namespace {
 
 // A data message that has one of everything.
 constexpr caf::string_view json = R"_({
+  "type": "data-message",
   "topic": "/test/cpp/internal/json-type-mapper",
   "@data-type": "vector",
   "data": [
@@ -111,15 +111,15 @@ constexpr caf::string_view json = R"_({
   ]
 })_";
 
-timestamp timestamp_from_string(std::string ts) {
-  auto opt = caf::timestamp_from_string(ts);
-  if (!opt)
-    FAIL("unable to parse timestamp " << ts << ": " << opt.error());
-  return *opt;
-}
-
-// The same data message as above, but as native broker::data_envelope_ptr.
-data_envelope_ptr native() {
+// The same as above, but as native broker::data_message.
+data_message native() {
+  using namespace std::literals;
+  auto timestamp_from_string = [](std::string ts) {
+    auto opt = caf::timestamp_from_string(ts);
+    if (!opt)
+      FAIL("unable to parse timestamp " << ts << ": " << opt.error());
+    return *opt;
+  };
   address dummy_addr_v6;
   convert("2001:db8::"s, dummy_addr_v6);
   address dummy_addr_v4;
@@ -142,40 +142,34 @@ data_envelope_ptr native() {
   john_doe["first-name"s] = "John"s;
   john_doe["last-name"s] = "Doe"s;
   xs.emplace_back(std::move(john_doe));
-  return data_envelope::make(topic{"/test/cpp/internal/json-type-mapper"},
-                             data{std::move(xs)});
+  return make_data_message(topic{"/test/cpp/internal/json-type-mapper"},
+                           data{std::move(xs)});
 }
 
 } // namespace
 
-/*
-TEST(the JSON mapper enables custom type names in JSON input) {
-  internal::json_type_mapper mapper;
-  caf::json_reader reader;
-  reader.mapper(&mapper);
-  if (CHECK(reader.load(json))) {
-    auto msg = data_envelope_ptr{};
-    auto decorated_msg = decorated(msg);
-    if (CHECK(reader.apply(decorated_msg)))
-      CHECK_EQ(msg, native());
-    else
-      MESSAGE("reader reported error: " << reader.get_error());
-  } else {
-    MESSAGE("reader reported error: " << reader.get_error());
-  }
+TEST(a data message in JSON can be rewritten to the binary format) {
+  using util = broker::internal::json;
+  auto bin = std::vector<std::byte>{};
+  auto val = caf::json_value::parse_shallow(json);
+  REQUIRE(val);
+  auto obj = val->to_object();
+  CHECK_EQ(obj.value("type").to_string(), "data-message");
+  auto err = util::data_message_to_binary(obj, bin);
+  CHECK(!err);
+  auto maybe_msg = data_envelope::deserialize(
+    endpoint_id::nil(), endpoint_id::nil(), defaults::ttl,
+    caf::to_string(obj.value("topic").to_string()), bin.data(), bin.size());
+  REQUIRE(maybe_msg);
+  CHECK_EQ((*maybe_msg)->value().to_data(), native()->value().to_data());
 }
 
-TEST(the JSON mapper enables custom type names in JSON output) {
-  internal::json_type_mapper mapper;
+TEST(data messages can be applied to a JSON writer) {
+  using util = broker::internal::json;
   caf::json_writer writer;
   writer.skip_object_type_annotation(true);
   writer.indentation(2);
-  writer.mapper(&mapper);
   auto msg = native();
-  auto decorator = decorated(msg);
-  if (CHECK(writer.apply(decorator)))
-    CHECK_EQ(writer.str(), json);
-  else
-    auto str = to_string(writer.str());
+  util::apply(msg, writer);
+  CHECK_EQ(writer.str(), json);
 }
-*/

@@ -128,8 +128,11 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
       BROKER_ERROR("envelope::deserialize failed: invalid message type");
       return make_error(ec::invalid_data, "invalid message type");
     case envelope_type::data:
-      return data_envelope::deserialize(sender, receiver, ttl, topic_str, data,
-                                        size);
+      if (auto res = data_envelope::deserialize(sender, receiver, ttl,
+                                                topic_str, data, size))
+        return *res;
+      else
+        return res.error();
     case envelope_type::command:
       return command_envelope::deserialize(sender, receiver, ttl, topic_str,
                                            data, size);

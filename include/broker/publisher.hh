@@ -3,9 +3,8 @@
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
 #include "broker/entity_id.hh"
-#include "broker/envelope.hh"
 #include "broker/fwd.hh"
-#include "broker/topic.hh"
+#include "broker/message.hh"
 
 #include <chrono>
 #include <cstddef>
@@ -22,7 +21,7 @@ public:
 
   // --- nested types ----------------------------------------------------------
 
-  using value_type = data_envelope_ptr;
+  using value_type = data_message;
 
   using guard_type = std::unique_lock<std::mutex>;
 

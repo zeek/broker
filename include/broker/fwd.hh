@@ -162,6 +162,13 @@ using ping_envelope_ptr = intrusive_ptr<ping_envelope>;
 using pong_envelope_ptr = intrusive_ptr<pong_envelope>;
 using routing_update_envelope_ptr = intrusive_ptr<routing_update_envelope>;
 
+// Backwards compatibility.
+using node_message = envelope_ptr;
+using data_message = data_envelope_ptr;
+using command_message = command_envelope_ptr;
+using ping_message = ping_envelope_ptr;
+using pong_message = pong_envelope_ptr;
+
 } // namespace broker
 
 // -- implementation details ---------------------------------------------------

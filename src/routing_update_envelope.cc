@@ -3,6 +3,7 @@
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
+#include "broker/topic.hh"
 
 #include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "broker/endpoint.hh"
+#include "broker/endpoint_id.hh"
+#include "broker/envelope.hh"
 
 #include <cstddef>
 #include <cstdint>

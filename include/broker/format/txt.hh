@@ -16,7 +16,7 @@ namespace broker::format::txt::v1 {
 template <class OutIter>
 OutIter encode(none, OutIter out) {
   using namespace std::literals;
-  auto str = "nil"s;
+  auto str = "nil"sv;
   return std::copy(str.begin(), str.end(), out);
 }
 

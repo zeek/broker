@@ -16,7 +16,7 @@ namespace {
 
 class affix_generator {
 public:
-  using output_type = envelope_ptr;
+  using output_type = node_message;
 
   affix_generator(peering_ptr ptr) : ptr_(std::move(ptr)) {}
 
@@ -47,18 +47,17 @@ public:
   }
 
   template <class Info, sc S>
-  envelope_ptr make_status_msg(Info&& ep, sc_constant<S> code,
+  node_message make_status_msg(Info&& ep, sc_constant<S> code,
                                const char* msg) const {
     auto val = status::make(code, std::forward<Info>(ep), msg);
     auto content = get_as<data>(val);
-    return data_envelope::make(ptr_->id(), ptr_->id(),
-                               topic{std::string{topic::statuses_str}},
-                               content);
+    return make_data_message(ptr_->id(), ptr_->id(),
+                             topic{std::string{topic::statuses_str}}, content);
   }
 
-  virtual envelope_ptr first() = 0;
+  virtual node_message first() = 0;
 
-  virtual envelope_ptr second() = 0;
+  virtual node_message second() = 0;
 
 protected:
   peering_ptr ptr_;
@@ -73,13 +72,13 @@ public:
 
   using super::super;
 
-  envelope_ptr first() override {
+  node_message first() override {
     return make_status_msg(endpoint_info{ptr_->peer_id()},
                            sc_constant<sc::endpoint_discovered>(),
                            "found a new peer in the network");
   }
 
-  envelope_ptr second() override {
+  node_message second() override {
     return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
                            sc_constant<sc::peer_added>(),
                            "handshake successful");
@@ -92,7 +91,7 @@ public:
 
   using super::super;
 
-  envelope_ptr first() override {
+  node_message first() override {
     if (ptr_->removed()) {
       return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
                              sc_constant<sc::peer_removed>(),
@@ -104,7 +103,7 @@ public:
     }
   }
 
-  envelope_ptr second() override {
+  node_message second() override {
     return make_status_msg(endpoint_info{ptr_->peer_id()},
                            sc_constant<sc::endpoint_unreachable>(),
                            "lost the last path");
@@ -148,15 +147,15 @@ std::vector<std::byte> peering::make_bye_token() {
   return result;
 }
 
-envelope_ptr peering::make_bye_message() {
+node_message peering::make_bye_message() {
   std::array<std::byte, bye_token_size> token;
-  return ping_envelope::make(id_, peer_id_, token.data(), token.size());
+  return make_ping_message(id_, peer_id_, token.data(), token.size());
 }
 
-caf::flow::observable<envelope_ptr>
+caf::flow::observable<node_message>
 peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
                node_producer_res out_res,
-               caf::flow::observable<envelope_ptr> src) {
+               caf::flow::observable<node_message> src) {
   // Construct the BYE message that we emit at the end.
   bye_id_ = self->new_u64_id();
   auto bye_msg = make_bye_message();
@@ -176,11 +175,11 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
         .compose(add_flow_scope_t{input_stats_})
         .compose(inject_killswitch_t{&in_})
         .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
-                      const envelope_ptr& msg) mutable {
+                      const node_message& msg) mutable {
           // When unpeering, we send a BYE ping message. When
           // receiving the corresponding pong message, we can safely
           // discard the input (this flow).
-          if (!ptr || msg->type() != envelope_type::pong)
+          if (!ptr || get_type(msg) != packed_message_type::pong)
             return;
           if (auto [payload_bytes, payload_size] = msg->raw_bytes();
               std::equal(payload_bytes, payload_bytes + payload_size,
@@ -195,7 +194,7 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
 }
 
 void peering::remove(caf::scheduled_actor* self,
-                     caf::flow::item_publisher<envelope_ptr>& snk,
+                     caf::flow::item_publisher<node_message>& snk,
                      bool with_timeout) {
   if (removed_)
     return;

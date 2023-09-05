@@ -32,29 +32,29 @@ struct fixture : test_coordinator_fixture<config> {
 
   std::vector<caf::actor> bridges;
 
-  using data_envelope_ptr_list = std::vector<data_envelope_ptr>;
+  using data_message_list = std::vector<data_message>;
 
-  data_envelope_ptr_list test_data = data_envelope_ptr_list({
-    data_envelope::make("a", data{0}),
-    data_envelope::make("b", data{true}),
-    data_envelope::make("a", data{1}),
-    data_envelope::make("a", data{2}),
-    data_envelope::make("b", data{false}),
-    data_envelope::make("b", data{true}),
-    data_envelope::make("a", data{3}),
-    data_envelope::make("b", data{false}),
-    data_envelope::make("a", data{4}),
-    data_envelope::make("a", data{5}),
+  data_message_list test_data = data_message_list({
+    make_data_message("a", data{0}),
+    make_data_message("b", data{true}),
+    make_data_message("a", data{1}),
+    make_data_message("a", data{2}),
+    make_data_message("b", data{false}),
+    make_data_message("b", data{true}),
+    make_data_message("a", data{3}),
+    make_data_message("b", data{false}),
+    make_data_message("a", data{4}),
+    make_data_message("a", data{5}),
   });
 
-  auto topics(const std::vector<data_envelope_ptr>& xs) {
+  auto topics(const std::vector<data_message>& xs) {
     std::vector<std::string> result;
     for (auto& x : xs)
       result.emplace_back(x->topic());
     return result;
   }
 
-  auto values(const std::vector<data_envelope_ptr>& xs) {
+  auto values(const std::vector<data_message>& xs) {
     std::vector<data> result;
     for (auto& x : xs)
       result.emplace_back(x->value().to_data());
@@ -92,14 +92,14 @@ struct fixture : test_coordinator_fixture<config> {
     return res;
   }
 
-  std::shared_ptr<std::vector<data_envelope_ptr>>
+  std::shared_ptr<std::vector<data_message>>
   collect_data(const endpoint_state& ep, filter_type filter) {
     auto res = base_fixture::collect_data(ep.hdl, std::move(filter));
     run();
     return res;
   }
 
-  void push_data(const endpoint_state& ep, data_envelope_ptr_list xs) {
+  void push_data(const endpoint_state& ep, data_message_list xs) {
     base_fixture::push_data(ep.hdl, xs);
   }
 

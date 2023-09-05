@@ -52,7 +52,7 @@ private:
 
 } // namespace
 
-expected<envelope_ptr> data_envelope::deserialize(
+expected<data_envelope_ptr> data_envelope::deserialize(
   const endpoint_id& sender, const endpoint_id& receiver, uint16_t ttl,
   std::string_view topic_str, const std::byte* payload, size_t payload_size) {
   using impl_t = deserialized_data_envelope;
@@ -82,6 +82,7 @@ variant_data* data_envelope::do_parse(detail::monotonic_buffer_resource& buf,
   auto [ok, pos] = root->parse_shallow(buf, bytes, end);
   if (ok && pos == end)
     return root;
+printf("parse_shallow failed at pos %d (len: %d)\n", (int) (pos - bytes), (int) size);
   err = make_error(ec::deserialization_failed, "failed to parse data");
   return nullptr;
 }
@@ -169,6 +170,9 @@ data_envelope_ptr data_envelope::make(const endpoint_id& sender,
                                       const endpoint_id& receiver,
                                       broker::topic t, const data& d) {
   caf::byte_buffer buf;
+  buf.reserve(512);
+  format::bin::v1::encode(d, std::back_inserter(buf));
+  /*
   caf::binary_serializer sink{nullptr, buf};
 #ifndef NDEBUG
   if (auto ok = sink.apply(d); !ok) {
@@ -180,6 +184,7 @@ data_envelope_ptr data_envelope::make(const endpoint_id& sender,
 #else
   std::ignore = sink.apply(d);
 #endif
+  */
   auto res = make_intrusive<default_data_envelope>(sender, receiver,
                                                    std::move(t).move_string(),
                                                    std::move(buf));

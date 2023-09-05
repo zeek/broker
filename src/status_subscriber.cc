@@ -7,29 +7,28 @@
 
 #include "broker/endpoint.hh"
 #include "broker/internal/logger.hh"
-#include "broker/variant.hh"
 
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
-  auto t = msg->topic();                                                       \
+  const auto& t = get_topic(msg);                                              \
   if (t == topic::errors_str) {                                                \
-    if (auto value = to<error>(msg->value()))                                  \
+    if (auto value = to<error>(get_data(msg)))                                 \
       return value_type{std::move(*value)};                                    \
     BROKER_WARNING("received malformed error");                                \
   } else {                                                                     \
-    if (auto value = to<status>(msg->value()))                                 \
+    if (auto value = to<status>(get_data(msg)))                                \
       return value_type{std::move(*value)};                                    \
     BROKER_WARNING("received malformed status");                               \
   }
 
 #define BROKER_APPEND_CONVERTED_MSG()                                          \
-  auto t = msg->topic();                                                       \
+  const auto& t = get_topic(msg);                                              \
   if (t == topic::errors_str) {                                                \
-    if (auto value = to<error>(msg->value()))                                  \
+    if (auto value = to<error>(get_data(msg)))                                 \
       result.emplace_back(std::move(*value));                                  \
     else                                                                       \
       BROKER_WARNING("received malformed error");                              \
   } else {                                                                     \
-    if (auto value = to<status>(msg->value()))                                 \
+    if (auto value = to<status>(get_data(msg)))                                \
       result.emplace_back(std::move(*value));                                  \
     else                                                                       \
       BROKER_WARNING("received malformed status");                             \
@@ -65,7 +64,8 @@ status_subscriber status_subscriber::make(endpoint& ep, bool receive_statuses,
 }
 
 value_type status_subscriber::get(caf::timestamp timeout) {
-  if (auto msg = impl_.get(timeout)) {
+  if (auto maybe_msg = impl_.get(timeout)) {
+    auto msg = std::move(*maybe_msg);
     BROKER_RETURN_CONVERTED_MSG()
   }
   return nil;
@@ -91,10 +91,10 @@ std::vector<value_type> status_subscriber::poll() {
 }
 
 void status_subscriber::append_converted(std::vector<value_type>& result,
-                                         const data_envelope_ptr& msg){
+                                         const data_message& msg){
   BROKER_APPEND_CONVERTED_MSG()}
 
-value_type status_subscriber::convert(const data_envelope_ptr& msg) {
+value_type status_subscriber::convert(const data_message& msg) {
   BROKER_RETURN_CONVERTED_MSG()
   return nil;
 }

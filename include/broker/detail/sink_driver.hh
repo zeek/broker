@@ -1,8 +1,8 @@
 #pragma once
 
 #include "broker/detail/type_traits.hh"
-#include "broker/envelope.hh"
 #include "broker/error.hh"
+#include "broker/message.hh"
 
 #include <memory>
 
@@ -30,28 +30,28 @@ struct sink_driver_init_trait<void(State&)> {
 template <class F>
 struct sink_driver_on_next_trait {
   static_assert(always_false_v<F>,
-                "OnNext must have signature 'void (data_envelope_ptr)' "
-                "or 'void (State&, data_envelope_ptr)'");
+                "OnNext must have signature 'void (data_message)' "
+                "or 'void (State&, data_message)'");
 };
 
 template <>
-struct sink_driver_on_next_trait<void(data_envelope_ptr)> {
+struct sink_driver_on_next_trait<void(data_message)> {
   using state_type = void;
 };
 
 template <>
-struct sink_driver_on_next_trait<void(const data_envelope_ptr&)> {
+struct sink_driver_on_next_trait<void(const data_message&)> {
   using state_type = void;
 };
 
 template <class State>
-struct sink_driver_on_next_trait<void(State&, data_envelope_ptr)> {
+struct sink_driver_on_next_trait<void(State&, data_message)> {
   static_assert(!std::is_const_v<State>);
   using state_type = State;
 };
 
 template <class State>
-struct sink_driver_on_next_trait<void(State&, const data_envelope_ptr&)> {
+struct sink_driver_on_next_trait<void(State&, const data_message&)> {
   static_assert(!std::is_const_v<State>);
   using state_type = State;
 };
@@ -81,7 +81,7 @@ public:
 
   virtual void init() = 0;
 
-  virtual void on_next(const data_envelope_ptr& msg) = 0;
+  virtual void on_next(const data_message& msg) = 0;
 
   virtual void on_cleanup(const error& what) = 0;
 };
@@ -121,7 +121,7 @@ public:
     }
   }
 
-  void on_next(const data_envelope_ptr& msg) override {
+  void on_next(const data_message& msg) override {
     if (!completed_)
       on_next_(state_, msg);
   }
@@ -176,7 +176,7 @@ public:
     }
   }
 
-  void on_next(const data_envelope_ptr& msg) override {
+  void on_next(const data_message& msg) override {
     if (!completed_)
       on_next_(msg);
   }

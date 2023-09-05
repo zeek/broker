@@ -15,7 +15,6 @@
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
-#include "broker/data_envelope.hh"
 #include "broker/endpoint.hh"
 #include "broker/publisher.hh"
 #include "broker/status.hh"
@@ -129,17 +128,27 @@ list_builder createEventArgs() {
     }
 
     case 3: {
-      table m;
-
-      for (int i = 0; i < 100; i++) {
-        set s;
-        for (int j = 0; j < 10; j++)
-          s.insert(random_string(5));
-        m[random_string(15)] = s;
+      std::vector<std::string> keys;
+      std::vector<std::string> vals;
+      table_builder tbl;
+      // Generate 100 random keys.
+      while (keys.size() < 100) {
+        keys.push_back(random_string(15));
       }
-
-      //return vector{now(), m};
-      return list_builder{};
+      std::sort(keys.begin(), keys.end());
+      // Generate 10 random values for each key.
+      for (auto& key : keys) {
+        vals.clear();
+        while (vals.size() < 10)
+          vals.push_back(random_string(5));
+        std::sort(vals.begin(), vals.end());
+        set_builder entry;
+        for (auto& val : vals)
+          entry.add(val);
+        tbl.add(key, entry);
+      }
+      // Return a list with the current time and the table.
+      return list_builder{}.add(now()).add(tbl);
     }
 
     default:
@@ -152,7 +161,7 @@ constexpr count ProtocolVersion = 1;
 
 constexpr count MessageTypeEvent = 1;
 
-data_envelope_ptr make_event(std::string_view topic_str, std::string_view name) {
+data_message make_event(std::string_view topic_str, std::string_view name) {
   return list_builder{}
     .add(ProtocolVersion)
     .add(MessageTypeEvent)
@@ -207,7 +216,7 @@ void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
       [] {
         // Init: nop.
       },
-      [](std::deque<data_envelope_ptr>& out, size_t hint) {
+      [](std::deque<data_message>& out, size_t hint) {
         // Pull: generate random events.
         for (size_t i = 0; i < hint; ++i) {
           auto name = "event_" + std::to_string(event_type);
@@ -276,7 +285,7 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
     [] {
       // Init: nop.
     },
-    [](const data_envelope_ptr& msg) {
+    [](const data_message& msg) {
     //std::cout<<"MESSAGE: "<<msg->value()<<std::endl;
       // OnNext: increase the global num_events counter.
       // FIXME:
@@ -300,7 +309,7 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
     [] {
       // Init: nop.
     },
-    [&](data_envelope_ptr) {
+    [&](data_message) {
       // OnNext: any message on this topic triggers termination.
       terminate = true;
     },

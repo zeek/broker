@@ -199,9 +199,9 @@ caf::behavior core_actor_state::make_behavior() {
           if (auto i = peers.find(sender); i != peers.end()) {
             filter_type new_filter;
             for (auto new_topic : *msg->as_routing_update()) {
-              std::cout << "new topic: " << new_topic << "\n";
               new_filter.emplace_back(std::string{new_topic});
             }
+            BROKER_DEBUG(sender << "changed its filter to" << new_filter);
             i->second->filter(std::move(new_filter));
           }
           // else: ignore. Probably a stale message after unpeering.
@@ -226,13 +226,9 @@ caf::behavior core_actor_state::make_behavior() {
         // setting receiver == id. This is the case for messages that were
         // published via `(atom::publish, atom::local, ...)` message.
         auto receiver = get_receiver(msg);
-        //return get_type(msg) == packed_message_type::data
-        //       && (!is_local(msg) || receiver == id)
-        //       && (!receiver || receiver == id);
-        auto res = get_type(msg) == packed_message_type::data
-                   && (!is_local(msg) || receiver == id)
-                   && (!receiver || receiver == id);
-        return res;
+        return get_type(msg) == packed_message_type::data
+               && (!is_local(msg) || receiver == id)
+               && (!receiver || receiver == id);
       })
       // Convert to data_message.
       .map([this](const node_message& msg) { return msg->as_data(); })
@@ -412,10 +408,10 @@ caf::behavior core_actor_state::make_behavior() {
         self
           ->make_observable() //
           .from_resource(std::move(src))
-          .map([this](const data_message& msg) {
+          .do_on_next([this](const data_message&) {
             metrics_for(packed_message_type::data).buffered->inc();
-            return node_message{msg};
           })
+          .map([this](const data_message& msg) { return node_message{msg}; })
           .compose(local_publisher_scope_adder())
           .compose(add_killswitch_t{});
       flow_inputs.push(in);
@@ -838,20 +834,19 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
       .filter([this, pid = peer_id, filter_ptr](const node_message& msg) {
         if (get_sender(msg) == pid)
           return false;
-        if (disable_forwarding && is_local(msg) /*get_sender(msg) != id*/)
+        if (disable_forwarding && !is_local(msg))
           return false;
         auto f = detail::prefix_matcher{};
         auto receiver = get_receiver(msg);
         return receiver == pid || (!receiver && f(*filter_ptr, get_topic(msg)));
       })
-      // Override the sender field. This makes sure the sender field
-      // always reflects the last hop. Since we only need this
-      // information to avoid forwarding loops, "sender" really just
-      // means "last hop" right now.
+      // Override the sender field. This makes sure the sender field always
+      // reflects the last hop. Since we only need this information to avoid
+      // forwarding loops, "sender" really just means "last hop" in the current
+      // implementation.
       .map([this](const node_message& msg) {
-        if (get_sender(msg) == id) {
+        if (get_sender(msg) == id)
           return msg;
-        }
         return msg->with(id, msg->receiver());
       })
       .as_observable());
@@ -981,7 +976,12 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                     })
                     .map([this, client_id](const data_message& msg) {
                       metrics_for(packed_message_type::data).buffered->inc();
-                      return node_message{msg};
+                      node_message result;
+                      if (msg->sender() == client_id)
+                        result = msg;
+                      else
+                        result = msg->with(client_id, msg->receiver());
+                      return result;
                     })
                     // Ignore any errors from the client.
                     .on_error_complete()
@@ -1139,7 +1139,6 @@ void core_actor_state::shutdown_stores() {
 void core_actor_state::dispatch(const node_message& msg) {
   metrics_for(get_type(msg)).buffered->inc();
   unsafe_inputs.push(msg);
-  // unsafe_inputs.push(make_node_message(id, receiver, msg));
 }
 
 void core_actor_state::broadcast_subscriptions() {

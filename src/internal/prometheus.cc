@@ -6,9 +6,9 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/string_algorithms.hpp>
 
-#include "broker/envelope.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
+#include "broker/message.hh"
 
 using namespace std::literals;
 
@@ -135,10 +135,10 @@ caf::behavior prometheus_actor::make_behavior() {
       if (num_connections() + num_doormen() == 0)
         quit();
     },
-    // [this](const data_message& msg) {
-    //   BROKER_TRACE(BROKER_ARG(msg));
-    //   collector_.insert_or_update(get_data(msg));
-    // },
+    [this](const data_message& msg) {
+      BROKER_TRACE(BROKER_ARG(msg));
+      collector_.insert_or_update(get_data(msg).to_data());
+    },
     [this](atom::join, const filter_type& filter) {
       filter_ = filter;
       BROKER_INFO("collect remote metrics from topics" << filter_);

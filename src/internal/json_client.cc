@@ -1,14 +1,19 @@
 #include "broker/internal/json_client.hh"
 
 #include "broker/data_envelope.hh"
+#include "broker/defaults.hh"
 #include "broker/envelope.hh"
 #include "broker/error.hh"
+#include "broker/expected.hh"
+#include "broker/internal/json.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/version.hh"
 
 #include <caf/cow_string.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/json_object.hpp>
+#include <caf/json_value.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/unordered_flat_map.hpp>
 
@@ -118,39 +123,39 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     .transform(handshake_step{this, std::move(out), core_pull}) // Calls init().
     .do_finally([this] { ctrl_msgs.close(); })
     // Parse all JSON coming in and forward them to the core.
-    .flat_map([this, n = 0](const caf::cow_string& str) mutable {
+    .map([this, n = 0](const caf::cow_string& cow_str) mutable {
       ++n;
-      std::optional<data_envelope_ptr> result;
-      reader.reset();
-      if (reader.load(str)) {
-        /* FIXME:
-          using std::get;
-          data_envelope_ptr msg;
-          auto decorator = decorated(msg);
-          if (reader.apply(decorator)) {
-            // Success: set the result to push it to the core actor.
-            result = std::move(msg);
-          } else {
-            // Failed to apply the JSON reader. Send error to client.
-            auto ctx = std::to_string(n);
-            ctx.insert(0, "input #");
-            ctx += " contained invalid data -> ";
-            ctx += to_string(reader.get_error());
-            auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-            ctrl_msgs.push(caf::cow_string{std::move(json)});
-          }
-          */
-      } else {
-        // Failed to parse JSON.
-        auto ctx = std::to_string(n);
-        ctx.insert(0, "input #");
+      auto send_malformed_json = [this, n](const std::string& err_msg) {
+        auto ctx = "input #"+std::to_string(n);
         ctx += " contained malformed JSON -> ";
-        ctx += to_string(reader.get_error());
+        ctx += err_msg;
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);
         ctrl_msgs.push(caf::cow_string{std::move(json)});
+      };
+      // Parse the received JSON.
+      auto val = caf::json_value::parse_shallow(cow_str.str());
+      if (!val) {
+        send_malformed_json(to_string(val.error()));
+        return data_envelope_ptr{};
       }
-      return result;
+      auto obj = val->to_object();
+      // Try to convert the JSON to our internal representation.
+      buf.clear();
+      if (auto err = internal::json::data_message_to_binary(obj, buf)) {
+        send_malformed_json(to_string(err));
+        return data_envelope_ptr{};
+      }
+      // Turn the binary data into a data envelope.
+      auto maybe_msg = data_envelope::deserialize(
+        id, endpoint_id::nil(), defaults::ttl,
+        caf::to_string(obj.value("topic").to_string()), buf.data(), buf.size());
+      if (!maybe_msg) {
+        send_malformed_json(to_string(maybe_msg.error()));
+        return data_envelope_ptr{};
+      }
+      return std::move(*maybe_msg);
     })
+    .filter([](const data_envelope_ptr& ptr) { return ptr != nullptr; })
     .subscribe(core_push);
 }
 
@@ -191,22 +196,18 @@ void json_client_state::init(
       self->make_observable()
         .from_resource(core_pull2)
         .map([this](const data_envelope_ptr& msg) -> caf::cow_string {
-          /* FIXME
           writer.reset();
-          auto decorator = decorated(msg);
-          if (writer.apply(decorator)) {
-            // Serialization OK, forward message to client.
-            auto json = writer.str();
-            auto str = std::string{json.begin(), json.end()};
+          try {
+            internal::json::apply(msg, writer);
+            auto txt  = writer.str();
+            auto str = std::string{txt.begin(), txt.end()};
             return caf::cow_string{std::move(str)};
-          } else {
+          } catch (std::logic_error& ex) {
             // Report internal error to client.
             auto ctx = to_string(writer.get_error().context());
             auto str = render_error(enum_str(ec::serialization_failed), ctx);
             return caf::cow_string{std::move(str)};
           }
-          */
-          return caf::cow_string{};
         })
         .as_observable();
     auto sub = ctrl_msgs.as_observable().merge(core_json).subscribe(out);

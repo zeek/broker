@@ -1,9 +1,9 @@
 #pragma once
 
 #include "broker/endpoint_id.hh"
-#include "broker/envelope.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/json_type_mapper.hh"
+#include "broker/message.hh"
 #include "broker/network_info.hh"
 
 #include <caf/actor.hpp>
@@ -53,6 +53,7 @@ public:
   caf::actor core;
   network_info addr;
   json_type_mapper mapper;
+  std::vector<std::byte> buf;
   caf::json_reader reader;
   caf::json_writer writer;
   std::vector<caf::disposable> subscriptions;
@@ -61,7 +62,7 @@ public:
   static std::string_view default_serialization_failed_error();
 
   void init(const filter_type& filter, const out_t& out,
-            caf::async::consumer_resource<data_envelope_ptr> core_pull);
+            caf::async::consumer_resource<data_message> core_pull);
 };
 
 using json_client_actor = caf::stateful_actor<json_client_state>;

@@ -27,7 +27,7 @@ namespace atom = broker::internal::atom;
 
 struct publisher_queue : public caf::ref_counted, public caf::async::producer {
 public:
-  using value_type = data_envelope_ptr;
+  using value_type = data_message;
 
   using buffer_type = caf::async::spsc_buffer<value_type>;
 
@@ -227,10 +227,10 @@ void publisher::publish(const data& x) {
 }
 
 void publisher::publish(std::vector<data> xs) {
-  std::vector<data_envelope_ptr> msgs;
+  std::vector<data_message> msgs;
   msgs.reserve(xs.size());
   for (auto& x : xs)
-    msgs.push_back(data_envelope::make(topic_, x));
+    msgs.push_back(make_data_message(topic_, x));
 #ifdef DEBUG
   BROKER_DEBUG("publishing batch of size" << xs.size());
   for (auto& msg : msgs)
