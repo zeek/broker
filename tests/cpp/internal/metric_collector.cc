@@ -5,7 +5,6 @@
 #include "test.hh"
 
 #include "broker/internal/metric_exporter.hh"
-#include "broker/variant.hh"
 
 namespace atom = broker::internal::atom;
 
@@ -23,9 +22,9 @@ struct collector_ptr {
 
 caf::behavior dummy_core(collector_ptr ptr) {
   return {
-    [collector{ptr.value}](atom::publish, data_envelope_ptr msg) {
-      CHECK_EQUAL(msg->topic(), "/all/them/metrics"sv);
-      CHECK_GREATER_EQUAL(collector->insert_or_update(msg->value().to_data()),
+    [collector{ptr.value}](atom::publish, data_message msg) {
+      CHECK_EQUAL(get_topic(msg), "/all/them/metrics"sv);
+      CHECK_GREATER_EQUAL(collector->insert_or_update(get_data(msg).to_data()),
                           6u);
     },
   };

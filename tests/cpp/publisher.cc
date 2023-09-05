@@ -19,12 +19,11 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
-#include "broker/envelope.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/native.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
-#include "broker/variant.hh"
 
 using broker::internal::native;
 using std::cout;
@@ -113,10 +112,9 @@ TEST(regression GH196) {
   MESSAGE("receive data on sub1");
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {
-      MESSAGE("n = " << n << ", i = " << i);
       auto msg = sub1.get();
-      CHECK_EQUAL(msg->topic(), "/test");
-      CHECK_EQUAL(msg->value(), data(i));
+      CHECK_EQUAL(get_topic(msg), "/test");
+      CHECK_EQUAL(get_data(msg), data(i));
     }
   }
   CHECK(sub1.poll().empty());
@@ -125,8 +123,8 @@ TEST(regression GH196) {
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {
       auto& msg = res[(n * cap) + i];
-      CHECK_EQUAL(msg->topic(), "/test");
-      CHECK_EQUAL(msg->value(), data(i));
+      CHECK_EQUAL(get_topic(msg), "/test");
+      CHECK_EQUAL(get_data(msg), data(i));
     }
   }
   CHECK(sub2.poll().empty());

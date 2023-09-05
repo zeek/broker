@@ -93,24 +93,6 @@ public:
   template <class Info, class EnumConstant>
   void emit(Info&& ep, EnumConstant code, const char* msg);
 
-  /// Serializes a content of a data or command message and wraps the serialized
-  /// data into a @ref packed_message.
-  /// @private
-  template <class T>
-  static node_message pack(const T& msg) {
-    return msg;
-  }
-
-  /// Deserializes a data or command message from the payload of `msg`.
-  /// @private
-  template <class T>
-  static T unpack(const node_message& msg) {
-    if (msg->type() == packed_type<T>()) {
-      return {new_ref, static_cast<typename T::value_type*>(msg.get())};
-    }
-    return nullptr;
-  }
-
   /// Returns whether `x` has at least one remote subscriber.
   bool has_remote_subscriber(const topic& x) const noexcept;
 

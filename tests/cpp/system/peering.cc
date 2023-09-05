@@ -6,7 +6,6 @@
 #include "test.hh"
 
 #include "broker/endpoint.hh"
-#include "broker/variant.hh"
 
 #include <atomic>
 #include <condition_variable>
@@ -42,7 +41,7 @@ namespace {
 
 static constexpr size_t num_endpoints = 4;
 
-using data_envelope_ptr_list = std::vector<data_envelope_ptr>;
+using data_message_list = std::vector<data_message>;
 using string_list = std::vector<std::string>;
 using data_list = std::vector<data>;
 
@@ -98,14 +97,14 @@ void println(const Ts&... xs) {
 struct fixture {
   fixture() {
     for (auto& ptr : ep_logs)
-      ptr = std::make_shared<data_envelope_ptr_list>();
+      ptr = std::make_shared<data_message_list>();
     for (auto& ptr : ep_values)
       ptr = std::make_shared<data_list>();
     for (auto& ptr : ep_ids)
       ptr = std::make_shared<endpoint_id>();
   }
 
-  std::array<std::shared_ptr<data_envelope_ptr_list>, num_endpoints> ep_logs;
+  std::array<std::shared_ptr<data_message_list>, num_endpoints> ep_logs;
   std::array<std::shared_ptr<data_list>, num_endpoints> ep_values;
   std::array<std::atomic<uint16_t>, num_endpoints> ports;
   std::array<std::thread, num_endpoints> threads;
@@ -176,11 +175,11 @@ std::vector<std::string> sort(std::vector<std::string> xs) {
   return xs;
 }
 
-std::vector<std::string> grep_hello(std::vector<data_envelope_ptr> xs) {
+std::vector<std::string> grep_hello(std::vector<data_message> xs) {
   auto str = "hello"s;
   std::vector<std::string> result;
   for (auto& x : xs) {
-    auto msg = to_string(x->value());
+    auto msg = to_string(get_data(x));
     if (msg.find(str) != std::string::npos)
       result.emplace_back(msg);
   }
@@ -208,9 +207,8 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       barrier got_hellos{2};
       ep.subscribe(
         {topic::statuses(), "foo/bar"}, [](caf::unit_t&) {},
-        [log_ptr, n{0}, &got_hellos](caf::unit_t&,
-                                     data_envelope_ptr msg) mutable {
-          if (msg->topic() == "foo/bar" && ++n == 3)
+        [log_ptr, n{0}, &got_hellos](caf::unit_t&, data_message msg) mutable {
+          if (get_topic(msg) == "foo/bar" && ++n == 3)
             got_hellos.arrive_and_wait();
           log_ptr->emplace_back(std::move(msg));
         },

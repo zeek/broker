@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "broker/bad_variant_access.hh"
-#include "broker/data_envelope.hh"
 #include "broker/defaults.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
@@ -113,10 +112,10 @@ private:
   //  status_subscriber(endpoint& ep, bool receive_statuses = false);
   explicit status_subscriber(subscriber impl);
 
-  value_type convert(const data_envelope_ptr& msg);
+  value_type convert(const data_message& msg);
 
   void append_converted(std::vector<value_type>& result,
-                        const data_envelope_ptr& msg);
+                        const data_message& msg);
 
   subscriber impl_;
 };

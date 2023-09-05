@@ -14,11 +14,11 @@ using namespace std::literals;
 namespace {
 
 struct dummy_core_state {
-  data_envelope_ptr last_message;
+  data_message last_message;
 
   caf::behavior make_behavior() {
     return {
-      [this](atom::publish, data_envelope_ptr& msg) {
+      [this](atom::publish, data_message& msg) {
         last_message = std::move(msg);
       },
     };
@@ -138,7 +138,7 @@ TEST(the exporter runs once per interval) {
   foo_hist->observe(12);
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   auto is_meta_data = [this](const data& x) {
     using namespace std::literals;
     if (auto row = get_if<vector>(x); row && row->size() == 2)
@@ -158,7 +158,7 @@ TEST(the exporter runs once per interval) {
   foo_hist->observe(64);
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   if (CHECK(rows().size() == 3)) {
     CHECK(is_meta_data(row(0)));
     CHECK_EQUAL(row(1), (metric_row{"foo", "bar", "gauge", "1", "FooBar!",
@@ -173,24 +173,24 @@ TEST(the exporter allows changing the interval at runtime) {
   inject((atom::put, timespan), to(aut).with(atom::put_v, timespan{3s}));
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   sched.advance_time(2s);
   disallow((caf::tick_atom), to(aut));
   sched.advance_time(1s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
 }
 
 TEST(the exporter allows changing the topic at runtime) {
-  auto last_topic = [this] { return core_state().last_message->topic(); };
+  auto last_topic = [this] { return get_topic(core_state().last_message); };
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   CHECK_EQUAL(last_topic(), "all/them/metrics"sv);
   inject((atom::put, topic), to(aut).with(atom::put_v, "foo/bar"_t));
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   CHECK_EQUAL(last_topic(), "foo/bar"sv);
 }
 
@@ -204,13 +204,13 @@ TEST(the exporter allows changing the ID at runtime) {
   };
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   if (CHECK(!rows().empty()))
     CHECK(has_id(row(0), "exporter-1"));
   inject((atom::put, std::string), to(aut).with(atom::put_v, "foobar"));
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   if (CHECK(!rows().empty()))
     CHECK(has_id(row(0), "foobar"));
 }
@@ -218,13 +218,13 @@ TEST(the exporter allows changing the ID at runtime) {
 TEST(the exporter allows changing the prefix selection at runtime) {
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   CHECK_EQUAL(rows().size(), 3u);
   inject((atom::put, filter_type),
          to(aut).with(atom::put_v, filter_type{"foo", "bar"}));
   sched.advance_time(2s);
   expect((caf::tick_atom), to(aut));
-  expect((atom::publish, data_envelope_ptr), from(aut).to(core));
+  expect((atom::publish, data_message), from(aut).to(core));
   CHECK_EQUAL(rows().size(), 4u);
 }
 
