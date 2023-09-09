@@ -95,7 +95,10 @@ class default_data_envelope : public data_envelope {
 public:
   default_data_envelope(endpoint_id sender, endpoint_id receiver,
                         std::string topic_str, caf::byte_buffer bytes)
-    : topic_(std::move(topic_str)), bytes_(std::move(bytes)) {
+    : sender_(sender),
+      receiver_(receiver),
+      topic_(std::move(topic_str)),
+      bytes_(std::move(bytes)) {
     // nop
   }
 
