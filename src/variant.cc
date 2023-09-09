@@ -72,7 +72,7 @@ variant_list variant::to_vector() const noexcept {
 }
 
 void convert(const variant& value, std::string& out) {
-  format::txt::v1::encode(value.raw(), std::back_inserter(out));
+  format::txt::v1::encode(value, std::back_inserter(out));
 }
 
 std::ostream& operator<<(std::ostream& out, const variant& what) {

@@ -21,29 +21,24 @@ OutIter encode(none, OutIter out) {
 }
 
 /// Renders `value` to `out` as `T` for `true` and `F` for `false`.
-template <class OutIter>
-OutIter encode(boolean value, OutIter out) {
-  *out++ = value ? 'T' : 'F';
-  return out;
-}
-
-/// Writes `value` to `out` using `snprintf`.
-template <class OutIter>
-OutIter encode(count value, OutIter out) {
-  // An integer can at most have 20 digits (UINT64_MAX).
-  char buf[24];
-  auto size = std::snprintf(buf, 24, "%llu",
-                            static_cast<long long unsigned>(value));
-  return std::copy(buf, buf + size, out);
-}
-
-/// Writes `value` to `out` using `snprintf`.
-template <class OutIter>
-OutIter encode(integer value, OutIter out) {
-  // An integer can at most have 20 digits (UINT64_MAX).
-  char buf[24];
-  auto size = std::snprintf(buf, 24, "%lld", static_cast<long long>(value));
-  return std::copy(buf, buf + size, out);
+template <class T, class OutIter>
+std::enable_if_t<std::is_integral_v<T>, OutIter> encode(T value, OutIter out) {
+  if constexpr (std::is_same_v<T, bool>) {
+    *out++ = value ? 'T' : 'F';
+    return out;
+  } else if constexpr (std::is_same_v<T, count>) {
+    // An integer can at most have 20 digits (UINT64_MAX).
+    char buf[24];
+    auto size = std::snprintf(buf, 24, "%llu",
+                              static_cast<long long unsigned>(value));
+    return std::copy(buf, buf + size, out);
+  } else {
+    static_assert(std::is_same_v<T, integer>);
+    // An integer can at most have 20 digits (UINT64_MAX).
+    char buf[24];
+    auto size = std::snprintf(buf, 24, "%lld", static_cast<long long>(value));
+    return std::copy(buf, buf + size, out);
+  }
 }
 
 /// Writes `value` to `out` using `snprintf`.
