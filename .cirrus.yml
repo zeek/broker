@@ -156,8 +156,13 @@ ubuntu22_task:
     # Ubuntu 22.04 EOL: April 2027
     dockerfile: ci/ubuntu-22.04/Dockerfile
     << : *RESOURCES_TEMPLATE
+  env:
+    BROKER_CI_CREATE_ARTIFACT: 1
   << : *CI_TEMPLATE
   << : *UNIX_ENV
+  upload_binary_artifacts:
+    path: build.tgz
+  benchmark_script: ./ci/benchmark.sh
 
 ubuntu20_task:
   container:
