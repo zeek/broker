@@ -8,6 +8,7 @@ ENV DOCKERFILE_VERSION 20230813
 
 RUN apt-get update && apt-get -y install \
     cmake \
+    curl \
     g++ \
     git \
     libssl-dev \
