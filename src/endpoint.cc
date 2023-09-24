@@ -19,6 +19,7 @@
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
+#include "broker/zeek.hh"
 
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
@@ -819,6 +820,15 @@ void endpoint::publish(const endpoint_info& dst, topic t, data d) {
   BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
   caf::anon_send(native(core_), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)), dst);
+}
+
+void endpoint::publish(std::string_view t, zeek::Message&& d) {
+  publish(topic{std::string{t}}, d.move_data());
+}
+
+void endpoint::publish(const endpoint_info& dst, std::string_view t,
+                       zeek::Message&& d) {
+  publish(dst, topic{std::string{t}}, d.move_data());
 }
 
 void endpoint::publish(data_message x) {
