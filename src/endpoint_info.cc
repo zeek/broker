@@ -8,6 +8,8 @@
 
 #include "broker/data.hh"
 #include "broker/internal/native.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
 
 namespace broker {
 
@@ -26,6 +28,22 @@ bool convertible_to_endpoint_info(const std::vector<data>& src) {
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src)) {
     return can_convert_to<endpoint_id>(src[0]);
+  } else {
+    return false;
+  }
+}
+
+bool convertible_to_endpoint_info(const variant& src) {
+  return convertible_to_endpoint_info(src.to_list());
+}
+
+bool convertible_to_endpoint_info(const variant_list& src) {
+  // Types: <string, string, port, count>.
+  // - Fields 1 can be none.
+  // - Field 2 - 4 are either *all* none or all defined.
+  if (contains<any_type, none, none, none>(src)
+      || contains<any_type, std::string, port, count>(src)) {
+    return can_convert_to<endpoint_id>(src.front());
   } else {
     return false;
   }

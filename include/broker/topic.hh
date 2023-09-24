@@ -112,7 +112,9 @@ private:
 };
 
 /// Returns whether `prefix` is a prefix match for `t`.
-bool is_prefix(const topic& t, std::string_view prefix) noexcept;
+inline bool is_prefix(const topic& t, std::string_view prefix) noexcept {
+  return topic::is_prefix(t.string(), prefix);
+}
 
 /// @relates topic
 bool operator==(const topic& lhs, const topic& rhs);

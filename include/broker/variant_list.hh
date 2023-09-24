@@ -5,6 +5,8 @@
 #include "broker/variant.hh"
 #include "broker/variant_data.hh"
 
+#include <iterator>
+
 namespace broker {
 
 /// A list of @ref variant values.
@@ -18,6 +20,12 @@ public:
 
   class iterator {
   public:
+    using iterator_category = std::forward_iterator_tag;
+
+    using value_type = variant;
+
+    using difference_type = ptrdiff_t;
+
     friend class variant_list;
 
     iterator() noexcept = default;
@@ -108,6 +116,12 @@ public:
     return variant{std::addressof(*i), envelope_};
   }
 
+  variant at(size_t index) const {
+    if (index < size())
+      return (*this)[index];
+    return variant{};
+  }
+
   variant front() const noexcept {
     return variant{std::addressof(values_->front()), envelope_};
   }
@@ -140,6 +154,10 @@ public:
     return values_;
   }
 
+  // -- conversions ------------------------------------------------------------
+
+  data to_data() const;
+
 private:
   variant_list(const variant_data::list* values, data_envelope_ptr ptr) noexcept
     : values_(values), envelope_(std::move(ptr)) {
@@ -152,6 +170,33 @@ private:
   /// The envelope that holds the data.
   data_envelope_ptr envelope_;
 };
+
+/// @relates variant_list
+bool operator==(const variant_list& lhs, const variant_list& rhs) noexcept;
+
+/// @relates variant_list
+bool operator==(const variant_list& lhs, const vector& rhs) noexcept;
+
+/// @relates variant_list
+inline bool operator==(const vector& lhs, const variant_list& rhs) noexcept {
+  return rhs == lhs;
+}
+
+/// @relates variant_list
+inline bool operator!=(const variant_list& lhs,
+                       const variant_list& rhs) noexcept {
+  return !(lhs == rhs);
+}
+
+/// @relates variant_list
+inline bool operator!=(const variant_list& lhs, const vector& rhs) noexcept {
+  return !(lhs == rhs);
+}
+
+/// @relates variant_list
+inline bool operator!=(const vector& lhs, const variant_list& rhs) noexcept {
+  return !(lhs == rhs);
+}
 
 /// End of recursion for `contains`.
 inline bool contains_impl(variant_list::iterator, detail::parameter_pack<>) {
@@ -179,6 +224,9 @@ bool contains(const variant_list& xs) {
 
 /// Converts `what` to a string.
 void convert(const variant_list& what, std::string& out);
+
+/// Converts `what` to a string.
+void convert(const variant_list& what, vector& out);
 
 /// Prints `what` to `out`.
 std::ostream& operator<<(std::ostream& out, const variant_list& what);

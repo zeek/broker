@@ -48,6 +48,9 @@ bool convert(std::string_view str, sc& code) noexcept;
 bool convert(const data& str, sc& code) noexcept;
 
 /// @relates sc
+bool convert(const variant& str, sc& code) noexcept;
+
+/// @relates sc
 inline bool convert(const std::string& str, sc& code) noexcept {
   // Disambiguation: std::string_view and broker::data are both valid
   // conversions for std::string.
@@ -199,11 +202,21 @@ status make_status(Ts&&... xs) {
   return status::make<S>(std::forward<Ts>(xs)...);
 }
 
+std::optional<status> convet_to_status(const data& src);
+
+std::optional<status> convet_to_status(const variant& src);
+
 /// @relates status
 bool convertible_to_status(const data& src) noexcept;
 
 /// @relates status
 bool convertible_to_status(const vector& xs) noexcept;
+
+/// @relates status
+bool convertible_to_status(const variant& src) noexcept;
+
+/// @relates status
+bool convertible_to_status(const variant_list& xs) noexcept;
 
 template <>
 struct can_convert_predicate<status> {

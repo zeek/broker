@@ -80,6 +80,12 @@ bool convertible_to_endpoint_info(const data& src);
 bool convertible_to_endpoint_info(const std::vector<data>& src);
 
 /// @relates endpoint_info
+bool convertible_to_endpoint_info(const variant& src);
+
+/// @relates endpoint_info
+bool convertible_to_endpoint_info(const variant_list& src);
+
+/// @relates endpoint_info
 bool convert(const data& src, endpoint_info& dst);
 
 /// @relates endpoint_info
@@ -96,6 +102,13 @@ struct can_convert_predicate<endpoint_info> {
   }
 
   static bool check(const std::vector<data>& src) {
+    return convertible_to_endpoint_info(src);
+  }
+  static bool check(const variant& src) {
+    return convertible_to_endpoint_info(src);
+  }
+
+  static bool check(const variant_list& src) {
     return convertible_to_endpoint_info(src);
   }
 };

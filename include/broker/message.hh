@@ -22,6 +22,11 @@ auto get_topic(const intrusive_ptr<T>& msg) {
 }
 
 template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+auto get_topic_str(const intrusive_ptr<T>& msg) {
+  return msg->topic();
+}
+
+template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
 auto get_sender(const intrusive_ptr<T>& msg) {
   return msg->sender();
 }
@@ -44,6 +49,10 @@ auto make_data_message(Ts&&... args) {
 }
 
 inline variant get_data(const data_message& msg) {
+  return msg->value();
+}
+
+inline variant move_data(const data_message& msg) {
   return msg->value();
 }
 

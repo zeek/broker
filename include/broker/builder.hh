@@ -42,10 +42,45 @@ inline constexpr bool is_builder = is_builder_oracle<T>::value;
 
 namespace broker::detail {
 
+template<class T>
+struct has_builder_access_oracle : std::false_type {};
+
+template <>
+struct has_builder_access_oracle<set_builder> : std::true_type {};
+
+template <>
+struct has_builder_access_oracle<table_builder> : std::true_type {};
+
+template <>
+struct has_builder_access_oracle<list_builder> : std::true_type {};
+
+template<>
+struct has_builder_access_oracle<variant> : std::true_type {};
+
+template<>
+struct has_builder_access_oracle<data> : std::true_type {};
+
+template<>
+struct has_builder_access_oracle<vector> : std::true_type {};
+
+template<>
+struct has_builder_access_oracle<set> : std::true_type {};
+
+template<>
+struct has_builder_access_oracle<table> : std::true_type {};
+
+template <class T>
+inline constexpr bool has_builder_access = has_builder_access_oracle<T>::value;
+
 struct builder_access {
   template <class Builder, class T>
   static Builder& add(Builder& builder, T&& value) {
-    if constexpr (is_builder<std::decay_t<T>>) {
+    using value_type = std::decay_t<T>;
+    static_assert(variant_data::is_primitive<value_type>
+                    || detail::has_builder_access<value_type>,
+                  "T is neither a builder nor a recognized data type");
+    using value_type = std::decay_t<T>;
+    if constexpr (is_builder<value_type>) {
       auto [first, last] = value.encoded_values();
       format::bin::v1::write_sequence(value.tag(), value.num_values(), first,
                                       last, builder.adder());
@@ -108,8 +143,6 @@ public:
   set_builder& add(T&& value) & {
     auto&& pval = detail::promote<T>(value);
     using val_t = std::decay_t<decltype(pval)>;
-    static_assert(variant_data::is_primitive<val_t> || is_builder<val_t>,
-                  "value must be a valid data type or a builder");
     ++size_;
     return detail::builder_access::add(*this, pval);
   }
@@ -228,10 +261,6 @@ public:
     auto&& val = detail::promote<Val>(val_arg);
     using key_t = std::decay_t<decltype(key)>;
     using val_t = std::decay_t<decltype(val)>;
-    static_assert(variant_data::is_primitive<key_t> || is_builder<key_t>,
-                  "key must be a valid data type or a builder");
-    static_assert(variant_data::is_primitive<val_t> || is_builder<val_t>,
-                  "value must be a valid data type or a builder");
     ++size_;
     detail::builder_access::add(*this, key);
     detail::builder_access::add(*this, val);
@@ -315,8 +344,6 @@ public:
       std::apply([&](auto&&... xs) { (add_list(xs), ...); }, pval);
       return *this;
     } else {
-      static_assert(variant_data::is_primitive<val_t> || is_builder<val_t>,
-                    "value must be a valid data type or a builder");
       ++size_;
       return detail::builder_access::add(*this, pval);
     }
@@ -368,6 +395,10 @@ public:
   /// after calling this function.
   variant build() &&;
 
+  /// Resets the builder to its initial state. May be used to recycle a builder
+  /// instead of destroying and re-creating it after calling `build`.
+  void reset();
+
 protected:
   auto adder() {
     return std::back_inserter(bytes_);
@@ -383,8 +414,6 @@ protected:
       std::apply([&](auto&&... xs) { (add_inline_vector_item(xs), ...); },
                  pval);
     } else {
-      static_assert(variant_data::is_primitive<val_t> || is_builder<val_t>,
-                    "value must be a valid data type or a builder");
       detail::builder_access::add(*this, pval);
     }
   }

@@ -141,4 +141,10 @@ variant list_builder::build() && {
   return detail::builder_access::build(*this, topic::reserved)->value();
 }
 
+void list_builder::reset() {
+  size_ = 0;
+  bytes_ = builder_buffer{};
+  format::bin::v1::encode_sequence_begin(bytes_);
+}
+
 } // namespace broker

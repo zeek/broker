@@ -13,7 +13,7 @@
 #include "broker/time.hh"
 
 using namespace broker;
-using namespace std::chrono_literals;
+using namespace std::literals;
 
 TEST(event) {
   auto args = vector{1, "s", port(42, port::protocol::tcp)};
@@ -32,13 +32,12 @@ TEST(event_ts) {
 
 TEST(event_ts_metadata) {
   auto ts_md = vector{static_cast<count>(zeek::MetadataType::NetworkTimestamp),
-                      broker::timestamp(12s)};
+                      broker::timestamp{12s}};
   zeek::Event ev("test", vector{}, vector{{ts_md}});
   REQUIRE(ev.valid());
-  CHECK_EQUAL(ev.ts(), broker::timestamp(12s));
-  CHECK_EQUAL(*get_if<broker::timestamp>(
-                ev.metadata().value(zeek::MetadataType::NetworkTimestamp)),
-              broker::timestamp(12s));
+  CHECK_EQUAL(ev.ts(), broker::timestamp{12s});
+  CHECK_EQUAL(ev.metadata().value(zeek::MetadataType::NetworkTimestamp),
+              broker::timestamp{12s});
 }
 
 TEST(event_ts_metadata_extra) {
@@ -50,11 +49,9 @@ TEST(event_ts_metadata_extra) {
   zeek::Event ev("test", vector{}, md);
   REQUIRE(ev.valid());
   CHECK_EQUAL(ev.metadata().value(0), nullptr);
-  CHECK_EQUAL(*get_if<timestamp>(
-                ev.metadata().value(zeek::MetadataType::NetworkTimestamp)),
-              broker::timestamp(12s));
-  CHECK_EQUAL(*get_if<enum_value>(ev.metadata().value(4711)),
-              broker::enum_value(std::string("hello")));
+  CHECK_EQUAL(ev.metadata().value(zeek::MetadataType::NetworkTimestamp),
+              broker::timestamp{12s});
+  CHECK_EQUAL(ev.metadata().value(4711), broker::enum_value("hello"s));
 }
 
 TEST(event_no_metadata) {
@@ -63,8 +60,8 @@ TEST(event_no_metadata) {
   CHECK_EQUAL(ev.ts(), std::nullopt);
   CHECK_EQUAL(ev.metadata().value(zeek::MetadataType::NetworkTimestamp),
               nullptr);
+  CHECK(ev.metadata().raw().empty());
   CHECK_EQUAL(ev.metadata().value(1234), nullptr);
-  CHECK_EQUAL(ev.metadata().get_vector(), nullptr);
   CHECK_EQUAL(ev.metadata().begin(), ev.metadata().end());
 }
 

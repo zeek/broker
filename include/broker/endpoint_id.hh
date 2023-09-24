@@ -79,7 +79,7 @@ public:
   }
 
   /// Queries whether `str` is convertible to an `endpoint_id`.
-  static bool can_parse(const std::string& str);
+  static bool can_parse(std::string_view str);
 
   // -- inspection -------------------------------------------------------------
 

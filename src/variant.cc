@@ -38,6 +38,10 @@ const variant_data::list empty_vector_instance;
 
 namespace broker {
 
+const char* variant::get_type_name() const {
+  return data::get_type_name(get_tag());
+}
+
 bool variant::is_root() const noexcept {
   return envelope_ && envelope_->is_root(raw_);
 }

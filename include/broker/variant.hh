@@ -54,6 +54,9 @@ public:
 
   // -- properties -------------------------------------------------------------
 
+  /// Returns a string representation of the stored type.
+  const char* get_type_name() const;
+
   /// Checks whether this object is the root object in its envelope.
   bool is_root() const noexcept;
 
@@ -318,8 +321,16 @@ public:
     return lhs == *rhs.raw_;
   }
 
+  friend bool operator!=(const data& lhs, const variant& rhs) noexcept {
+    return !(lhs == *rhs.raw_);
+  }
+
   friend bool operator==(const variant& lhs, const data& rhs) noexcept {
     return *lhs.raw_ == rhs;
+  }
+
+  friend bool operator!=(const variant& lhs, const data& rhs) noexcept {
+    return !(*lhs.raw_ == rhs);
   }
 
 private:

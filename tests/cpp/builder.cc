@@ -238,4 +238,30 @@ TEST(build vector with all primitive types) {
   CHECK_EQUAL(val[11].to_enum_value(), enum_value_view{"foo"});
 }
 
+TEST(build vector from data objects) {
+  auto val =
+    list_builder{}
+      .add(data{nil})
+      .add(data{true})
+      .add(data{42u})
+      .add(data{-42})
+      .add(data{2.5})
+      .add(data{"hello"s})
+      .add(data{localhost})
+      .add(data{localnet})
+      .add(data{port{80, port::protocol::tcp}})
+      .add(data{tstamp})
+      .add(data{tspan})
+      .add(data{enum_value{"foo"}})
+      .add(data{vector{count{1}, integer{2}}})
+      .add(data{set{count{11}, integer{22}}})
+      .add(data{table{{"first-name"s, "John"s}, {"last-name"s, "Doe"s}}})
+      .add(vector{count{10}, integer{20}})
+      .add(set{count{33}, integer{44}})
+      .add(table{{"phone"s, 1234}, {"street"s, "1st street"s}})
+      .build()
+      .to_list();
+  MESSAGE("val: " << val);
+}
+
 CAF_TEST_FIXTURE_SCOPE_END()

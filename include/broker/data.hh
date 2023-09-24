@@ -119,6 +119,8 @@ public:
     return *this;
   }
 
+  static const char* get_type_name(type);
+
   /// Returns a string representation of the stored type.
   const char* get_type_name() const;
 
@@ -150,6 +152,14 @@ public:
   /// Returns a reference to the `std::variant` stored in this object.
   const auto& stl_value() const noexcept {
     return data_;
+  }
+
+  bool is_list() const noexcept {
+    return std::holds_alternative<vector>(data_);
+  }
+
+  vector& to_list() {
+    return std::get<vector>(data_);
   }
 
 private:

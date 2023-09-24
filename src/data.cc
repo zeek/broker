@@ -87,6 +87,10 @@ data data::from_type(data::type t) {
   }
 }
 
+const char* data::get_type_name(type idx) {
+  return data_type_names[static_cast<size_t>(idx)];
+}
+
 const char* data::get_type_name() const {
   return data_type_names[data_.index()];
 }

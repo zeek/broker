@@ -55,7 +55,7 @@ endpoint_id endpoint_id::from_bytes(const std::byte* input) noexcept {
   return result;
 }
 
-bool endpoint_id::can_parse(const std::string& str) {
+bool endpoint_id::can_parse(std::string_view str) {
   return caf::uuid::can_parse(str);
 }
 
