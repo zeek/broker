@@ -5,10 +5,13 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
+#include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 
 using broker::internal::native;
+
+namespace txt_v1 = broker::format::txt::v1;
 
 namespace {
 
@@ -91,69 +94,20 @@ const char* data::get_type_name() const {
   return data_type_names[data_.index()];
 }
 
-namespace {
-
-template <class Container>
-void container_convert(Container& c, std::string& str, char left, char right) {
-  constexpr auto* delim = ", ";
-  auto first = begin(c);
-  auto last = end(c);
-  str += left;
-  if (first != last) {
-    str += to_string(*first);
-    while (++first != last)
-      str += delim + to_string(*first);
-  }
-  str += right;
-}
-
-struct data_converter {
-  template <class T>
-  void operator()(const T& x) {
-    using std::to_string;
-    str += to_string(x);
-  }
-
-  void operator()(timespan ts) {
-    convert(ts.count(), str);
-    str += "ns";
-  }
-
-  void operator()(timestamp ts) {
-    (*this)(ts.time_since_epoch());
-  }
-
-  void operator()(bool b) {
-    str = b ? 'T' : 'F';
-  }
-
-  void operator()(const std::string& x) {
-    str = x;
-  }
-
-  std::string& str;
-};
-
-} // namespace
-
-void convert(const table::value_type& x, std::string& str) {
-  str += to_string(x.first) + " -> " + to_string(x.second);
-}
-
 void convert(const vector& x, std::string& str) {
-  container_convert(x, str, '(', ')');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const set& x, std::string& str) {
-  container_convert(x, str, '{', '}');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const table& x, std::string& str) {
-  container_convert(x, str, '{', '}');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const data& x, std::string& str) {
-  visit(data_converter{str}, x);
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 bool convert(const data& x, endpoint_id& node) {

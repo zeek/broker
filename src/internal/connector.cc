@@ -5,6 +5,7 @@
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
@@ -13,7 +14,6 @@
 
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/config.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/expected.hpp>
@@ -86,6 +86,8 @@ struct CRYPTO_dynlock_value {
   std::mutex mtx;
 };
 #endif
+
+namespace bin_v1 = broker::format::bin::v1;
 
 namespace {
 
@@ -348,7 +350,8 @@ enum class connector_msg : uint8_t {
 template <class... Ts>
 caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
   caf::byte_buffer buf;
-  caf::binary_serializer snk{nullptr, buf};
+  buf.reserve(128); // Pre-allocate some space.
+  bin_v1::encoder snk{std::back_inserter(buf)};
   auto ok = snk.apply(static_cast<uint8_t>(tag))
             && snk.apply(uint32_t{0}) // Placeholder for the serialized size.
             && (snk.apply(xs) && ...);
@@ -358,8 +361,7 @@ caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
   }
   if constexpr (sizeof...(Ts) > 0) {
     auto payload_len = static_cast<uint32_t>(buf.size() - 5);
-    snk.seek(1);
-    std::ignore = snk.apply(payload_len);
+    bin_v1::encode(payload_len, buf.begin() + 1);
   }
   return buf;
 }
@@ -1429,7 +1431,7 @@ read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
 
 template <class T>
 void connect_state::send(const T& what) {
-  caf::binary_serializer sink{nullptr, wr_buf};
+  bin_v1::encoder sink{std::back_inserter(wr_buf)};
   // Store the current writing position for later and add dummy size.
   auto old_size = wr_buf.size();
   uint32_t dummy = 0;
@@ -1437,8 +1439,7 @@ void connect_state::send(const T& what) {
   // Encode the actual message and override the dummy with the actual size.
   std::ignore = wire_format::encode(sink, what);
   auto len = static_cast<uint32_t>(wr_buf.size() - old_size - 4);
-  sink.seek(old_size);
-  std::ignore = sink.apply(len);
+  bin_v1::encode(len, wr_buf.begin() + static_cast<ptrdiff_t>(old_size));
   BROKER_DEBUG("start writing a" << T::tag << "message of size" << len);
   mgr->register_writing(this);
 }
