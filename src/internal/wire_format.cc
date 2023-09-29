@@ -1,10 +1,10 @@
 #include "broker/internal/wire_format.hh"
 
+#include "broker/format/bin.hh"
 #include "broker/internal/logger.hh"
 #include "broker/message.hh"
 
 #include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
 
@@ -66,17 +66,18 @@ std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
 namespace v1 {
 
 bool trait::convert(const node_message& msg, caf::byte_buffer& buf) {
-  caf::binary_serializer sink{nullptr, buf};
-  auto write_bytes = [&sink](caf::const_byte_span bytes) {
-    sink.buf().insert(sink.buf().end(), bytes.begin(), bytes.end());
+  format::bin::v1::encoder sink{std::back_inserter(buf)};
+  auto write_bytes = [&buf](caf::const_byte_span bytes) {
+    buf.insert(buf.end(), bytes.begin(), bytes.end());
     return true;
   };
-  auto write_topic = [&](const auto& x) {
+  auto write_topic = [this, &sink, &write_bytes](const auto& x) {
     const auto& str = x.string();
     if (str.size() > 0xFFFF) {
       BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
-      sink.emplace_error(caf::sec::invalid_argument,
-                         "topic exceeds maximum size of 65,535 characters");
+      last_error_ =
+        make_error(caf::sec::invalid_argument,
+                   "topic exceeds maximum size of 65,535 characters");
       return false;
     }
     return sink.apply(static_cast<uint16_t>(str.size()))
@@ -84,15 +85,12 @@ bool trait::convert(const node_message& msg, caf::byte_buffer& buf) {
   };
   const auto& [sender, receiver, content] = msg.data();
   const auto& [msg_type, ttl, msg_topic, payload] = content.data();
-  auto ok = sink.apply(sender)                                      //
-            && sink.apply(receiver)                                 //
-            && sink.apply(msg_type)                                 //
-            && sink.apply(ttl)                                      //
-            && write_topic(msg_topic)                               //
-            && write_bytes(caf::as_bytes(caf::make_span(payload))); //
-  if (!ok)
-    last_error_ = sink.get_error();
-  return ok;
+  return sink.apply(sender)                                      //
+         && sink.apply(receiver)                                 //
+         && sink.apply(msg_type)                                 //
+         && sink.apply(ttl)                                      //
+         && write_topic(msg_topic)                               //
+         && write_bytes(caf::as_bytes(caf::make_span(payload))); //
 }
 
 bool trait::convert(caf::const_byte_span bytes, node_message& msg) {

@@ -68,7 +68,8 @@ public:
     enum_value,
     set,
     table,
-    vector,
+    list,
+    vector = list, // Alias for backward compatibility.
   };
 
   template <class T>
@@ -368,6 +369,9 @@ DATA_TAG_ORACLE(vector);
 #undef DATA_TAG_ORACLE
 
 } // namespace detail
+
+template <class T>
+inline constexpr data::type data_tag_v = detail::data_tag_oracle<T>::value;
 
 /// Returns the `data::type` tag for `T`.
 /// @relates data
