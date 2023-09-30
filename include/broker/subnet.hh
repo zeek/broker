@@ -50,6 +50,10 @@ public:
     }
   }
 
+  uint8_t raw_len() const noexcept {
+    return len_;
+  }
+
 private:
   bool init();
 

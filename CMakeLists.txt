@@ -315,6 +315,7 @@ set(BROKER_SRC
   src/entity_id.cc
   src/error.cc
   src/filter_type.cc
+  src/format/bin.cc
   src/internal/clone_actor.cc
   src/internal/connector.cc
   src/internal/connector_adapter.cc

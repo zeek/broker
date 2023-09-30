@@ -10,7 +10,6 @@
 #include <vector>
 
 #include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
@@ -20,6 +19,7 @@
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/version.hh"
 
@@ -33,12 +33,11 @@ auto make_statement_guard = [](sqlite3_stmt* stmt) {
   return caf::detail::make_scope_guard([=] { sqlite3_reset(stmt); });
 };
 
-template <class T>
-auto to_blob(const T& x) {
-  typename caf::binary_serializer::container_type buf;
-  caf::binary_serializer sink{nullptr, buf};
-  auto res = sink.apply(x);
-  return std::make_pair(res, std::move(buf));
+auto to_blob(const data& x) {
+  std::vector<caf::byte> buf;
+  buf.reserve(128); // Pre-allocate some space.
+  format::bin::v1::encode(x, std::back_inserter(buf));
+  return buf;
 }
 
 expected<data> from_blob(const void* buf, size_t size) {
@@ -330,16 +329,8 @@ struct sqlite_backend::impl {
 
   bool modify(const data& key, const data& value,
               std::optional<timestamp> expiry) {
-    auto [key_ok, key_blob] = to_blob(key);
-    if (!key_ok) {
-      BROKER_DEBUG("impl::modify: to_blob(key) failed");
-      return false;
-    }
-    auto [value_ok, value_blob] = to_blob(value);
-    if (!value_ok) {
-      BROKER_DEBUG("impl::modify: to_blob(value) failed");
-      return false;
-    }
+    auto key_blob = to_blob(key);
+    auto value_blob = to_blob(value);
     auto guard = make_statement_guard(update);
 
     // Bind value.
@@ -413,21 +404,13 @@ expected<void> sqlite_backend::put(const data& key, data value,
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->replace);
   // Bind key.
-  auto [key_ok, key_blob] = to_blob(key);
-  if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::put: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->replace, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
     return ec::backend_failure;
   // Bind value.
-  auto [value_ok, value_blob] = to_blob(value);
-  if (!value_ok) {
-    BROKER_DEBUG("sqlite_backend::put: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto value_blob = to_blob(value);
   result = sqlite3_bind_blob64(impl_->replace, 2, value_blob.data(),
                                value_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
@@ -480,11 +463,7 @@ expected<void> sqlite_backend::erase(const data& key) {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->erase);
-  auto [key_ok, key_blob] = to_blob(key);
-  if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::erase: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->erase, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
@@ -512,11 +491,7 @@ expected<bool> sqlite_backend::expire(const data& key, timestamp ts) {
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->expire);
   // Bind key.
-  auto [key_ok, key_blob] = to_blob(key);
-  if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::expire: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->expire, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
@@ -536,11 +511,7 @@ expected<data> sqlite_backend::get(const data& key) const {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->lookup);
-  auto [key_ok, key_blob] = to_blob(key);
-  if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::get: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->lookup, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)
@@ -576,11 +547,7 @@ expected<bool> sqlite_backend::exists(const data& key) const {
   if (!impl_->db)
     return ec::backend_failure;
   auto guard = make_statement_guard(impl_->exists);
-  auto [key_ok, key_blob] = to_blob(key);
-  if (!key_ok) {
-    BROKER_DEBUG("sqlite_backend::exists: to_blob(key) failed");
-    return ec::invalid_data;
-  }
+  auto key_blob = to_blob(key);
   auto result = sqlite3_bind_blob64(impl_->exists, 1, key_blob.data(),
                                     key_blob.size(), SQLITE_STATIC);
   if (result != SQLITE_OK)

@@ -1,11 +1,11 @@
 #include "broker/internal/peering.hh"
 
 #include "broker/data.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/topic.hh"
 
-#include <caf/binary_serializer.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 
 namespace broker::internal {
@@ -53,7 +53,7 @@ public:
     auto val = status::make(code, std::forward<Info>(ep), msg);
     auto content = get_as<data>(val);
     caf::byte_buffer buf;
-    caf::binary_serializer snk{nullptr, buf};
+    format::bin::v1::encoder snk{std::back_inserter(buf)};
     std::ignore = snk.apply(content);
     // TODO: this conversion is going to become superfluous with CAF 0.19.
     auto first = reinterpret_cast<std::byte*>(buf.data());
