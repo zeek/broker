@@ -9,6 +9,8 @@
 
 #cmakedefine BROKER_USE_SSE2
 
+#define BROKER_HAS_VARIANT
+
 // GCC uses __SANITIZE_ADDRESS__, Clang uses __has_feature
 #if defined(__SANITIZE_ADDRESS__)
 #  define BROKER_ASAN
