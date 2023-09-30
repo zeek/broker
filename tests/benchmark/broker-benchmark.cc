@@ -149,8 +149,8 @@ void send_batch(endpoint& ep, publisher& p) {
   auto name = "event_" + std::to_string(event_type);
   vector batch;
   for (int i = 0; i < batch_size; i++) {
-    auto ev = zeek::Event(std::string(name), createEventArgs());
-    batch.emplace_back(std::move(ev));
+    auto ev = zeek::Event{std::string(name), createEventArgs()};
+    batch.emplace_back(ev.move_data());
   }
   total_sent += batch.size();
   p.publish(std::move(batch));
@@ -215,7 +215,7 @@ void receivedStats(endpoint& ep, const data& x) {
 
   if (max_received && total_recv > max_received) {
     zeek::Event ev("quit_benchmark", std::vector<data>{});
-    ep.publish("/benchmark/terminate", ev);
+    ep.publish("/benchmark/terminate", std::move(ev));
     std::this_thread::sleep_for(2s); // Give clients a bit.
     exit(0);
   }
@@ -276,8 +276,8 @@ void client_loop(endpoint& ep, bool verbose, status_subscriber& ss) {
         // Pull: generate random events.
         for (size_t i = 0; i < hint; ++i) {
           auto name = "event_" + std::to_string(event_type);
-          out.emplace_back("/benchmark/events",
-                           zeek::Event(std::move(name), createEventArgs()));
+          auto ev = zeek::Event{std::string(name), createEventArgs()};
+          out.emplace_back("/benchmark/events", ev.move_data());
         }
       },
       [] {
@@ -347,7 +347,7 @@ void server_mode(endpoint& ep, bool verbose, const std::string& iface,
       // Count number of events (counts each element in a batch as one event).
       if (zeek::Message::type(msg) == zeek::Message::Type::Batch) {
         zeek::Batch batch(std::move(msg));
-        num_events += batch.batch().size();
+        num_events += batch.size();
       } else {
         ++num_events;
       }

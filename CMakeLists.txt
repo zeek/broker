@@ -360,6 +360,7 @@ set(BROKER_SRC
   src/topic.cc
   src/version.cc
   src/worker.cc
+  src/zeek.cc
 )
 
 if (ENABLE_SHARED)

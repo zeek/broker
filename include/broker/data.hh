@@ -138,6 +138,8 @@ public:
     return *this;
   }
 
+  // -- properties -------------------------------------------------------------
+
   /// Returns a string representation of the stored type.
   const char* get_type_name() const;
 
@@ -155,6 +157,171 @@ public:
   [[nodiscard]] const data_variant& get_data() const noexcept {
     return data_;
   }
+
+  /// Checks whether this view contains the `nil` value.
+  bool is_none() const noexcept {
+    return get_type() == type::none;
+  }
+
+  /// Checks whether this view contains a boolean.
+  bool is_boolean() const noexcept {
+    return get_type() == type::boolean;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_count() const noexcept {
+    return get_type() == type::count;
+  }
+
+  /// Checks whether this view contains a integer.
+  bool is_integer() const noexcept {
+    return get_type() == type::integer;
+  }
+
+  /// Checks whether this view contains a real.
+  bool is_real() const noexcept {
+    return get_type() == type::real;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_string() const noexcept {
+    return get_type() == type::string;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_address() const noexcept {
+    return get_type() == type::address;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_subnet() const noexcept {
+    return get_type() == type::subnet;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_port() const noexcept {
+    return get_type() == type::port;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_timestamp() const noexcept {
+    return get_type() == type::timestamp;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_timespan() const noexcept {
+    return get_type() == type::timespan;
+  }
+
+  /// Checks whether this view contains a count.
+  bool is_enum_value() const noexcept {
+    return get_type() == type::enum_value;
+  }
+
+  /// Checks whether this view contains a set.
+  bool is_set() const noexcept {
+    return get_type() == type::set;
+  }
+
+  /// Checks whether this view contains a table.
+  bool is_table() const noexcept {
+    return get_type() == type::table;
+  }
+
+  /// Checks whether this view contains a list.
+  bool is_list() const noexcept {
+    return get_type() == type::vector;
+  }
+
+  // -- conversions ------------------------------------------------------------
+
+  /// Retrieves the @c boolean value or returns @p fallback if this object does
+  /// not contain a @c boolean.
+  bool to_boolean(bool fallback = false) const noexcept {
+    if (auto* val = std::get_if<boolean>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c count value or returns @p fallback if this object does
+  /// not contain a @c count.
+  count to_count(count fallback = 0) const noexcept {
+    if (auto* val = std::get_if<count>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c integer value or returns @p fallback if this object does
+  /// not contain a @c integer.
+  integer to_integer(integer fallback = 0) const noexcept {
+    if (auto* val = std::get_if<integer>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c real value or returns @p fallback if this object does
+  /// not contain a @c real.
+  real to_real(real fallback = 0) const noexcept {
+    if (auto* val = std::get_if<real>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the string value or returns an empty string if this object does
+  /// not contain a string.
+  std::string_view to_string() const noexcept {
+    if (auto* val = std::get_if<std::string>(&data_))
+      return *val;
+    return std::string_view{};
+  }
+
+  /// Retrieves the @c address value or returns @p fallback if this object does
+  /// not contain a @c address.
+  address to_address(const address& fallback = {}) const noexcept {
+    if (auto* val = std::get_if<address>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c subnet value or returns @p fallback if this object does
+  /// not contain a @c subnet.
+  subnet to_subnet(const subnet& fallback = {}) const noexcept {
+    if (auto* val = std::get_if<subnet>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c port value or returns @p fallback if this object does
+  /// not contain a @c port.
+  port to_port(port fallback = {}) const noexcept {
+    if (auto* val = std::get_if<port>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c timestamp value or returns @p fallback if this object
+  /// does not contain a @c timestamp.
+  timestamp to_timestamp(timestamp fallback = {}) const noexcept {
+    if (auto* val = std::get_if<timestamp>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the @c timespan value or returns @p fallback if this object does
+  /// not contain a @c timespan.
+  timespan to_timespan(timespan fallback = {}) const noexcept {
+    if (auto* val = std::get_if<timespan>(&data_))
+      return *val;
+    return fallback;
+  }
+
+  /// Retrieves the enum_value value or returns @p fallback if this object does
+  /// not contain a enum_value.
+  const enum_value& to_enum_value() const noexcept;
+
+  /// Converts the stored data as a list (`vector`). If the stored data is
+  /// not a list, the result is an empty list.
+  [[nodiscard]] const vector& to_list() const;
 
 private:
   data_variant data_;

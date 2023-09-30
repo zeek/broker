@@ -25,12 +25,15 @@ int main() {
   // Do five ping / pong.
   for (int n = 0; n < 5; n++) {
     // Send event "ping(n)".
-    zeek::Event ping("ping", {n});
-    ep.publish("/topic/test", ping);
+    ep.publish("/topic/test", zeek::Event{"ping", {n}});
 
     // Wait for "pong" reply event.
     auto msg = sub.get();
-    zeek::Event pong(move_data(msg));
-    std::cout << "received " << pong.name() << pong.args() << std::endl;
+    auto pong = zeek::Event{std::move(msg)};
+    if (pong.valid())
+      std::cout << "received " << pong.name() << pong.args() << std::endl;
+    else
+      std::cout << "received invalid pong message: " << to_string(pong)
+                << std::endl;
   }
 }

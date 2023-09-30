@@ -93,6 +93,26 @@ const char* data::get_type_name() const {
 
 namespace {
 
+vector empty_vector;
+
+enum_value empty_enum_value;
+
+} // namespace
+
+const enum_value& data::to_enum_value() const noexcept {
+  if (auto* val = std::get_if<enum_value>(&data_))
+    return *val;
+  return empty_enum_value;
+}
+
+const vector& data::to_list() const {
+  if (auto ptr = std::get_if<vector>(&data_))
+    return *ptr;
+  return empty_vector;
+}
+
+namespace {
+
 template <class Container>
 void container_convert(Container& c, std::string& str, char left, char right) {
   constexpr auto* delim = ", ";

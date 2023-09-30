@@ -212,6 +212,12 @@ inline const topic& get_topic(const data_message& x) {
   return get<0>(x);
 }
 
+/// Retrieves the topic from a ::command_message as a string.
+/// @relates data_message
+inline std::string get_topic_str(const data_message& x) {
+  return get_topic(x).string();
+}
+
 /// Retrieves the topic from a ::command_message.
 /// @relates data_message
 inline const topic& get_topic(const command_message& x) {
