@@ -2,6 +2,12 @@
 
 #include "broker/config.hh"
 #include "broker/data.hh"
+#include "broker/enum_value.hh"
+#include "broker/variant.hh"
+#include "broker/variant_data.hh"
+#include "broker/variant_list.hh"
+#include "broker/variant_set.hh"
+#include "broker/variant_table.hh"
 
 #include <algorithm>
 #include <cstddef>
@@ -106,8 +112,34 @@ OutIter encode(timespan value, OutIter out) {
 
 /// Copies the name of `value` to `out`.
 template <class OutIter>
+OutIter encode(enum_value_view value, OutIter out) {
+  return encode(value.name, out);
+}
+
+/// Copies the name of `value` to `out`.
+template <class OutIter>
 OutIter encode(const enum_value& value, OutIter out) {
   return encode(value.name, out);
+}
+
+/// Renders `value` to `out` as a sequence, enclosing it in curly braces.
+template <class OutIter>
+OutIter encode(const variant_data::set* values, OutIter out);
+
+/// Renders `value` to `out` as a sequence, enclosing it in curly braces and
+/// displaying key/value pairs as `key -> value`.
+template <class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out);
+
+/// Renders `value` to `out` as a sequence, enclosing it in square brackets.
+template <class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out);
+
+/// Renders `value` to `out` as a sequence, enclosing it in square brackets.
+template <class OutIter>
+OutIter encode(const variant_data& value, OutIter out) {
+  return std::visit([&out](const auto& x) { return encode(x, out); },
+                    value.stl_value());
 }
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces.
@@ -125,6 +157,9 @@ OutIter encode(const broker::vector& values, OutIter out);
 template <class Data, class OutIter>
 std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
                                                              OutIter out);
+
+template <class OutIter>
+OutIter encode(const variant& value, OutIter out);
 
 /// Renders `kvp` as `key -> value` to `out`.
 template <class Key, class Val, class OutIter>
@@ -152,6 +187,47 @@ OutIter encode_range(Iterator first, Sentinel last, char left, char right,
   }
   *out++ = right;
   return out;
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::set* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '{', '}', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '(', ')', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '{', '}', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data* value, OutIter out) {
+  return std::visit([&out](const auto& x) { return encode(x, out); },
+                    value->stl_value());
+}
+
+template <class OutIter>
+OutIter encode(const variant& value, OutIter out) {
+  return encode(value.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_set& values, OutIter out) {
+  return encode(values.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_table& values, OutIter out) {
+  return encode(values.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_list& values, OutIter out) {
+  return encode(values.raw(), out);
 }
 
 // Unfortunately, broker::data is a nasty type due to its implicit conversions.

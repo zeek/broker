@@ -10,6 +10,7 @@ set(tests
   cpp/alm/multipath.cc
   cpp/alm/routing_table.cc
   cpp/backend.cc
+  cpp/builder.cc
   cpp/data.cc
   cpp/detail/peer_status_map.cc
   cpp/format/bin.cc
@@ -40,6 +41,7 @@ set(tests
   cpp/telemetry/histogram.cc
   cpp/test.cc
   cpp/topic.cc
+  cpp/variant.cc
   cpp/zeek.cc
 )
 
@@ -137,8 +139,10 @@ if (BROKER_PYTHON_BINDINGS)
   # set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
 
-# -- Python -------------------------------------------------------------------
+# -- optional micro benchmarks -------------------------------------------------
 
-if (BROKER_ENABLE_MICRO_BENCHMARKS)
+find_package(benchmark QUIET)
+
+if (benchmark_FOUND)
   add_subdirectory(micro-benchmark)
 endif ()

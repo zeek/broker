@@ -20,10 +20,9 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
+#include "broker/variant_tag.hh"
 
 namespace broker {
-
-class data;
 
 /// A container of sequential data.
 using vector = std::vector<data>;
@@ -51,26 +50,7 @@ using data_variant = std::variant<none, boolean, count, integer, real,
 /// different primitive or compound types.
 class data {
 public:
-  // Warning: *must* have the same order as `data_variant`, because the integer
-  // value for this tag must be equal to `get_data().index()`.
-  enum class type : uint8_t {
-    none,
-    boolean,
-    count,
-    integer,
-    real,
-    string,
-    address,
-    subnet,
-    port,
-    timestamp,
-    timespan,
-    enum_value,
-    set,
-    table,
-    list,
-    vector = list, // Alias for backward compatibility.
-  };
+  using type = variant_tag;
 
   template <class T>
   static constexpr auto tag_of() {
@@ -146,6 +126,11 @@ public:
 
   /// Returns the type tag of the stored type.
   type get_type() const;
+
+  /// Returns the type tag of the stored type.
+  type get_tag() const {
+    return get_type();
+  }
 
   static data from_type(type);
 
@@ -324,6 +309,16 @@ public:
   /// not a list, the result is an empty list.
   [[nodiscard]] const vector& to_list() const;
 
+  /// Returns a reference to the `std::variant` stored in this object.
+  auto& stl_value() noexcept {
+    return data_;
+  }
+
+  /// Returns a reference to the `std::variant` stored in this object.
+  const auto& stl_value() const noexcept {
+    return data_;
+  }
+
 private:
   data_variant data_;
 };
@@ -340,10 +335,6 @@ struct data_tag_oracle_impl {
 template <class T>
 struct data_tag_oracle {
   static constexpr bool specialized = false;
-};
-
-template <>
-struct data_tag_oracle<std::string> : data_tag_oracle_impl<data::type::string> {
 };
 
 #define DATA_TAG_ORACLE(type_name)                                             \
@@ -367,6 +358,20 @@ DATA_TAG_ORACLE(table);
 DATA_TAG_ORACLE(vector);
 
 #undef DATA_TAG_ORACLE
+
+#define DATA_TAG_ORACLE_MAP(type_name, tag_name)                               \
+  template <>                                                                  \
+  struct data_tag_oracle<type_name>                                            \
+    : data_tag_oracle_impl<data::type::tag_name> {}
+
+DATA_TAG_ORACLE_MAP(std::string, string);
+DATA_TAG_ORACLE_MAP(std::string_view, string);
+DATA_TAG_ORACLE_MAP(enum_value_view, enum_value);
+DATA_TAG_ORACLE_MAP(variant_set, set);
+DATA_TAG_ORACLE_MAP(variant_table, table);
+DATA_TAG_ORACLE_MAP(variant_list, vector);
+
+#undef DATA_TAG_ORACLE_MAP
 
 } // namespace detail
 
