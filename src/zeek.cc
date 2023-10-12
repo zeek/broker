@@ -5,12 +5,9 @@ namespace broker::zeek {
 Message::~Message() {}
 
 Batch::Batch(data elements) : Message(std::move(elements)) {
-  if (!holds_alternative<vector>(data_))
+  if (!validate_outer_fields(Type::Batch))
     return;
-  auto& outer = as_vector();
-  if (!holds_alternative<vector>(outer[2]))
-    return;
-  auto& items = get<vector>(outer[2]);
+  auto&& items = sub_fields(); // Each field in the content is a message.
   auto tmp = std::make_shared<Content>();
   tmp->reserve(items.size());
   auto append = [&tmp](auto&& msg) {
@@ -57,8 +54,7 @@ Batch BatchBuilder::build() {
   outer.emplace_back(ProtocolVersion);
   outer.emplace_back(static_cast<count>(Message::Type::Batch));
   outer.emplace_back(std::move(tmp));
-  auto result = Batch{data{std::move(outer)}};
-  return result;
+  return Batch{data{std::move(outer)}};
 }
 
 } // namespace broker::zeek
