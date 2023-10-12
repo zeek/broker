@@ -208,7 +208,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
       ep.subscribe(
         {topic::statuses(), "foo/bar"}, [](caf::unit_t&) {},
         [log_ptr, n{0}, &got_hellos](caf::unit_t&, data_message msg) mutable {
-          if (get_topic(msg).string() == "foo/bar" && ++n == 3)
+          if (get_topic(msg) == "foo/bar" && ++n == 3)
             got_hellos.arrive_and_wait();
           log_ptr->emplace_back(std::move(msg));
         },
@@ -517,6 +517,9 @@ SCENARIO("handshake fails if only one side enables encryption") {
           auto sub = ep.make_status_subscriber();
           ep.peer_nosync("127.0.0.1", port, 0s);
           auto msg = sub.get(1s);
+          auto str = std::visit([](const auto& val) { return to_string(val); },
+                                msg);
+          MESSAGE("received message: " << str);
           if (CHECK(std::holds_alternative<error>(msg))) {
             auto& err = std::get<error>(msg);
             CHECK_EQ(err, ec::peer_unavailable);
@@ -548,6 +551,9 @@ SCENARIO("handshake fails if only one side enables encryption") {
           auto sub = ep.make_status_subscriber();
           ep.peer_nosync("127.0.0.1", port, 0s);
           auto msg = sub.get(1s);
+          auto str = std::visit([](const auto& val) { return to_string(val); },
+                                msg);
+          MESSAGE("received message: " << str);
           if (CHECK(std::holds_alternative<error>(msg))) {
             auto& err = std::get<error>(msg);
             CHECK_EQ(err, ec::peer_unavailable);

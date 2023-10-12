@@ -811,24 +811,39 @@ void endpoint::forward(std::vector<topic> ts) {
 }
 
 void endpoint::publish(topic t, data d) {
-  BROKER_INFO("publishing" << std::make_pair(t, d));
+  BROKER_INFO("publishing" << d << "at" << t);
   caf::anon_send(native(core_), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)));
 }
 
+void endpoint::publish(topic t, variant d) {
+  BROKER_INFO("publishing" << d << "at" << t);
+  caf::anon_send(native(core_), atom::publish_v,
+                 make_data_message(std::move(t), std::move(d)));
+}
+
+void endpoint::publish(std::string_view t, const zeek::Message& d) {
+  BROKER_INFO("publishing" << d << "at" << t);
+  caf::anon_send(native(core_), atom::publish_v, make_data_message(t, d.raw()));
+}
+
 void endpoint::publish(const endpoint_info& dst, topic t, data d) {
-  BROKER_INFO("publishing" << std::make_pair(t, d) << "to" << dst.node);
+  BROKER_INFO("publishing" << d << "at" << t << "to" << dst.node);
   caf::anon_send(native(core_), atom::publish_v,
                  make_data_message(std::move(t), std::move(d)), dst);
 }
 
-void endpoint::publish(std::string_view t, zeek::Message&& d) {
-  publish(topic{std::string{t}}, d.move_data());
+void endpoint::publish(const endpoint_info& dst, topic t, const variant& d) {
+  BROKER_INFO("publishing" << d << "at" << t << "to" << dst.node);
+  caf::anon_send(native(core_), atom::publish_v,
+                 make_data_message(std::move(t), std::move(d)), dst);
 }
 
 void endpoint::publish(const endpoint_info& dst, std::string_view t,
-                       zeek::Message&& d) {
-  publish(dst, topic{std::string{t}}, d.move_data());
+                       const zeek::Message& d) {
+  BROKER_INFO("publishing" << d << "at" << t << "to" << dst.node);
+  caf::anon_send(native(core_), atom::publish_v, make_data_message(t, d.raw()),
+                 dst);
 }
 
 void endpoint::publish(data_message x) {

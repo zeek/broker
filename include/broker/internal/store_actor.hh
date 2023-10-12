@@ -20,6 +20,7 @@
 #include "broker/defaults.hh"
 #include "broker/detail/store_state.hh"
 #include "broker/endpoint.hh"
+#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/channel.hh"
 #include "broker/internal/type_id.hh"

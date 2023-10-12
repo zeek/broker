@@ -6,6 +6,7 @@
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/flow_scope.hh"
 #include "broker/internal/fwd.hh"
+#include "broker/message.hh"
 
 #include <caf/disposable.hpp>
 #include <caf/flow/item_publisher.hpp>
@@ -20,6 +21,9 @@ namespace broker::internal {
 
 class peering : public std::enable_shared_from_this<peering> {
 public:
+  // ASCII sequence 'BYE' followed by our 64-bit bye ID.
+  static constexpr size_t bye_token_size = 11;
+
   peering(network_info peer_addr, std::shared_ptr<filter_type> peer_filter,
           endpoint_id id, endpoint_id peer_id)
     : addr_(std::move(peer_addr)),
@@ -39,6 +43,8 @@ public:
   void force_disconnect();
 
   void schedule_bye_timeout(caf::scheduled_actor* self);
+
+  void assign_bye_token(std::array<std::byte, bye_token_size>& buf);
 
   std::vector<std::byte> make_bye_token();
 

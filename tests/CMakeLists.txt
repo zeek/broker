@@ -7,29 +7,30 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cpp)
 # -- C++ ----------------------------------------------------------------------
 
 set(tests
-  cpp/alm/multipath.cc
-  cpp/alm/routing_table.cc
-  cpp/backend.cc
-  cpp/data.cc
-  cpp/detail/peer_status_map.cc
-  cpp/format/bin.cc
-  cpp/domain_options.cc
-  cpp/error.cc
-  cpp/filter_type.cc
   # cpp/integration.cc
-  cpp/internal/channel.cc
-  cpp/internal/core_actor.cc
-  cpp/internal/json_type_mapper.cc
   # cpp/internal/data_generator.cc
   # cpp/internal/generator_file_writer.cc
   # cpp/internal/meta_command_writer.cc
   # cpp/internal/meta_data_writer.cc
+  # cpp/ssl.cc
+  cpp/alm/multipath.cc
+  cpp/alm/routing_table.cc
+  cpp/backend.cc
+  cpp/builder.cc
+  cpp/data.cc
+  cpp/detail/peer_status_map.cc
+  cpp/domain_options.cc
+  cpp/error.cc
+  cpp/filter_type.cc
+  cpp/internal/channel.cc
+  cpp/internal/core_actor.cc
+  cpp/internal/json.cc
   cpp/internal/metric_collector.cc
   cpp/internal/metric_exporter.cc
+  cpp/internal/wire_format.cc
   cpp/master.cc
   cpp/publisher.cc
   cpp/radix_tree.cc
-  # cpp/ssl.cc
   cpp/status.cc
   cpp/status_subscriber.cc
   cpp/store.cc
@@ -40,6 +41,7 @@ set(tests
   cpp/telemetry/histogram.cc
   cpp/test.cc
   cpp/topic.cc
+  cpp/variant.cc
   cpp/zeek.cc
 )
 
@@ -93,8 +95,8 @@ add_executable(broker-benchmark benchmark/broker-benchmark.cc)
 target_link_libraries(broker-benchmark ${BROKER_LIBRARY})
 install(TARGETS broker-benchmark DESTINATION bin)
 
-add_executable(broker-fan-out benchmark/broker-fan-out.cc)
-target_link_libraries(broker-fan-out ${BROKER_LIBRARY})
+# add_executable(broker-fan-out benchmark/broker-fan-out.cc)
+# target_link_libraries(broker-fan-out ${BROKER_LIBRARY})
 
 # add_executable(broker-cluster-benchmark benchmark/broker-cluster-benchmark.cc)
 # target_link_libraries(broker-cluster-benchmark ${libbroker} CAF::core CAF::openssl CAF::io)
@@ -110,7 +112,7 @@ if (BROKER_PYTHON_BINDINGS)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
     set(test_name python-${name})
     add_test(NAME ${test_name}
-             COMMAND ${Python_EXECUTABLE} ${script} ${ARGN}
+             COMMAND ${PYTHON_EXECUTABLE} ${script} ${ARGN}
              WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
@@ -137,8 +139,10 @@ if (BROKER_PYTHON_BINDINGS)
   # set_tests_properties(python-broker-cluster-benchmark PROPERTIES TIMEOUT 120)
 endif ()
 
-# -- Python -------------------------------------------------------------------
+# -- optional micro benchmarks -------------------------------------------------
 
-if (BROKER_ENABLE_MICRO_BENCHMARKS)
-  add_subdirectory(micro-benchmark)
-endif ()
+# find_package(benchmark QUIET)
+#
+# if (benchmark_FOUND)
+#   add_subdirectory(micro-benchmark)
+# endif ()

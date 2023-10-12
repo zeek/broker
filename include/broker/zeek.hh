@@ -4,9 +4,12 @@
 #include <iterator>
 #include <optional>
 
+#include "broker/builder.hh"
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/message.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
 
 namespace broker::zeek {
 
@@ -21,9 +24,13 @@ enum class MetadataType : uint8_t {
   UserMetadataStart = 200,
 };
 
+class BatchBuilder;
+
 /// Generic Zeek-level message.
 class Message {
 public:
+  friend class BatchBuilder;
+
   /// The index of the version field in the message.
   static constexpr size_t version_index = 0;
 
@@ -55,27 +62,7 @@ public:
     return type(data_);
   }
 
-  data&& move_data() {
-    return std::move(data_);
-  }
-
-  const data& as_data() const {
-    return data_;
-  }
-
-  data& as_data() {
-    return data_;
-  }
-
-  const vector& as_vector() const {
-    return get<vector>(data_);
-  }
-
-  vector& as_vector() {
-    return get<vector>(data_);
-  }
-
-  static Type type(const data& msg) {
+  static Type type(const variant& msg) {
     auto&& elements = msg.to_list();
     if (elements.size() >= num_top_level_fields) {
       auto tag = elements[type_index].to_count();
@@ -88,6 +75,27 @@ public:
 
   static Type type(const data_message& msg) {
     return type(get_data(msg));
+  }
+
+  std::string to_string() const {
+    return broker::to_string(data_);
+  }
+
+  /// Returns the underlying data as-is.
+  const variant& raw() const noexcept {
+    return data_;
+  }
+
+  /// Returns the underlying data as-is.
+  const variant& as_data() const noexcept {
+    // Exists only for backwards compatibility.
+    return data_;
+  }
+
+  /// Returns the underlying data as-is.
+  variant move_data() const noexcept {
+    // TODO: this isn't moving anything, really. Should be deprecated/removed.
+    return data_;
   }
 
 protected:
@@ -103,27 +111,20 @@ protected:
 
   /// Returns the content of the message, i.e., the fields for the sub-type.
   /// @pre validate_outer_fields(tag)
-  const vector& sub_fields() const {
+  variant_list sub_fields() const {
     auto&& outer = data_.to_list();
     return outer[content_index].to_list();
   }
 
-  /// @copydoc sub_fields()
-  vector& sub_fields() {
-    auto& outer = as_vector();
-    return get<vector>(outer[content_index]);
-  }
+  void init(Type sub_type, const list_builder& content);
 
-  explicit Message(Type type, vector content)
-    : data_(vector{ProtocolVersion, count(type), std::move(content)}) {}
-
-  explicit Message(data msg) : data_(std::move(msg)) {}
+  explicit Message(variant msg) : data_(std::move(msg)) {}
 
   Message() = default;
 
   Message(Message&&) = default;
 
-  data data_;
+  variant data_;
 };
 
 /// Represents an invalid message.
@@ -131,9 +132,9 @@ class Invalid : public Message {
 public:
   Invalid() = default;
 
-  explicit Invalid(data msg) : Message(std::move(msg)) {}
+  explicit Invalid(variant msg) : Message(std::move(msg)) {}
 
-  explicit Invalid(data_message msg) : Invalid(broker::move_data(msg)) {}
+  explicit Invalid(data_message msg) : Invalid(broker::get_data(msg)) {}
 
   explicit Invalid(Message&& msg) : Message(std::move(msg)) {}
 };
@@ -143,76 +144,80 @@ class MetadataIterator {
 public:
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using value_type = std::pair<count, const data&>;
+  using value_type = std::pair<count, variant>;
   using pointer = value_type*;
   using reference = value_type&;
 
-  explicit MetadataIterator(const broker::data* ptr) noexcept : ptr_(ptr) {}
+  explicit MetadataIterator(variant_list::iterator pos) noexcept : pos_(pos) {}
 
   MetadataIterator(const MetadataIterator&) noexcept = default;
 
   MetadataIterator& operator=(const MetadataIterator&) noexcept = default;
 
   value_type operator*() const {
-    auto entry_ptr = get_if<vector>(*ptr_);
-    BROKER_ASSERT(entry_ptr && entry_ptr->size() == 2);
-    const auto& entry = *entry_ptr;
-    return {get<count>(entry[0]), entry[1]};
+    auto entry = pos_->to_list();;
+    BROKER_ASSERT(entry.size() == 2);
+    return {entry[0].to_count(), entry[1]};
   }
 
   MetadataIterator& operator++() noexcept {
-    ++ptr_;
+    ++pos_;
     return *this;
   }
 
   MetadataIterator operator++(int) noexcept {
-    return MetadataIterator{ptr_++};
+    return MetadataIterator{pos_++};
   }
 
   bool operator!=(const MetadataIterator& other) const noexcept {
-    return ptr_ != other.ptr_;
+    return pos_ != other.pos_;
   }
 
   bool operator==(const MetadataIterator& other) const noexcept {
-    return ptr_ == other.ptr_;
+    return pos_ == other.pos_;
   }
 
 private:
-  const broker::data* ptr_;
+  variant_list::iterator pos_;
 };
 
 /// Supports iteration over metadata
 class MetadataWrapper {
 public:
-  explicit MetadataWrapper(const vector* v) noexcept : v_(v) {}
+  MetadataWrapper() noexcept = default;
+
+  explicit MetadataWrapper(variant_list v) noexcept : v_(std::move(v)) {}
 
   [[nodiscard]] MetadataIterator begin() const noexcept {
-    return MetadataIterator{v_ ? v_->data() : nullptr};
+    return MetadataIterator{v_.begin()};
   }
 
   [[nodiscard]] MetadataIterator end() const noexcept {
-    return MetadataIterator{v_ ? v_->data() + v_->size() : nullptr};
+    return MetadataIterator{v_.end()};
   }
 
-  const data* value(MetadataType key) const {
+  variant value(count key) const {
+    for (const auto& [k, v] : *this) {
+      if (k == key)
+        return v;
+    }
+    return {};
+  }
+
+  auto value(MetadataType key) const {
     return value(static_cast<count>(key));
   }
 
-  const data* value(count key) const {
-    for (const auto& [k, v] : *this) {
-      if (k == key)
-        return &v;
-    }
-    return nullptr;
+  [[nodiscard]] size_t size() const noexcept {
+    return v_.size();
   }
 
-  /// Raw access to the underlying metadata vector.
-  const vector* get_vector() const noexcept {
-    return v_;
+  [[nodiscard]] bool empty() const noexcept {
+    return v_.empty();
   }
 
 private:
-  const vector* v_;
+  variant_list v_;
 };
 
 /// A Zeek event.
@@ -230,61 +235,70 @@ public:
   /// The minimum number of fields in a valid event.
   static constexpr size_t min_fields = 2;
 
-  Event(std::string name, vector args)
-    : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
-
-  Event(std::string name, vector args, timestamp ts)
-    : Message(Message::Type::Event,
-              {std::move(name), std::move(args),
-               vector{{vector{
-                 static_cast<count>(MetadataType::NetworkTimestamp), ts}}}}) {}
-
-  Event(std::string name, vector args, vector metadata)
-    : Message(Message::Type::Event,
-              {std::move(name), std::move(args), std::move(metadata)}) {}
-
-  explicit Event(data msg) : Message(std::move(msg)) {}
-
-  explicit Event(data_message msg) : Event(broker::move_data(msg)) {}
-
-  const std::string& name() const {
-    auto&& fields = sub_fields();
-    return get<std::string>(fields[name_index]);
+  Event(std::string_view name, const vector& args) {
+    init(Type::Event, list_builder{}.add(name).add(args));
   }
 
-  std::string& name() {
+  Event(std::string_view name, const vector& args, timestamp ts) {
+    list_builder meta;
+    meta.add_list(static_cast<count>(MetadataType::NetworkTimestamp), ts);
+    init(Type::Event, list_builder{}.add(name).add(args).add(meta));
+  }
+
+  Event(std::string_view name, const list_builder& args) {
+    init(Type::Event, list_builder{}.add(name).add(args));
+  }
+
+  Event(std::string_view name, const list_builder& args, timestamp ts) {
+    list_builder meta;
+    meta.add_list(static_cast<count>(MetadataType::NetworkTimestamp), ts);
+    init(Type::Event, list_builder{}.add(name).add(args).add(meta));
+  }
+
+  Event(std::string_view name, const vector& args, const vector& meta) {
+    init(Type::Event, list_builder{}.add(name).add(args).add(meta));
+  }
+
+  Event(std::string_view name, const list_builder& args,
+        const list_builder& meta) {
+    init(Type::Event, list_builder{}.add(name).add(args).add(meta));
+  }
+
+  explicit Event(variant msg) : Message(std::move(msg)) {}
+
+  explicit Event(data_message msg) : Message(broker::get_data(msg)) {}
+
+  std::string_view name() const {
     auto&& fields = sub_fields();
-    return get<std::string>(fields[name_index]);
+    return fields[name_index].to_string();
   }
 
   MetadataWrapper metadata() const {
     auto&& fields = sub_fields();
     if (fields.size() > metadata_index)
-      return MetadataWrapper{get_if<vector>(fields[metadata_index])};
-
-    return MetadataWrapper{nullptr};
+      return MetadataWrapper{fields[metadata_index].to_list()};
+    return MetadataWrapper{};
   }
 
   const std::optional<timestamp> ts() const {
-    if (auto ts_ptr = metadata().value(MetadataType::NetworkTimestamp))
-      return get<timestamp>(*ts_ptr);
+    if (auto ts = metadata().value(MetadataType::NetworkTimestamp);
+        ts.is_timestamp())
+      return ts.to_timestamp();
 
     return std::nullopt;
   }
 
-  const vector& args() const {
+  variant_list args() const {
     auto&& fields = sub_fields();
-    return get<vector>(fields[args_index]);
-  }
-
-  vector& args() {
-    auto&& fields = sub_fields();
-    return get<vector>(fields[args_index]);
+    return fields[args_index].to_list();
   }
 
   bool valid() const {
     if (!validate_outer_fields(Type::Event))
+    {
+      puts("outer fields invalid");
       return false;
+    }
 
     auto&& fields = sub_fields();
 
@@ -340,52 +354,36 @@ public:
   /// The minimum number of fields in a valid log-create message.
   static constexpr size_t min_fields = 4;
 
-  LogCreate(enum_value stream_id, enum_value writer_id, data writer_info,
-            data fields_data)
-    : Message(Message::Type::LogCreate,
-              {std::move(stream_id), std::move(writer_id),
-               std::move(writer_info), std::move(fields_data)}) {}
+  template <class WriterInfo, class FieldsData>
+  LogCreate(const enum_value& stream_id, const enum_value& writer_id,
+            const WriterInfo& writer_info, const FieldsData& fields_data) {
+    init(Message::Type::LogCreate, list_builder{}
+                                     .add(stream_id)
+                                     .add(writer_id)
+                                     .add(writer_info)
+                                     .add(fields_data));
+  }
 
-  explicit LogCreate(data msg) : Message(std::move(msg)) {}
+  explicit LogCreate(variant msg) : Message(std::move(msg)) {}
 
   explicit LogCreate(data_message msg) : LogCreate(broker::move_data(msg)) {}
 
-  const enum_value& stream_id() const {
+  enum_value_view stream_id() const {
     auto&& fields = sub_fields();
-    return get<enum_value>(fields[stream_id_index]);
+    return fields[stream_id_index].to_enum_value();
   }
 
-  enum_value& stream_id() {
+  enum_value_view writer_id() const {
     auto&& fields = sub_fields();
-    return get<enum_value>(fields[stream_id_index]);
+    return fields[writer_id_index].to_enum_value();
   }
 
-  const enum_value& writer_id() const {
-    auto&& fields = sub_fields();
-    return get<enum_value>(fields[writer_id_index]);
-  }
-
-  enum_value& writer_id() {
-    auto&& fields = sub_fields();
-    return get<enum_value>(fields[writer_id_index]);
-  }
-
-  const data& writer_info() const {
+  variant writer_info() const {
     auto&& fields = sub_fields();
     return fields[writer_info_index];
   }
 
-  data& writer_info() {
-    auto&& fields = sub_fields();
-    return fields[writer_info_index];
-  }
-
-  const data& fields_data() const {
-    auto&& fields = sub_fields();
-    return fields[fields_data_index];
-  }
-
-  data& fields_data() {
+  variant fields_data() const {
     auto&& fields = sub_fields();
     return fields[fields_data_index];
   }
@@ -420,60 +418,33 @@ public:
   /// The minimum number of fields in a valid log-create message.
   static constexpr size_t min_fields = 4;
 
-  LogWrite(enum_value stream_id, enum_value writer_id, data path,
-           data serial_data)
-    : Message(Message::Type::LogWrite,
-              {std::move(stream_id), std::move(writer_id), std::move(path),
-               std::move(serial_data)}) {}
+  LogWrite(const enum_value& stream_id, const enum_value& writer_id,
+           std::string_view path, std::string_view serial_data) {
+    init(Message::Type::LogWrite, list_builder{} //
+                                    .add(stream_id)
+                                    .add(writer_id)
+                                    .add(path)
+                                    .add(serial_data));
+  }
 
-  explicit LogWrite(data msg) : Message(std::move(msg)) {}
+  explicit LogWrite(variant msg) : Message(std::move(msg)) {}
 
   explicit LogWrite(data_message msg) : LogWrite(broker::move_data(msg)) {}
 
-  const enum_value& stream_id() const {
+  enum_value_view stream_id() const {
     auto&& fields = sub_fields();
-    return get<enum_value>(fields[stream_id_index]);
+    return fields[stream_id_index].to_enum_value();
   }
 
-  enum_value& stream_id() {
+  enum_value_view writer_id() const {
     auto&& fields = sub_fields();
-    return get<enum_value>(fields[stream_id_index]);
+    return fields[writer_id_index].to_enum_value();
   }
-
-  const enum_value& writer_id() const {
-    auto&& fields = sub_fields();
-    return get<enum_value>(fields[writer_id_index]);
-  }
-
-  enum_value& writer_id() {
-    auto&& fields = sub_fields();
-    return get<enum_value>(fields[writer_id_index]);
-  }
-
-  const data& path() const {
-    auto&& fields = sub_fields();
-    return fields[path_index];
-  }
-
-  data& path() {
-    auto&& fields = sub_fields();
-    return fields[path_index];
-  };
 
   std::string_view path_str() {
     auto&& fields = sub_fields();
     return fields[path_index].to_string();
   };
-
-  const data& serial_data() const {
-    auto&& fields = sub_fields();
-    return fields[serial_data_index];
-  }
-
-  data& serial_data() {
-    auto&& fields = sub_fields();
-    return fields[serial_data_index];
-  }
 
   std::string_view serial_data_str() const {
     auto&& fields = sub_fields();
@@ -504,31 +475,22 @@ public:
   /// The minimum number of fields in a valid identifier-update message.
   static constexpr size_t min_fields = 2;
 
-  IdentifierUpdate(std::string id_name, data id_value)
-    : Message(Message::Type::IdentifierUpdate,
-              {std::move(id_name), std::move(id_value)}) {}
+  template <class VariantOrData>
+  IdentifierUpdate(std::string id_name, const VariantOrData& id_value) {
+    init(Type::IdentifierUpdate, list_builder{}.add(id_name).add(id_value));
+  }
 
-  explicit IdentifierUpdate(data msg) : Message(std::move(msg)) {}
+  explicit IdentifierUpdate(variant msg) : Message(std::move(msg)) {}
 
   explicit IdentifierUpdate(data_message msg)
     : IdentifierUpdate(broker::move_data(msg)) {}
 
-  const std::string& id_name() const {
+  std::string_view id_name() const {
     auto&& fields = sub_fields();
-    return get<std::string>(fields[id_name_index]);
+    return fields[id_name_index].to_string();
   }
 
-  std::string& id_name() {
-    auto&& fields = sub_fields();
-    return get<std::string>(fields[id_name_index]);
-  }
-
-  const data& id_value() const {
-    auto&& fields = sub_fields();
-    return fields[id_value_index];
-  }
-
-  data& id_value() {
+  variant id_value() const {
     auto&& fields = sub_fields();
     return fields[id_value_index];
   }
@@ -542,14 +504,12 @@ public:
   }
 };
 
-class BatchBuilder;
-
 /// A batch of other messages.
 class Batch : public Message {
 public:
-  explicit Batch(data msg);
+  explicit Batch(variant msg);
 
-  explicit Batch(data_message msg) : Batch(broker::move_data(msg)) {}
+  explicit Batch(data_message msg) : Batch(broker::get_data(msg)) {}
 
   size_t size() const noexcept {
     return impl_ ? impl_->size() : 0;
@@ -593,7 +553,7 @@ private:
 class BatchBuilder {
 public:
   void add(Message&& msg) {
-    inner_.emplace_back(msg.move_data());
+    inner_.add(msg.data_);
   }
 
   bool empty() const noexcept {
@@ -603,7 +563,7 @@ public:
   Batch build();
 
 private:
-  vector inner_;
+  list_builder inner_;
 };
 
 template <class F>
@@ -647,7 +607,7 @@ auto visit_as_message(F&& f, broker::data_message msg) {
 namespace broker {
 
 inline std::string to_string(const zeek::Message& msg) {
-  return to_string(msg.as_data());
+  return msg.to_string();
 }
 
 } // namespace broker

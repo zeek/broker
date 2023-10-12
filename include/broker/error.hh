@@ -228,6 +228,9 @@ bool convert(std::string_view str, ec& code) noexcept;
 bool convert(const data& str, ec& code) noexcept;
 
 /// @relates ec
+bool convert(const variant& str, ec& code) noexcept;
+
+/// @relates ec
 inline bool convert(const std::string& str, ec& code) noexcept {
   // Disambiguation: std::string_view and broker::data are both valid
   // conversions for std::string.
@@ -236,6 +239,9 @@ inline bool convert(const std::string& str, ec& code) noexcept {
 
 /// @relates ec
 bool convertible_to_ec(const data& src) noexcept;
+
+/// @relates ec
+bool convertible_to_ec(const variant& src) noexcept;
 
 /// @relates ec
 bool convertible_to_ec(uint8_t src) noexcept;
@@ -260,11 +266,19 @@ struct can_convert_predicate<ec> {
   static bool check(const data& src) noexcept {
     return convertible_to_ec(src);
   }
+
+  static bool check(const variant& src) noexcept {
+    return convertible_to_ec(src);
+  }
 };
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.
 bool convertible_to_error(const data& src) noexcept;
+
+/// Checks whethter `src` is convertible to a `caf::error` with
+/// `category() == caf::atom("broker")`.
+bool convertible_to_error(const variant& src) noexcept;
 
 /// @copydoc convertible_to_error
 bool convertible_to_error(const vector& xs) noexcept;
@@ -278,6 +292,10 @@ struct can_convert_predicate<error> {
   static bool check(const vector& src) noexcept {
     return convertible_to_error(src);
   }
+
+  static bool check(const variant& src) noexcept {
+    return convertible_to_error(src);
+  }
 };
 
 /// Maps `src` to `["error", code, context]` if
@@ -288,6 +306,9 @@ bool convert(const error& src, data& dst);
 
 /// Converts data in the format `["error", code, context]` back to an error.
 bool convert(const data& src, error& dst);
+
+/// Converts data in the format `["error", code, context]` back to an error.
+bool convert(const variant& src, error& dst);
 
 /// Creates a view into a ::data object that is convertible to ::error.
 class error_view {

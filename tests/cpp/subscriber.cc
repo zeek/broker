@@ -48,6 +48,22 @@ struct fixture : net_fixture<base_fixture> {
   }
 };
 
+auto topics(const std::vector<data_message>& msgs) {
+  std::vector<std::string> result;
+  result.reserve(msgs.size());
+  for (auto& msg : msgs)
+    result.emplace_back(get_topic(msg));
+  return result;
+}
+
+auto values(const std::vector<data_message>& msgs) {
+  std::vector<broker::data> result;
+  result.reserve(msgs.size());
+  for (auto& msg : msgs)
+    result.emplace_back(get_data(msg).to_data());
+  return result;
+}
+
 } // namespace
 
 FIXTURE_SCOPE(subscriber_tests, fixture)
@@ -69,7 +85,8 @@ TEST(subscribers receive data from remote publications) {
   auto inputs = earth_sub.poll();
   CHECK_EQUAL(earth_sub.available(), 0u);
   CHECK_EQUAL(inputs.size(), 10u);
-  CHECK_EQUAL(inputs, out_buf);
+  CHECK_EQUAL(topics(inputs), topics(out_buf));
+  CHECK_EQUAL(values(inputs), values(out_buf));
 }
 
 FIXTURE_SCOPE_END()

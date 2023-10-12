@@ -26,6 +26,7 @@
 #include <caf/type_id.hpp>
 #include <caf/uri.hpp>
 
+#include "broker/builder.hh"
 #include "broker/configuration.hh"
 #include "broker/convert.hh"
 #include "broker/data.hh"
@@ -39,6 +40,10 @@
 #include "broker/status.hh"
 #include "broker/subscriber.hh"
 #include "broker/topic.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
+
+using namespace std::literals;
 
 using std::string;
 
@@ -170,53 +175,43 @@ auto get_as(broker::endpoint& d, string_view key) {
 // -- message creation and introspection ---------------------------------------
 
 /// @pre `is_ping_msg(x) || is_pong_msg(x)`
-count msg_id(const broker::data& x) {
-  auto& vec = get<broker::vector>(x);
-  return get<count>(vec[1]);
+count msg_id(const broker::variant& x) {
+  return x.to_list().at(1).to_count();
 }
 
-bool is_ping_msg(const broker::data& x) {
-  if (auto vec = get_if<broker::vector>(&x)) {
-    if (vec->size() == 3) {
-      auto& xs = *vec;
-      auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "ping" && broker::is<count>(xs[1])
-             && broker::is<string>(xs[2]);
-    }
-  }
-  return false;
+bool is_ping_msg(const broker::variant& x) {
+  auto&& xs = x.to_list();
+  return xs.size() == 3 && xs[0].to_string() == "ping" && xs[1].is_count()
+         && xs[2].is_string();
 }
 
-bool is_pong_msg(const broker::data& x) {
-  if (auto vec = get_if<broker::vector>(&x)) {
-    if (vec->size() == 2) {
-      auto& xs = *vec;
-      auto str = broker::get_if<string>(&xs[0]);
-      return str && *str == "pong" && broker::is<count>(xs[1]);
-    }
-  }
-  return false;
+bool is_pong_msg(const broker::variant& x) {
+  auto&& xs = x.to_list();
+  return xs.size() == 2 && xs[0].to_string() == "pong" && xs[1].is_count();
 }
 
-bool is_pong_msg(const broker::data& x, count id) {
+bool is_pong_msg(const broker::variant& x, count id) {
   return is_pong_msg(x) && msg_id(x) == id;
 }
 
-bool is_stop_msg(const broker::data& x) {
-  auto str = get_if<string>(&x);
-  return str && *str == "stop";
+bool is_stop_msg(const broker::variant& x) {
+  return x.to_string() == "stop";
 }
 
-broker::data make_ping_msg(count id, size_t payload_size) {
-  return broker::vector{"ping", id, string(payload_size, 'x')};
+broker::variant make_ping_msg(count id, size_t payload_size) {
+  return broker::list_builder{}
+    .add("ping"sv)
+    .add(id)
+    .add(std::string(payload_size, 'x'))
+    .build();
 }
 
-broker::data make_pong_msg(count id) {
-  return broker::vector{"pong", id};
+broker::variant make_pong_msg(count id) {
+  return broker::list_builder{}.add("pong"sv).add(id).build();
 }
 
-broker::data make_stop_msg() {
-  return "stop";
+broker::variant make_stop_msg() {
+  return broker::list_builder{}.add("stop"sv).build().to_list().at(0);
 }
 
 // -- mode implementations -----------------------------------------------------
@@ -224,7 +219,7 @@ broker::data make_stop_msg() {
 void relay_mode(broker::endpoint& ep, topic_list topics) {
   verbose::println("relay messages");
   auto handle_message = [&](const broker::data_message& x) {
-    auto& val = get_data(x);
+    auto&& val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
     } else if (is_pong_msg(val)) {
@@ -314,7 +309,7 @@ void pong_mode(broker::endpoint& ep, topic_list topics) {
   auto in = ep.make_subscriber(std::move(topics));
   for (;;) {
     auto x = in.get();
-    auto& val = get_data(x);
+    auto val = get_data(x);
     if (is_ping_msg(val)) {
       verbose::println("received ping ", msg_id(val));
       ep.publish(get_topic(x), make_pong_msg(msg_id(val)));

@@ -28,7 +28,7 @@ normalize_status_log(const std::vector<broker::data_message>& xs,
                      bool include_endpoint_id) {
   using namespace broker;
   auto stringify = [](const data_message& msg) {
-    std::string result = get_topic(msg).string();
+    auto result = std::string{get_topic(msg)};
     result += ": ";
     result += to_string(get_data(msg));
     return result;

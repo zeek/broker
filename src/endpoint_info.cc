@@ -8,6 +8,8 @@
 
 #include "broker/data.hh"
 #include "broker/internal/native.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
 
 namespace broker {
 
@@ -19,50 +21,66 @@ bool convertible_to_endpoint_info(const data& src) {
   }
 }
 
-bool convertible_to_endpoint_info(const std::vector<data>& src) {
+template <class List>
+bool convertible_to_endpoint_info_impl(const List& src) {
   // Types: <string, string, port, count>.
   // - Fields 1 can be none.
   // - Field 2 - 4 are either *all* none or all defined.
   if (contains<any_type, none, none, none>(src)
       || contains<any_type, std::string, port, count>(src)) {
     return can_convert_to<endpoint_id>(src[0]);
-  } else {
-    return false;
   }
+  return false;
 }
 
-bool convert(const data& src, endpoint_info& dst) {
-  if (!is<vector>(src))
-    return false;
+bool convertible_to_endpoint_info(const std::vector<data>& src) {
+  return convertible_to_endpoint_info_impl(src);
+}
+
+bool convertible_to_endpoint_info(const variant& src) {
+  return convertible_to_endpoint_info_impl(src.to_list());
+}
+
+template <class DataOrVariant>
+bool convert_impl(const DataOrVariant& src, endpoint_info& dst) {
   // Types: <string, string, port, count>. Fields 1 can be none.
   // Field 2 -4 are either all none or all defined.
-  auto& xs = get<vector>(src);
+  auto&& xs = src.to_list();
   if (xs.size() != 4)
     return false;
   // Parse the node (field 1).
-  if (auto str = get_if<std::string>(xs[0])) {
-    if (!convert(*str, dst.node))
+  if (xs[0].is_string()) {
+    if (!convert(std::string{xs[0].to_string()}, dst.node))
       return false;
-  } else if (is<none>(xs[0])) {
+  } else if (xs[0].is_none()) {
     dst.node = endpoint_id{};
   } else {
     // Type mismatch.
     return false;
   }
   // Parse the network (fields 2 - 4).
-  if (is<none>(xs[1]) && is<none>(xs[2]) && is<none>(xs[3])) {
+  if (xs[1].is_none() && xs[2].is_none() && xs[3].is_none()) {
     dst.network = std::nullopt;
-  } else if (is<std::string>(xs[1]) && is<port>(xs[2]) && is<count>(xs[3])) {
+    return true;
+  }
+  if (xs[1].is_string() && xs[2].is_port() && xs[3].is_count()) {
     dst.network = network_info{};
     auto& net = *dst.network;
-    net.address = get<std::string>(xs[1]);
-    net.port = get<port>(xs[2]).number();
-    net.retry = timeout::seconds{get<count>(xs[3])};
-  } else {
-    // Type mismatch.
-    return false;
+    net.address = xs[1].to_string();
+    net.port = xs[2].to_port().number();
+    net.retry = timeout::seconds{xs[3].to_count()};
+    return true;
   }
-  return true;
+  // Type mismatch.
+  return false;
+}
+
+bool convert(const data& src, endpoint_info& dst) {
+  return convert_impl(src, dst);
+}
+
+bool convert(const variant& src, endpoint_info& dst) {
+  return convert_impl(src, dst);
 }
 
 bool convert(const endpoint_info& src, data& dst) {

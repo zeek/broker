@@ -5,23 +5,14 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
-#include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 
 using broker::internal::native;
 
-namespace txt_v1 = broker::format::txt::v1;
-
 namespace {
 
 using namespace broker;
-
-constexpr const char* data_type_names[] = {
-  "none",     "boolean",    "count",  "integer", "real",
-  "string",   "address",    "subnet", "port",    "timestamp",
-  "timespan", "enum_value", "set",    "table",   "vector",
-};
 
 template <broker::data::type Type>
 using data_variant_at_t =
@@ -88,10 +79,6 @@ data data::from_type(data::type t) {
     default:
       return data{};
   }
-}
-
-const char* data::get_type_name() const {
-  return data_type_names[data_.index()];
 }
 
 namespace {
@@ -164,19 +151,19 @@ void convert(const table::value_type& x, std::string& str) {
 }
 
 void convert(const vector& x, std::string& str) {
-  txt_v1::encode(x, std::back_inserter(str));
+  container_convert(x, str, '(', ')');
 }
 
 void convert(const set& x, std::string& str) {
-  txt_v1::encode(x, std::back_inserter(str));
+  container_convert(x, str, '{', '}');
 }
 
 void convert(const table& x, std::string& str) {
-  txt_v1::encode(x, std::back_inserter(str));
+  container_convert(x, str, '{', '}');
 }
 
 void convert(const data& x, std::string& str) {
-  txt_v1::encode(x, std::back_inserter(str));
+  visit(data_converter{str}, x);
 }
 
 bool convert(const data& x, endpoint_id& node) {

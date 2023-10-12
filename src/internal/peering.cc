@@ -1,19 +1,18 @@
 #include "broker/internal/peering.hh"
 
 #include "broker/data.hh"
-#include "broker/format/bin.hh"
+#include "broker/data_envelope.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
+#include <caf/binary_serializer.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 
 namespace broker::internal {
 
 namespace {
-
-// ASCII sequence 'BYE' followed by our 64-bit bye ID.
-constexpr size_t bye_token_size = 11;
 
 class affix_generator {
 public:
@@ -52,16 +51,8 @@ public:
                                const char* msg) const {
     auto val = status::make(code, std::forward<Info>(ep), msg);
     auto content = get_as<data>(val);
-    caf::byte_buffer buf;
-    format::bin::v1::encoder snk{std::back_inserter(buf)};
-    std::ignore = snk.apply(content);
-    // TODO: this conversion is going to become superfluous with CAF 0.19.
-    auto first = reinterpret_cast<std::byte*>(buf.data());
-    std::vector<std::byte> bytes{first, first + buf.size()};
-    auto pmsg = make_packed_message(packed_message_type::data, defaults::ttl,
-                                    topic{std::string{topic::statuses_str}},
-                                    std::move(bytes));
-    return make_node_message(ptr_->id(), ptr_->id(), std::move(pmsg));
+    return make_data_message(ptr_->id(), ptr_->id(),
+                             topic{std::string{topic::statuses_str}}, content);
   }
 
   virtual node_message first() = 0;
@@ -139,6 +130,13 @@ void peering::schedule_bye_timeout(caf::scheduled_actor* self) {
                       [ptr = shared_from_this()] { ptr->force_disconnect(); });
 }
 
+void peering::assign_bye_token(std::array<std::byte, bye_token_size>& buf) {
+  const auto* prefix = "BYE";
+  const auto* suffix = &bye_id_;
+  memcpy(buf.data(), prefix, 3);
+  memcpy(buf.data() + 3, suffix, 8);
+}
+
 std::vector<std::byte> peering::make_bye_token() {
   std::vector<std::byte> result;
   result.resize(bye_token_size);
@@ -150,10 +148,8 @@ std::vector<std::byte> peering::make_bye_token() {
 }
 
 node_message peering::make_bye_message() {
-  auto packed = make_packed_message(packed_message_type::ping, defaults::ttl,
-                                    topic{std::string{topic::reserved}},
-                                    make_bye_token());
-  return make_node_message(id_, peer_id_, std::move(packed));
+  std::array<std::byte, bye_token_size> token;
+  return make_ping_message(id_, peer_id_, token.data(), token.size());
 }
 
 caf::flow::observable<node_message>
@@ -162,11 +158,7 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
                caf::flow::observable<node_message> src) {
   // Construct the BYE message that we emit at the end.
   bye_id_ = self->new_u64_id();
-  auto bye_packed_msg = make_packed_message(packed_message_type::ping, //
-                                            defaults::ttl,
-                                            topic{std::string{topic::reserved}},
-                                            make_bye_token());
-  auto bye_msg = make_node_message(id_, peer_id_, std::move(bye_packed_msg));
+  auto bye_msg = make_bye_message();
   // Inject our kill switch to allow us to cancel this peering later on.
   src //
     .compose(add_flow_scope_t{output_stats_})
@@ -189,7 +181,9 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
           // discard the input (this flow).
           if (!ptr || get_type(msg) != packed_message_type::pong)
             return;
-          if (auto& payload = get_payload(msg); payload == token) {
+          if (auto [payload_bytes, payload_size] = msg->raw_bytes();
+              std::equal(payload_bytes, payload_bytes + payload_size,
+                         token.begin(), token.end())) {
             ptr->on_bye_ack();
             ptr = nullptr;
           }

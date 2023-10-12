@@ -70,10 +70,19 @@ public:
   // --- messaging -------------------------------------------------------------
 
   /// Sends `x` to all subscribers.
-  void publish(data x);
+  void publish(const data& x);
 
   /// Sends `xs` to all subscribers.
   void publish(std::vector<data> xs);
+
+  /// Sends `x` to all subscribers.
+  void publish(set_builder&& x);
+
+  /// Sends `x` to all subscribers.
+  void publish(table_builder&& x);
+
+  /// Sends `x` to all subscribers.
+  void publish(list_builder&& x);
 
   // --- miscellaneous ---------------------------------------------------------
 

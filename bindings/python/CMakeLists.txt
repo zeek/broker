@@ -28,7 +28,7 @@ add_dependencies(_broker python-scripts-stage)
 # Set includes.
 target_include_directories(_broker PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/pybind11/include/
-                           ${Python_INCLUDE_DIRS})
+                           ${PYTHON_INCLUDE_DIRS})
 
 # Set libraries to link against.
 if (NOT WIN32)
@@ -40,7 +40,7 @@ if (ENABLE_SHARED)
 else ()
   set(libbroker broker_static)
 endif ()
-target_link_libraries(_broker PUBLIC ${libbroker} ${Python_LIBRARIES})
+target_link_libraries(_broker PUBLIC ${libbroker} ${PYTHON_LIBRARIES})
 if (APPLE)
   # Support multiple Python installations.
   target_link_libraries(_broker PRIVATE "-undefined dynamic_lookup")
@@ -69,12 +69,12 @@ endif ()
 if ( NOT PY_MOD_INSTALL_DIR )
   # Figure out Python module install directory.
   if (BROKER_PYTHON_PREFIX)
-    set(pyver ${Python_VERSION_MAJOR}.${Python_VERSION_MINOR})
+    set(pyver ${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR})
     file(TO_CMAKE_PATH "${BROKER_PYTHON_PREFIX}/lib/python${pyver}/site-packages" PY_MOD_INSTALL_DIR)
   elseif (BROKER_PYTHON_HOME)
     file(TO_CMAKE_PATH "${BROKER_PYTHON_HOME}/lib/python" PY_MOD_INSTALL_DIR)
   else ()
-    execute_process(COMMAND ${Python_EXECUTABLE} -c
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} -c
       "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
       OUTPUT_VARIABLE python_site_packages
       OUTPUT_STRIP_TRAILING_WHITESPACE)

@@ -20,6 +20,7 @@
 #include "broker/port.hh"
 #include "broker/subnet.hh"
 #include "broker/time.hh"
+#include "broker/variant_tag.hh"
 
 namespace broker {
 
@@ -51,26 +52,7 @@ using data_variant = std::variant<none, boolean, count, integer, real,
 /// different primitive or compound types.
 class data {
 public:
-  // Warning: *must* have the same order as `data_variant`, because the integer
-  // value for this tag must be equal to `get_data().index()`.
-  enum class type : uint8_t {
-    none,
-    boolean,
-    count,
-    integer,
-    real,
-    string,
-    address,
-    subnet,
-    port,
-    timestamp,
-    timespan,
-    enum_value,
-    set,
-    table,
-    list,
-    vector = list, // Alias for backward compatibility.
-  };
+  using type = variant_tag;
 
   template <class T>
   static constexpr auto tag_of() {
@@ -114,6 +96,10 @@ public:
     // nop
   }
 
+  explicit data(enum_value_view value) {
+    data_ = enum_value{std::string{value.name}};
+  }
+
   /// Constructs a data value from one of the possible data types.
   template <class T, class Converted = from<T>>
   data(T x) {
@@ -142,10 +128,17 @@ public:
   // -- properties -------------------------------------------------------------
 
   /// Returns a string representation of the stored type.
-  const char* get_type_name() const;
+  const char* get_type_name() const {
+    return detail::cpp_type_name(get_type());
+  }
 
   /// Returns the type tag of the stored type.
   type get_type() const;
+
+  /// Returns the type tag of the stored type.
+  type get_tag() const {
+    return get_type();
+  }
 
   static data from_type(type);
 
@@ -324,6 +317,11 @@ public:
   /// not a list, the result is an empty list.
   [[nodiscard]] const vector& to_list() const;
 
+  /// Returns a reference to the `std::variant` stored in this object.
+  const auto& stl_value() const noexcept {
+    return data_;
+  }
+
 private:
   data_variant data_;
 };
@@ -345,6 +343,25 @@ struct data_tag_oracle {
 template <>
 struct data_tag_oracle<std::string> : data_tag_oracle_impl<data::type::string> {
 };
+
+template <>
+struct data_tag_oracle<std::string_view>
+  : data_tag_oracle_impl<data::type::string> {};
+
+template <>
+struct data_tag_oracle<enum_value_view>
+  : data_tag_oracle_impl<data::type::enum_value> {};
+
+template <>
+struct data_tag_oracle<variant_list> : data_tag_oracle_impl<data::type::list> {
+};
+
+template <>
+struct data_tag_oracle<variant_set> : data_tag_oracle_impl<data::type::set> {};
+
+template <>
+struct data_tag_oracle<variant_table>
+  : data_tag_oracle_impl<data::type::table> {};
 
 #define DATA_TAG_ORACLE(type_name)                                             \
   template <>                                                                  \
@@ -370,6 +387,7 @@ DATA_TAG_ORACLE(vector);
 
 } // namespace detail
 
+/// Alias for `detail::data_tag_oracle<T>::value`.
 template <class T>
 inline constexpr data::type data_tag_v = detail::data_tag_oracle<T>::value;
 

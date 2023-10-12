@@ -53,6 +53,7 @@ public:
   caf::actor core;
   network_info addr;
   json_type_mapper mapper;
+  std::vector<std::byte> buf;
   caf::json_reader reader;
   caf::json_writer writer;
   std::vector<caf::disposable> subscriptions;
