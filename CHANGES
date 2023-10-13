@@ -1,3 +1,9 @@
+2.8.0-dev.3 | 2023-10-13 13:25:04 -0700
+
+  * Replace magic numbers with named indexes (Dominik Charousset, Corelight)
+
+  * Avoid implicit conversions in Zeek utility classes (Dominik Charousset)
+
 2.7.0-dev.32 | 2023-08-28 09:41:33 -0700
 
   * CI: Remove EOL ubuntu 22.10 build (Tim Wojtulewicz, Corelight)

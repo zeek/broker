@@ -6,6 +6,7 @@
 
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
+#include "broker/message.hh"
 
 namespace broker::zeek {
 
@@ -23,6 +24,19 @@ enum class MetadataType : uint8_t {
 /// Generic Zeek-level message.
 class Message {
 public:
+  /// The index of the version field in the message.
+  static constexpr size_t version_index = 0;
+
+  /// The index of the type field in the message.
+  static constexpr size_t type_index = 1;
+
+  /// The index of the content field in the message. The type of the content
+  /// depends on the sub-type of the message.
+  static constexpr size_t content_index = 2;
+
+  /// The number of top-level fields in the message.
+  static constexpr size_t num_top_level_fields = 3;
+
   enum Type {
     Invalid = 0,
     Event = 1,
@@ -33,19 +47,12 @@ public:
     MAX = Batch,
   };
 
+  static constexpr auto max_tag = static_cast<count>(Type::MAX);
+
+  virtual ~Message();
+
   Type type() const {
-    if (as_vector().size() < 2)
-      return Type::Invalid;
-
-    auto cp = get_if<count>(&as_vector()[1]);
-
-    if (!cp)
-      return Type::Invalid;
-
-    if (*cp > Type::MAX)
-      return Type::Invalid;
-
-    return Type(*cp);
+    return type(data_);
   }
 
   data&& move_data() {
@@ -68,39 +75,67 @@ public:
     return get<vector>(data_);
   }
 
-  operator data() const {
-    return as_data();
+  static Type type(const data& msg) {
+    auto&& elements = msg.to_list();
+    if (elements.size() >= num_top_level_fields) {
+      auto tag = elements[type_index].to_count();
+      if (tag <= max_tag) {
+        return static_cast<Type>(tag);
+      }
+    }
+    return Type::Invalid;
   }
 
-  static Type type(const data& msg) {
-    auto vp = get_if<vector>(&msg);
-
-    if (!vp)
-      return Type::Invalid;
-
-    auto& v = *vp;
-
-    if (v.size() < 2)
-      return Type::Invalid;
-
-    auto cp = get_if<count>(&v[1]);
-
-    if (!cp)
-      return Type::Invalid;
-
-    if (*cp > Type::MAX)
-      return Type::Invalid;
-
-    return Type(*cp);
+  static Type type(const data_message& msg) {
+    return type(get_data(msg));
   }
 
 protected:
-  Message(Type type, vector content)
+  bool validate_outer_fields(Type tag) const {
+    auto&& outer = data_.to_list();
+    if (outer.size() < num_top_level_fields)
+      return false;
+
+    return outer[version_index].to_count() == ProtocolVersion
+           && outer[type_index].to_count() == static_cast<count>(tag)
+           && outer[content_index].is_list();
+  }
+
+  /// Returns the content of the message, i.e., the fields for the sub-type.
+  /// @pre validate_outer_fields(tag)
+  const vector& sub_fields() const {
+    auto&& outer = data_.to_list();
+    return outer[content_index].to_list();
+  }
+
+  /// @copydoc sub_fields()
+  vector& sub_fields() {
+    auto& outer = as_vector();
+    return get<vector>(outer[content_index]);
+  }
+
+  explicit Message(Type type, vector content)
     : data_(vector{ProtocolVersion, count(type), std::move(content)}) {}
 
-  Message(data msg) : data_(std::move(msg)) {}
+  explicit Message(data msg) : data_(std::move(msg)) {}
+
+  Message() = default;
+
+  Message(Message&&) = default;
 
   data data_;
+};
+
+/// Represents an invalid message.
+class Invalid : public Message {
+public:
+  Invalid() = default;
+
+  explicit Invalid(data msg) : Message(std::move(msg)) {}
+
+  explicit Invalid(data_message msg) : Invalid(broker::move_data(msg)) {}
+
+  explicit Invalid(Message&& msg) : Message(std::move(msg)) {}
 };
 
 /// Support iteration with structured binding.
@@ -183,6 +218,18 @@ private:
 /// A Zeek event.
 class Event : public Message {
 public:
+  /// The index of the event name field.
+  static constexpr size_t name_index = 0;
+
+  /// The index of the event arguments field.
+  static constexpr size_t args_index = 1;
+
+  /// The index of the optional metadata field.
+  static constexpr size_t metadata_index = 2;
+
+  /// The minimum number of fields in a valid event.
+  static constexpr size_t min_fields = 2;
+
   Event(std::string name, vector args)
     : Message(Message::Type::Event, {std::move(name), std::move(args)}) {}
 
@@ -196,20 +243,24 @@ public:
     : Message(Message::Type::Event,
               {std::move(name), std::move(args), std::move(metadata)}) {}
 
-  Event(data msg) : Message(std::move(msg)) {}
+  explicit Event(data msg) : Message(std::move(msg)) {}
+
+  explicit Event(data_message msg) : Event(broker::move_data(msg)) {}
 
   const std::string& name() const {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<std::string>(fields[name_index]);
   }
 
   std::string& name() {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<std::string>(fields[name_index]);
   }
 
   MetadataWrapper metadata() const {
-    if (const auto* ev_vec_ptr = get_if<vector>(as_vector()[2]);
-        ev_vec_ptr && ev_vec_ptr->size() >= 3)
-      return MetadataWrapper{get_if<vector>((*ev_vec_ptr)[2])};
+    auto&& fields = sub_fields();
+    if (fields.size() > metadata_index)
+      return MetadataWrapper{get_if<vector>(fields[metadata_index])};
 
     return MetadataWrapper{nullptr};
   }
@@ -222,35 +273,23 @@ public:
   }
 
   const vector& args() const {
-    return get<vector>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<vector>(fields[args_index]);
   }
 
   vector& args() {
-    return get<vector>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<vector>(fields[args_index]);
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    if (!validate_outer_fields(Type::Event))
       return false;
 
-    auto vp = get_if<vector>(&(as_vector()[2]));
+    auto&& fields = sub_fields();
 
-    if (!vp)
-      return false;
-
-    auto& v = *vp;
-
-    if (v.size() < 2)
-      return false;
-
-    auto name_ptr = get_if<std::string>(&v[0]);
-
-    if (!name_ptr)
-      return false;
-
-    auto args_ptr = get_if<vector>(&v[1]);
-
-    if (!args_ptr)
+    if (fields.size() < min_fields || !fields[name_index].is_string()
+        || !fields[args_index].is_list())
       return false;
 
     // Optional event metadata verification.
@@ -258,62 +297,25 @@ public:
     // Verify the third element if it exists is a vector<vector<count, data>>
     // and type and further check that the NetworkTimestamp metadata has the
     // right type because we know down here what to expect.
-    if (v.size() > 2) {
-      auto md_ptr = get_if<vector>(&v[2]);
-      if (!md_ptr)
+    if (fields.size() > metadata_index) {
+      auto&& meta_field = fields[metadata_index];
+      if (!meta_field.is_list())
         return false;
 
-      for (const auto& mde : *md_ptr) {
-        auto mdev_ptr = get_if<vector>(mde);
-        if (!mdev_ptr)
+      for (const auto& field : meta_field.to_list()) {
+        auto&& kvp = field.to_list();
+
+        // Must be two elements: key and value.
+        if (kvp.size() != 2 || !kvp[0].is_count())
           return false;
 
-        if (mdev_ptr->size() != 2)
-          return false;
-
-        const auto& mdev = *mdev_ptr;
-
-        auto mde_key_ptr = get_if<count>(mdev[0]);
-        if (!mde_key_ptr)
-          return false;
-
+        // If we have a NetworkTimestamp key, the value must be a timestamp.
         constexpr auto net_ts_key =
           static_cast<count>(MetadataType::NetworkTimestamp);
-        if (*mde_key_ptr == net_ts_key) {
-          auto mde_val_ptr = get_if<timestamp>(mdev[1]);
-          if (!mde_val_ptr)
-            return false;
-        }
+        if (kvp[0].to_count() == net_ts_key && !kvp[1].is_timestamp())
+          return false;
       }
     }
-
-    return true;
-  }
-};
-
-/// A batch of other messages.
-class Batch : public Message {
-public:
-  Batch(vector msgs) : Message(Message::Type::Batch, std::move(msgs)) {}
-
-  Batch(data msg) : Message(std::move(msg)) {}
-
-  const vector& batch() const {
-    return get<vector>(as_vector()[2]);
-  }
-
-  vector& batch() {
-    return get<vector>(as_vector()[2]);
-  }
-
-  bool valid() const {
-    if (as_vector().size() < 3)
-      return false;
-
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
-      return false;
 
     return true;
   }
@@ -323,67 +325,79 @@ public:
 /// only by Zeek itself as the arguments aren't pulbically defined.
 class LogCreate : public Message {
 public:
+  /// The index of the stream ID field.
+  static constexpr size_t stream_id_index = 0;
+
+  /// The index of the writer ID field.
+  static constexpr size_t writer_id_index = 1;
+
+  /// The index of the writer info field.
+  static constexpr size_t writer_info_index = 2;
+
+  /// The index of the fields data field.
+  static constexpr size_t fields_data_index = 3;
+
+  /// The minimum number of fields in a valid log-create message.
+  static constexpr size_t min_fields = 4;
+
   LogCreate(enum_value stream_id, enum_value writer_id, data writer_info,
             data fields_data)
     : Message(Message::Type::LogCreate,
               {std::move(stream_id), std::move(writer_id),
                std::move(writer_info), std::move(fields_data)}) {}
 
-  LogCreate(data msg) : Message(std::move(msg)) {}
+  explicit LogCreate(data msg) : Message(std::move(msg)) {}
+
+  explicit LogCreate(data_message msg) : LogCreate(broker::move_data(msg)) {}
 
   const enum_value& stream_id() const {
-    return get<enum_value>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[stream_id_index]);
   }
 
   enum_value& stream_id() {
-    return get<enum_value>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[stream_id_index]);
   }
 
   const enum_value& writer_id() const {
-    return get<enum_value>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[writer_id_index]);
   }
 
   enum_value& writer_id() {
-    return get<enum_value>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[writer_id_index]);
   }
 
   const data& writer_info() const {
-    return get<vector>(as_vector()[2])[2];
+    auto&& fields = sub_fields();
+    return fields[writer_info_index];
   }
 
   data& writer_info() {
-    return get<vector>(as_vector()[2])[2];
+    auto&& fields = sub_fields();
+    return fields[writer_info_index];
   }
 
   const data& fields_data() const {
-    return get<vector>(as_vector()[2])[3];
+    auto&& fields = sub_fields();
+    return fields[fields_data_index];
   }
 
   data& fields_data() {
-    return get<vector>(as_vector()[2])[3];
+    auto&& fields = sub_fields();
+    return fields[fields_data_index];
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    if (!validate_outer_fields(Type::LogCreate))
       return false;
 
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
-      return false;
-
-    auto& v = *vp;
-
-    if (v.size() < 4)
-      return false;
-
-    if (!get_if<enum_value>(&v[0]))
-      return false;
-
-    if (!get_if<enum_value>(&v[1]))
-      return false;
-
-    return true;
+    auto&& fields = sub_fields();
+    return fields.size() >= min_fields
+           && fields[stream_id_index].is_enum_value()
+           && fields[writer_id_index].is_enum_value();
   }
 };
 
@@ -391,113 +405,249 @@ public:
 /// by Zeek itself as the arguments aren't publicly defined.
 class LogWrite : public Message {
 public:
+  /// The index of the stream ID field.
+  static constexpr size_t stream_id_index = 0;
+
+  /// The index of the writer ID field.
+  static constexpr size_t writer_id_index = 1;
+
+  /// The index of the path field.
+  static constexpr size_t path_index = 2;
+
+  /// The index of the serial data field.
+  static constexpr size_t serial_data_index = 3;
+
+  /// The minimum number of fields in a valid log-create message.
+  static constexpr size_t min_fields = 4;
+
   LogWrite(enum_value stream_id, enum_value writer_id, data path,
            data serial_data)
     : Message(Message::Type::LogWrite,
               {std::move(stream_id), std::move(writer_id), std::move(path),
                std::move(serial_data)}) {}
 
-  LogWrite(data msg) : Message(std::move(msg)) {}
+  explicit LogWrite(data msg) : Message(std::move(msg)) {}
+
+  explicit LogWrite(data_message msg) : LogWrite(broker::move_data(msg)) {}
 
   const enum_value& stream_id() const {
-    return get<enum_value>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[stream_id_index]);
   }
 
   enum_value& stream_id() {
-    return get<enum_value>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[stream_id_index]);
   }
 
   const enum_value& writer_id() const {
-    return get<enum_value>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[writer_id_index]);
   }
 
   enum_value& writer_id() {
-    return get<enum_value>(get<vector>(as_vector()[2])[1]);
+    auto&& fields = sub_fields();
+    return get<enum_value>(fields[writer_id_index]);
   }
 
   const data& path() const {
-    return get<vector>(as_vector()[2])[2];
+    auto&& fields = sub_fields();
+    return fields[path_index];
   }
 
   data& path() {
-    return get<vector>(as_vector()[2])[2];
+    auto&& fields = sub_fields();
+    return fields[path_index];
+  };
+
+  std::string_view path_str() {
+    auto&& fields = sub_fields();
+    return fields[path_index].to_string();
   };
 
   const data& serial_data() const {
-    return get<vector>(as_vector()[2])[3];
+    auto&& fields = sub_fields();
+    return fields[serial_data_index];
   }
 
   data& serial_data() {
-    return get<vector>(as_vector()[2])[3];
+    auto&& fields = sub_fields();
+    return fields[serial_data_index];
+  }
+
+  std::string_view serial_data_str() const {
+    auto&& fields = sub_fields();
+    return fields[serial_data_index].to_string();
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    if (!validate_outer_fields(Type::LogWrite))
       return false;
 
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
-      return false;
-
-    auto& v = *vp;
-
-    if (v.size() < 4)
-      return false;
-
-    if (!get_if<enum_value>(&v[0]))
-      return false;
-
-    if (!get_if<enum_value>(&v[1]))
-      return false;
-
-    return true;
+    auto&& fields = sub_fields();
+    return fields.size() >= min_fields
+           && fields[stream_id_index].is_enum_value()
+           && fields[writer_id_index].is_enum_value()
+           && fields[path_index].is_string()
+           && fields[serial_data_index].is_string();
   }
 };
 
 class IdentifierUpdate : public Message {
 public:
+  /// The index of the ID name field.
+  static constexpr size_t id_name_index = 0;
+
+  /// The index of the ID value field.
+  static constexpr size_t id_value_index = 1;
+
+  /// The minimum number of fields in a valid identifier-update message.
+  static constexpr size_t min_fields = 2;
+
   IdentifierUpdate(std::string id_name, data id_value)
     : Message(Message::Type::IdentifierUpdate,
               {std::move(id_name), std::move(id_value)}) {}
 
-  IdentifierUpdate(data msg) : Message(std::move(msg)) {}
+  explicit IdentifierUpdate(data msg) : Message(std::move(msg)) {}
+
+  explicit IdentifierUpdate(data_message msg)
+    : IdentifierUpdate(broker::move_data(msg)) {}
 
   const std::string& id_name() const {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<std::string>(fields[id_name_index]);
   }
 
   std::string& id_name() {
-    return get<std::string>(get<vector>(as_vector()[2])[0]);
+    auto&& fields = sub_fields();
+    return get<std::string>(fields[id_name_index]);
   }
 
   const data& id_value() const {
-    return get<vector>(as_vector()[2])[1];
+    auto&& fields = sub_fields();
+    return fields[id_value_index];
   }
 
   data& id_value() {
-    return get<vector>(as_vector()[2])[1];
+    auto&& fields = sub_fields();
+    return fields[id_value_index];
   }
 
   bool valid() const {
-    if (as_vector().size() < 3)
+    if (!validate_outer_fields(Type::IdentifierUpdate))
       return false;
 
-    auto vp = get_if<vector>(&(as_vector()[2]));
-
-    if (!vp)
-      return false;
-
-    auto& v = *vp;
-
-    if (v.size() < 2)
-      return false;
-
-    if (!get_if<std::string>(&v[0]))
-      return false;
-
-    return true;
+    auto&& fields = sub_fields();
+    return fields.size() >= min_fields && fields[id_name_index].is_string();
   }
 };
 
+class BatchBuilder;
+
+/// A batch of other messages.
+class Batch : public Message {
+public:
+  explicit Batch(data msg);
+
+  explicit Batch(data_message msg) : Batch(broker::move_data(msg)) {}
+
+  size_t size() const noexcept {
+    return impl_ ? impl_->size() : 0;
+  }
+
+  bool empty() const noexcept {
+    return size() == 0;
+  }
+
+  bool valid() const {
+    return impl_ != nullptr;
+  }
+
+  template <class F>
+  auto for_each(F&& f) {
+    if (!impl_)
+      return;
+    for (auto& x : *impl_)
+      std::visit(f, x);
+  }
+
+  template <class F>
+  auto for_each(F&& f) const {
+    if (!impl_)
+      return;
+    for (const auto& x : *impl_)
+      std::visit(f, x);
+  }
+
+private:
+  using VarMsg =
+    std::variant<broker::zeek::Event, broker::zeek::LogCreate,
+                 broker::zeek::LogWrite, broker::zeek::IdentifierUpdate,
+                 broker::zeek::Batch>;
+
+  using Content = std::vector<VarMsg>;
+
+  std::shared_ptr<Content> impl_;
+};
+
+class BatchBuilder {
+public:
+  void add(Message&& msg) {
+    inner_.emplace_back(msg.move_data());
+  }
+
+  bool empty() const noexcept {
+    return inner_.empty();
+  }
+
+  Batch build();
+
+private:
+  vector inner_;
+};
+
+template <class F>
+auto visit_as_message(F&& f, broker::data_message msg) {
+  auto do_visit = [&f](auto& tmp) {
+    if (tmp.valid())
+      return f(tmp);
+    Invalid fallback{std::move(tmp)};
+    return f(fallback);
+  };
+  switch (Message::type(msg)) {
+    default: {
+      Invalid tmp{std::move(msg)};
+      return f(tmp);
+    }
+    case Message::Type::Event: {
+      Event tmp{std::move(msg)};
+      return do_visit(tmp);
+    }
+    case Message::Type::LogCreate: {
+      LogCreate tmp{std::move(msg)};
+      return do_visit(tmp);
+    }
+    case Message::Type::LogWrite: {
+      LogWrite tmp{std::move(msg)};
+      return do_visit(tmp);
+    }
+    case Message::Type::IdentifierUpdate: {
+      IdentifierUpdate tmp{std::move(msg)};
+      return do_visit(tmp);
+    }
+    case Message::Type::Batch: {
+      Batch tmp{std::move(msg)};
+      return do_visit(tmp);
+    }
+  }
+}
+
 } // namespace broker::zeek
+
+namespace broker {
+
+inline std::string to_string(const zeek::Message& msg) {
+  return to_string(msg.as_data());
+}
+
+} // namespace broker
