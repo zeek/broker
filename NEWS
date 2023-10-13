@@ -1,6 +1,11 @@
 Broker 2.7.0
 ============
 
+- Fix a performance bug with metrics where a cluster with a large number (>64) of
+  workers causes the manager to become overloaded and stop processing metrics.
+
+- Fragmented websocket frames are now correctly handled.
+
 Broker 2.6.0
 ============
 
