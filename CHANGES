@@ -1,3 +1,7 @@
+2.8.0-dev.5 | 2023-11-13 19:52:09 -0800
+
+  * Fix Github edit links in top-right of HTML pages (Christian Kreibich, Corelight)
+
 2.8.0-dev.3 | 2023-10-13 13:25:04 -0700
 
   * Replace magic numbers with named indexes (Dominik Charousset, Corelight)
