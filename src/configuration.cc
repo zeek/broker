@@ -271,41 +271,6 @@ void configuration::impl::init(int argc, char** argv) {
     }
     set("broker.web-socket.port", std::move(str));
   }
-  if (auto env = getenv("BROKER_METRICS_PORT")) {
-    // Check for validity before overriding any CLI or config file value.
-    auto str = std::string{env};
-    broker::port tmp;
-    if (!convert(str, tmp)) {
-      auto what = concat("invalid value for BROKER_METRICS_PORT: ", env,
-                         " (expected a non-zero port number)");
-      throw std::invalid_argument(what);
-    }
-    set("broker.metrics.port", std::move(str));
-  }
-  if (auto env = getenv("BROKER_METRICS_ENDPOINT_NAME")) {
-    set("broker.metrics.endpoint-name", env);
-  }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_TOPIC")) {
-    set("broker.metrics.export.topic", env);
-  }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_INTERVAL")) {
-    caf::config_value val{env};
-    if (auto interval = caf::get_as<caf::timespan>(val)) {
-      set("broker.metrics.export.interval", *interval);
-    } else {
-      auto what = concat("invalid value for BROKER_METRICS_EXPORT_INTERVAL: ",
-                         env, " (expected an interval such as '5s')");
-      throw std::invalid_argument(what);
-    }
-  }
-  if (auto env = getenv("BROKER_METRICS_EXPORT_PREFIXES")) {
-    if (auto prefixes = split_and_trim(env); !prefixes.empty())
-      set("broker.metrics.export.prefixes", std::move(prefixes));
-  }
-  if (auto env = getenv("BROKER_METRICS_IMPORT_TOPICS")) {
-    if (auto topics = split_and_trim(env); !topics.empty())
-      set("broker.metrics.import.topics", std::move(topics));
-  }
   if (auto env = getenv("BROKER_OUTPUT_GENERATOR_FILE_CAP")) {
     char* end = nullptr;
     auto value = strtol(env, &end, 10);
