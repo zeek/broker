@@ -144,10 +144,9 @@ const std::string* error::message() const noexcept {
 
 const endpoint_info* error::context() const noexcept {
   auto& msg = native(*this).context();
-  if (auto v = caf::make_const_typed_message_view<endpoint_info>(msg))
-    return std::addressof(get<0>(v));
-  else
-    return nullptr;
+  if (msg.match_element<endpoint_info>(0))
+    return std::addressof(msg.get_as<endpoint_info>(0));
+  return nullptr;
 }
 
 error::impl* error::native_ptr() noexcept {

@@ -1,3 +1,7 @@
+2.8.0-dev.7 | 2023-11-16 16:54:09 +0100
+
+  * Fix error::context (Dominik Charousset, Corelight)
+
 2.8.0-dev.5 | 2023-11-13 19:52:09 -0800
 
   * Fix Github edit links in top-right of HTML pages (Christian Kreibich, Corelight)
