@@ -73,6 +73,9 @@ public:
   virtual envelope_ptr with(endpoint_id new_sender,
                             endpoint_id new_receiver) const = 0;
 
+  /// Returns a string representation of this envelope.
+  virtual std::string stringify() const = 0;
+
   /// Attempts to deserialize an envelope from the given message in Broker's
   /// write format.
   static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
@@ -215,5 +218,19 @@ private:
 /// A shared pointer to an @ref envelope.
 /// @relates envelope
 using envelope_ptr = intrusive_ptr<const envelope>;
+
+/// @relates envelope
+inline std::string to_string(const envelope& x) {
+  return x.stringify();
+}
+
+
+/// @relates envelope
+inline std::string to_string(const envelope_ptr& x) {
+  if (x)
+    return x->stringify();
+  else
+    return "<null>";
+}
 
 } // namespace broker

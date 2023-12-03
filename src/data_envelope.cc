@@ -173,6 +173,15 @@ envelope_ptr data_envelope::with(endpoint_id new_sender,
                                            new_sender, new_receiver);
 }
 
+std::string data_envelope::stringify() const {
+  auto result = "data("s;
+  result += topic();
+  result += ", ";
+  convert(value(), result);
+  result += ')';
+  return result;
+}
+
 data_envelope_ptr data_envelope::make(broker::topic t, const data& d) {
   return make(endpoint_id::nil(), endpoint_id::nil(), std::move(t), d);
 }
@@ -243,20 +252,6 @@ data_envelope_ptr data_envelope::make(broker::topic t, variant d) {
 
 data_envelope_ptr data_envelope::make(std::string_view t, variant d) {
   return make(broker::topic{std::string{t}}, std::move(d));
-}
-
-std::string to_string(const data_envelope& x) {
-  auto result = "("s;
-  result += x.topic();
-  convert(x.value(), result);
-  result += ')';
-  return result;
-}
-
-std::string to_string(const data_envelope_ptr& x) {
-  if (!x)
-    return "null";
-  return to_string(*x);
 }
 
 } // namespace broker

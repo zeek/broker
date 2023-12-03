@@ -10,6 +10,9 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
+#include <caf/deep_to_string.hpp>
+
+using namespace std::literals;
 
 namespace broker {
 
@@ -36,6 +39,15 @@ envelope_ptr command_envelope::with(endpoint_id new_sender,
                                     endpoint_id new_receiver) const {
   return command_envelope_decorator_ptr::make(intrusive_ptr{new_ref, this},
                                               new_sender, new_receiver);
+}
+
+std::string command_envelope::stringify() const {
+  auto result = "command("s;
+  result += topic();
+  result += ", ";
+  result += caf::deep_to_string(value());
+  result += ')';
+  return result;
 }
 
 namespace {

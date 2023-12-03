@@ -88,6 +88,8 @@ public:
   envelope_ptr with(endpoint_id new_sender,
                     endpoint_id new_receiver) const override;
 
+  std::string stringify() const override;
+
   /// Returns the number of entries in the filter.
   size_t filter_size() const noexcept;
 

@@ -5,6 +5,8 @@
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
+using namespace std::literals;
+
 namespace broker {
 
 namespace {
@@ -57,6 +59,10 @@ envelope_ptr pong_envelope::with(endpoint_id new_sender,
   using decorator_ptr = intrusive_ptr<envelope::decorator<pong_envelope>>;
   return decorator_ptr::make(intrusive_ptr{new_ref, this}, new_sender,
                              new_receiver);
+}
+
+std::string pong_envelope::stringify() const {
+  return "pong"s;
 }
 
 pong_envelope_ptr pong_envelope::make(const endpoint_id& sender,

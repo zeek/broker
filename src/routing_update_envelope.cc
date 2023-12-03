@@ -8,6 +8,8 @@
 #include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
 
+using namespace std::literals;
+
 namespace binfmt = broker::format::bin::v1;
 
 namespace broker {
@@ -44,6 +46,24 @@ envelope_ptr routing_update_envelope::with(endpoint_id new_sender,
     intrusive_ptr<envelope::decorator<routing_update_envelope>>;
   return decorator_ptr::make(intrusive_ptr{new_ref, this}, new_sender,
                              new_receiver);
+}
+
+std::string routing_update_envelope::stringify() const {
+  auto result = "routing_update("s;
+  result += topic();
+  result += ", {";
+  if (filter_size() > 0) {
+    auto i = begin();
+    result += *i;
+    ++i;
+    while (i != end()) {
+      result += ", ";
+      result += *i;
+      ++i;
+    }
+  }
+  result += "})";
+  return result;
 }
 
 size_t routing_update_envelope::filter_size() const noexcept {

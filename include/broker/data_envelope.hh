@@ -12,6 +12,8 @@ public:
   envelope_ptr with(endpoint_id new_sender,
                     endpoint_id new_receiver) const final;
 
+  std::string stringify() const override;
+
   /// Returns the contained value.
   /// @pre `root != nullptr`
   virtual variant value() const noexcept = 0;
@@ -48,11 +50,5 @@ protected:
 /// A shared pointer to a @ref data_envelope.
 /// @relates data_envelope
 using data_envelope_ptr = intrusive_ptr<const data_envelope>;
-
-/// @relates data_envelope
-std::string to_string(const data_envelope& x);
-
-/// @relates data_envelope
-std::string to_string(const data_envelope_ptr& x);
 
 } // namespace broker

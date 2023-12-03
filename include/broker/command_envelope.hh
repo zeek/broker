@@ -12,6 +12,8 @@ public:
   envelope_ptr with(endpoint_id new_sender,
                     endpoint_id new_receiver) const final;
 
+  std::string stringify() const override;
+
   /// Returns the contained command.
   virtual const internal_command& value() const noexcept = 0;
 

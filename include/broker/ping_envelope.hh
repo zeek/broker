@@ -13,6 +13,8 @@ public:
 
   envelope_ptr with(endpoint_id new_sender, endpoint_id new_receiver) const final;
 
+  std::string stringify() const override;
+
   /// Creates a new ping envelope from the given arguments.
   static ping_envelope_ptr make(const endpoint_id& sender,
                                 const endpoint_id& receiver,
