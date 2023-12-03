@@ -223,7 +223,7 @@ public:
 
   std::pair<const std::byte*, size_t> raw_bytes() const noexcept override {
     if (val_.is_root())
-      val_.shared_envelope()->raw_bytes();
+      return val_.shared_envelope()->raw_bytes();
     return {nullptr, 0};
   }
 
