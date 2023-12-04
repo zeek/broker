@@ -224,7 +224,6 @@ inline std::string to_string(const envelope& x) {
   return x.stringify();
 }
 
-
 /// @relates envelope
 inline std::string to_string(const envelope_ptr& x) {
   if (x)

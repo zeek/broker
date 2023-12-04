@@ -5,6 +5,8 @@
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
+#include <caf/detail/append_hex.hpp>
+
 using namespace std::literals;
 
 namespace broker {
@@ -14,11 +16,8 @@ namespace {
 class default_pong_envelope : public pong_envelope {
 public:
   default_pong_envelope(endpoint_id sender, endpoint_id receiver,
-                         const std::byte* payload,
-                        size_t payload_size)
-    : sender_(sender),
-      receiver_(receiver),
-      payload_size_(payload_size) {
+                        const std::byte* payload, size_t payload_size)
+    : sender_(sender), receiver_(receiver), payload_size_(payload_size) {
     payload_ = std::make_unique<std::byte[]>(payload_size);
     memcpy(payload_.get(), payload, payload_size);
   }
@@ -62,7 +61,11 @@ envelope_ptr pong_envelope::with(endpoint_id new_sender,
 }
 
 std::string pong_envelope::stringify() const {
-  return "pong"s;
+  auto result = "pong("s;
+  auto [bytes, num_bytes] = raw_bytes();
+  caf::detail::append_hex(result, bytes, num_bytes);
+  result += ')';
+  return result;
 }
 
 pong_envelope_ptr pong_envelope::make(const endpoint_id& sender,

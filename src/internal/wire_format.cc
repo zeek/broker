@@ -88,7 +88,11 @@ std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
 namespace v1 {
 
 bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
-  BROKER_DEBUG("serialize envelope:" << msg);
+  if (!msg) {
+    BROKER_ERROR("cannot serialize a null envelope");
+    return false;
+  }
+  BROKER_DEBUG("serialize envelope:" << *msg);
   caf::binary_serializer sink{nullptr, buf};
   auto write_topic = [&msg, &sink] {
     auto str = msg->topic();
