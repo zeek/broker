@@ -3,6 +3,7 @@
 #include "broker/data.hh"
 #include "broker/data_envelope.hh"
 #include "broker/internal/killswitch.hh"
+#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
@@ -149,6 +150,7 @@ std::vector<std::byte> peering::make_bye_token() {
 
 node_message peering::make_bye_message() {
   std::array<std::byte, bye_token_size> token;
+  assign_bye_token(token);
   return make_ping_message(id_, peer_id_, token.data(), token.size());
 }
 
@@ -184,6 +186,7 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
           if (auto [payload_bytes, payload_size] = msg->raw_bytes();
               std::equal(payload_bytes, payload_bytes + payload_size,
                          token.begin(), token.end())) {
+            BROKER_DEBUG("received final PONG message during unpeering");
             ptr->on_bye_ack();
             ptr = nullptr;
           }
