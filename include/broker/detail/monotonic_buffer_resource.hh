@@ -11,7 +11,7 @@ namespace broker::detail {
 class monotonic_buffer_resource {
 public:
   monotonic_buffer_resource() {
-    allocate_block(nullptr);
+    allocate_block(nullptr, 0);
   }
 
   monotonic_buffer_resource(const monotonic_buffer_resource&) = delete;
@@ -38,7 +38,7 @@ private:
     void* bytes;
   };
 
-  void allocate_block(block* prev_block);
+  void allocate_block(block* prev_block, size_t min_size);
 
   void destroy() noexcept;
 

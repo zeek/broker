@@ -1,3 +1,11 @@
+2.8.0-dev.9 | 2023-12-04 16:02:54 +0100
+
+  * Fix MBR allocations for >= 1024 bytes (Dominik Charousset, Corelight)
+
+    When trying to allocate a single object with size >= 1024, the current
+    implementation crashes with a stack overflow. This patch allows blocks
+    to exceed the hard-coded size limit to accommodate larger objects.
+
 2.8.0-dev.7 | 2023-11-16 16:54:09 +0100
 
   * Fix error::context (Dominik Charousset, Corelight)
