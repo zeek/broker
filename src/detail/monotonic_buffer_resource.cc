@@ -1,5 +1,6 @@
 #include "broker/detail/monotonic_buffer_resource.hh"
 
+#include <algorithm>
 #include <cstdlib>
 #include <memory>
 
@@ -15,23 +16,27 @@ constexpr size_t block_size = 1024;
 } // namespace
 
 void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
-  if (auto res = std::align(alignment, num_bytes, current_->bytes,
-                            remaining_)) {
-    current_->bytes = static_cast<std::byte*>(res) + num_bytes;
-    remaining_ -= num_bytes;
-    return res;
-  } else {
-    allocate_block(current_);
-    return allocate(num_bytes, alignment);
+  auto res = std::align(alignment, num_bytes, current_->bytes, remaining_);
+  if (res == nullptr) {
+    allocate_block(current_, num_bytes);
+    res = std::align(alignment, num_bytes, current_->bytes, remaining_);
+    if (res == nullptr)
+      throw std::bad_alloc();
   }
+  current_->bytes = static_cast<std::byte*>(res) + num_bytes;
+  remaining_ -= num_bytes;
+  return res;
 }
 
-void monotonic_buffer_resource::allocate_block(block* prev_block) {
-  if (auto vptr = malloc(block_size)) {
+void monotonic_buffer_resource::allocate_block(block* prev_block,
+                                               size_t min_size) {
+  auto size = std::max(block_size,
+                       min_size + sizeof(block) + sizeof(max_align_t));
+  if (auto vptr = malloc(size)) {
     current_ = static_cast<block*>(vptr);
     current_->next = prev_block;
     current_->bytes = static_cast<std::byte*>(vptr) + sizeof(block);
-    remaining_ = block_size - sizeof(block);
+    remaining_ = size - sizeof(block);
   } else {
     throw std::bad_alloc();
   }
