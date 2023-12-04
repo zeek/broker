@@ -1,3 +1,9 @@
+2.8.0-dev.11 | 2023-12-04 16:36:02 +0100
+
+  * Pick up upstream CAF patch for flow::from_steps (Dominik Charousset, Corelight)
+
+    This fixes a potential segfault (dereferencing a null pointer) in Broker.
+
 2.8.0-dev.9 | 2023-12-04 16:02:54 +0100
 
   * Fix MBR allocations for >= 1024 bytes (Dominik Charousset, Corelight)
