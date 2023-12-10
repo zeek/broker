@@ -196,7 +196,7 @@ public:
     return MetadataIterator{v_.end()};
   }
 
-  variant value(count key) const {
+  [[nodiscard]] variant value(count key) const {
     for (const auto& [k, v] : *this) {
       if (k == key)
         return v;
@@ -204,7 +204,7 @@ public:
     return {};
   }
 
-  auto value(MetadataType key) const {
+  [[nodiscard]] auto value(MetadataType key) const {
     return value(static_cast<count>(key));
   }
 
@@ -214,6 +214,10 @@ public:
 
   [[nodiscard]] bool empty() const noexcept {
     return v_.empty();
+  }
+
+  [[nodiscard]] const variant_list& raw() const noexcept {
+    return v_;
   }
 
 private:
