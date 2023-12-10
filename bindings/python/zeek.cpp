@@ -22,8 +22,7 @@ using namespace pybind11::literals;
 void init_zeek(py::module& m) {
   py::class_<broker::zeek::Message>(m, "Message")
     .def("as_data",
-         static_cast<broker::data (broker::zeek::Message::*)() const>(
-           &broker::zeek::Message::as_data));
+         [](const broker::zeek::Message& msg) { return msg.as_data(); });
   py::class_<broker::zeek::Event, broker::zeek::Message>(m, "Event")
     .def(py::init([](const broker::data& content) {
       auto topic_str = broker::topic::reserved;

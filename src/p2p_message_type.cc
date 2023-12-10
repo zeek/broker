@@ -2,6 +2,8 @@
 
 #include "broker/detail/assert.hh"
 
+#include <algorithm>
+
 namespace broker {
 
 constexpr std::string_view p2p_message_type_names[] = {
