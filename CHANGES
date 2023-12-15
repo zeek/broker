@@ -1,3 +1,14 @@
+2.8.0-dev.18 | 2023-12-14 19:56:46 -0800
+
+  * CI updates (Christian Kreibich, Corelight)
+
+    - remove openSUSE Leap 15.4, about to EOL
+    - drop macOS Monterey, add Sonoma
+    - add Ubuntu 23.10
+    - FreeBSD 14 is out now, 13 is at 13.2, and 12 is about to EOL.
+    - distro EOL comment tweaks
+    - drop Fedora 37, add Fedora 39
+
 2.8.0-dev.11 | 2023-12-04 16:36:02 +0100
 
   * Pick up upstream CAF patch for flow::from_steps (Dominik Charousset, Corelight)
