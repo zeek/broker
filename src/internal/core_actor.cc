@@ -5,7 +5,6 @@
 #include <caf/allowed_unsafe_message_type.hpp>
 #include <caf/behavior.hpp>
 #include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
@@ -26,6 +25,7 @@
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
@@ -613,7 +613,7 @@ void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
 template <class T>
 packed_message core_actor_state::pack(const T& msg) {
   buf.clear();
-  caf::binary_serializer snk{nullptr, buf};
+  format::bin::v1::encoder snk{std::back_inserter(buf)};
   if constexpr (std::is_same_v<T, data_message>) {
     std::ignore = snk.apply(get_data(msg));
   } else {
@@ -1192,7 +1192,7 @@ void core_actor_state::broadcast_subscriptions() {
   // Serialize the filter.
   auto fs = filter->read();
   buf.clear();
-  caf::binary_serializer sink{nullptr, buf};
+  format::bin::v1::encoder sink{std::back_inserter(buf)};
   [[maybe_unused]] auto ok = sink.apply(fs);
   BROKER_ASSERT(ok);
   // Pack and send to each peer.

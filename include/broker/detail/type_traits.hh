@@ -1,8 +1,13 @@
 #pragma once
 
 #include <cstddef>
-
+#include <list>
+#include <map>
+#include <optional>
 #include <type_traits>
+#include <unordered_map>
+#include <variant>
+#include <vector>
 
 namespace broker {
 
@@ -13,6 +18,60 @@ class topic;
 } // namespace broker
 
 namespace broker::detail {
+
+template <class>
+struct is_variant_oracle : std::false_type {};
+
+template <class... Ts>
+struct is_variant_oracle<std::variant<Ts...>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_variant = is_variant_oracle<T>::value;
+
+template <class>
+struct is_optional_oracle : std::false_type {};
+
+template <class T>
+struct is_optional_oracle<std::optional<T>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_optional = is_optional_oracle<T>::value;
+
+template <class>
+struct is_array_oracle : std::false_type {};
+
+template <class T, size_t N>
+struct is_array_oracle<std::array<T, N>> : std::true_type {};
+
+template <class T, size_t N>
+struct is_array_oracle<T[N]> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_array = is_array_oracle<T>::value;
+
+template <class>
+struct is_map_oracle : std::false_type {};
+
+template <class Key, class Val>
+struct is_map_oracle<std::map<Key, Val>> : std::true_type {};
+
+template <class Key, class Val>
+struct is_map_oracle<std::unordered_map<Key, Val>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_map = is_map_oracle<T>::value;
+
+template <class>
+struct is_list_oracle : std::false_type {};
+
+template <class T>
+struct is_list_oracle<std::list<T>> : std::true_type {};
+
+template <class T>
+struct is_list_oracle<std::vector<T>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_list = is_list_oracle<T>::value;
 
 template <class T>
 struct tag {
@@ -36,7 +95,7 @@ struct are_same<A, B> {
 
 template <class A, class B, class C, class... Ts>
 struct are_same<A, B, C, Ts...> {
-  static constexpr bool value =
+  static constexpr bool value = //
     std::is_same_v<A, B> && are_same<B, C, Ts...>::value;
 };
 
@@ -131,3 +190,21 @@ template <class F>
 using signature_of_t = typename signature_of_oracle<F>::type;
 
 } // namespace broker::detail
+
+#define BROKER_DEF_HAS_ENCODE_IN_NS(ns_name)                                   \
+  template <class T, class OutIter>                                            \
+  class has_encode_overload {                                                  \
+  private:                                                                     \
+    template <class U>                                                         \
+    static auto sfinae(U& y)                                                   \
+      -> decltype(::ns_name::encode(y, std::declval<OutIter&>()),              \
+                  std::true_type{});                                           \
+    static std::false_type sfinae(...);                                        \
+    using result_type = decltype(sfinae(std::declval<T&>()));                  \
+                                                                               \
+  public:                                                                      \
+    static constexpr bool value = result_type::value;                          \
+  };                                                                           \
+  template <class T, class OutIter>                                            \
+  inline constexpr bool has_encode_overload_v =                                \
+    has_encode_overload<T, OutIter>::value

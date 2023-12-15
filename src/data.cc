@@ -5,10 +5,13 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
+#include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 
 using broker::internal::native;
+
+namespace txt_v1 = broker::format::txt::v1;
 
 namespace {
 
@@ -161,19 +164,19 @@ void convert(const table::value_type& x, std::string& str) {
 }
 
 void convert(const vector& x, std::string& str) {
-  container_convert(x, str, '(', ')');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const set& x, std::string& str) {
-  container_convert(x, str, '{', '}');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const table& x, std::string& str) {
-  container_convert(x, str, '{', '}');
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 void convert(const data& x, std::string& str) {
-  visit(data_converter{str}, x);
+  txt_v1::encode(x, std::back_inserter(str));
 }
 
 bool convert(const data& x, endpoint_id& node) {

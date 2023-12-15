@@ -1,3 +1,11 @@
+2.8.0-dev.20 | 2023-12-15 20:59:14 +0100
+
+  * Implement encoding for text and binary formats (Dominik Charousset, Corelight)
+
+    - implement new encoding functions for both text and binary
+    - start versioning the Broker data formats in the API
+    - integrate the new encoding functions into text rendering and serialization
+
 2.8.0-dev.18 | 2023-12-14 19:56:46 -0800
 
   * CI updates (Christian Kreibich, Corelight)
