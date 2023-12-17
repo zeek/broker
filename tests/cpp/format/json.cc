@@ -122,16 +122,13 @@ TEST(real) {
 }
 
 TEST(string) {
+  // Note: putting these literals into CHECK_EQUAL confuses MSVC.
+  auto foobar = "foo\n\"bar"s;
+  auto foobar_res = R"_({"@data-type":"string","data":"foo\n\"bar"})_";
   CHECK_EQUAL(to_v1("foo"sv), R"_({"@data-type":"string","data":"foo"})_");
-  CHECK_EQUAL(to_v1("foo\nbar"sv),
-              R"_({"@data-type":"string","data":"foo\nbar"})_");
-  CHECK_EQUAL(to_v1("foo\n\"bar"sv),
-              R"_({"@data-type":"string","data":"foo\n\"bar"})_");
+  CHECK_EQUAL(to_v1(foobar), foobar_res);
   CHECK_EQUAL(to_v1(data{"foo"s}), R"_({"@data-type":"string","data":"foo"})_");
-  CHECK_EQUAL(to_v1(data{"foo\nbar"s}),
-              R"_({"@data-type":"string","data":"foo\nbar"})_");
-  CHECK_EQUAL(to_v1(data{"foo\n\"bar"s}),
-              R"_({"@data-type":"string","data":"foo\n\"bar"})_");
+  CHECK_EQUAL(to_v1(data{foobar}), foobar_res);
 }
 
 TEST(address) {
@@ -198,18 +195,15 @@ TEST(timestamp) {
 }
 
 TEST(enum_value) {
+  // Note: putting these literals into CHECK_EQUAL confuses MSVC.
+  auto foobar = "foo\n\"bar"s;
+  auto foobar_res = R"_({"@data-type":"enum-value","data":"foo\n\"bar"})_";
   CHECK_EQUAL(to_v1(enum_value{"foo"}),
               R"_({"@data-type":"enum-value","data":"foo"})_");
-  CHECK_EQUAL(to_v1(enum_value{"foo\nbar"}),
-              R"_({"@data-type":"enum-value","data":"foo\nbar"})_");
-  CHECK_EQUAL(to_v1(enum_value{"foo\n\"bar"}),
-              R"_({"@data-type":"enum-value","data":"foo\n\"bar"})_");
+  CHECK_EQUAL(to_v1(enum_value{foobar}), foobar_res);
   CHECK_EQUAL(to_v1(data{enum_value{"foo"}}),
               R"_({"@data-type":"enum-value","data":"foo"})_");
-  CHECK_EQUAL(to_v1(data{enum_value{"foo\nbar"}}),
-              R"_({"@data-type":"enum-value","data":"foo\nbar"})_");
-  CHECK_EQUAL(to_v1(data{enum_value{"foo\n\"bar"}}),
-              R"_({"@data-type":"enum-value","data":"foo\n\"bar"})_");
+  CHECK_EQUAL(to_v1(data{enum_value{foobar}}), foobar_res);
 }
 
 TEST(vector) {
