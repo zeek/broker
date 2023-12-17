@@ -81,6 +81,14 @@ OutIter append(quoted value, OutIter out) {
   return out;
 }
 
+/// Appends a field (key-value pair) to the output iterator.
+template <class OutIter>
+OutIter append_field(std::string_view key, std::string_view val, OutIter out) {
+  out = append(quoted{key}, out);
+  *out++ = ':';
+  return append(quoted{val}, out);
+}
+
 /// Appends an encoded value to the output iterator.
 /// @param value_type The type name of the value.
 /// @param value The value. Must provide an overload for `append()`.
