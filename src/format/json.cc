@@ -38,7 +38,6 @@ size_t encode_to_buf(timestamp value, std::array<char, 32>& buf) {
   buf[pos++] = '"';
   buf[pos] = '\0';
   return pos;
-
 }
 
 } // namespace broker::format::json::v1
