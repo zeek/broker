@@ -51,7 +51,7 @@ OutIter encode(real value, OutIter out) {
   } else {
     std::vector<char> buf;
     buf.resize(size + 1); // +1 for the null terminator
-    std::snprintf(buf.data(), buf.size(), "%f", value);
+    size = std::snprintf(buf.data(), size + 1, "%f", value);
     return std::copy(buf.data(), buf.data() + size, out);
   }
 }
