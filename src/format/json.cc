@@ -24,7 +24,7 @@ size_t encode_to_buf(timestamp value, std::array<char, 32>& buf) {
   localtime_r(&secs, &time_buf);
 #endif
   buf[0] = '"';
-  auto pos = strftime(buf.data() + 1, buf.size(), "%FT%T", &time_buf) + 1;
+  auto pos = strftime(buf.data() + 1, buf.size() - 1, "%FT%T", &time_buf) + 1;
   buf[pos++] = '.';
   if (msecs > 0) {
     assert(msecs < 1000);
