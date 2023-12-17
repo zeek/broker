@@ -13,6 +13,7 @@ set(tests
   cpp/data.cc
   cpp/detail/peer_status_map.cc
   cpp/format/bin.cc
+  cpp/format/json.cc
   cpp/domain_options.cc
   cpp/error.cc
   cpp/filter_type.cc
