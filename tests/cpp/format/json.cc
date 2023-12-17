@@ -36,6 +36,24 @@ void strip_whitespaces(std::string& str) {
   str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
 }
 
+// Returns a `time_t` value for 2014-07-09T10:16:44, i.e., the date and time of
+// the first commit to the Broker repository.
+timestamp broker_genesis() {
+  // Encode the timestamp to a `tm` representation.
+  tm datetime;
+  datetime.tm_year = 2014 - 1900;
+  datetime.tm_mon = 7 - 1;
+  datetime.tm_mday = 9;
+  datetime.tm_hour = 10;
+  datetime.tm_min = 16;
+  datetime.tm_sec = 44;
+  datetime.tm_isdst = -1;
+  // Convert the `tm` representation to a `time_t` value and then to a
+  // `broker::timestamp` by turning the seconds into nanoseconds.
+  auto secs_since_epoch = std::mktime(&datetime);
+  return timestamp{timespan{secs_since_epoch * int64_t{1'000'000'000}}};
+}
+
 } // namespace
 
 TEST(none) {
@@ -174,11 +192,9 @@ TEST(timespan) {
 }
 
 TEST(timestamp) {
-  // Jul 9, 2014, 5:16 PM: time of the first Broker commit.
-  auto datetime = timestamp{timespan{140'4918'960'000'000'000}};
   CHECK_EQUAL(
-    to_v1(datetime),
-    R"_({"@data-type":"timestamp","data":"2014-07-09T17:16:00.000"})_");
+    to_v1(broker_genesis()),
+    R"_({"@data-type":"timestamp","data":"2014-07-09T10:16:44.000"})_");
 }
 
 TEST(enum_value) {
@@ -471,11 +487,10 @@ TEST(data_message) {
       "type": "data-message",
       "topic": "/test/topic",
       "@data-type": "timestamp",
-      "data": "2014-07-09T17:16:00.000"
+      "data": "2014-07-09T10:16:44.000"
     })_";
     strip_whitespaces(baseline);
-    auto val = timestamp{timespan{140'4918'960'000'000'000}};
-    auto msg = make_data_message("/test/topic", data{val});
+    auto msg = make_data_message("/test/topic", data{broker_genesis()});
     CHECK_EQUAL(to_v1(msg), baseline);
   }
   SECTION("enum_value") {
