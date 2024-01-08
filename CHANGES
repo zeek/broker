@@ -1,3 +1,10 @@
+2.8.0-dev.22 | 2024-01-08 09:24:07 -0700
+
+  * Bump CAF to fix runtime error on Windows (Dominik Charousset, Corelight)
+
+    Fixes an issue on Windows where the pipe to the connector would shut
+    down after 2 minutes, essentially taking Broker with it.
+
 2.8.0-dev.20 | 2023-12-15 20:59:14 +0100
 
   * Implement encoding for text and binary formats (Dominik Charousset, Corelight)
