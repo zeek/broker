@@ -108,13 +108,15 @@ OutIter append_encoded(std::string_view value_type, Appendable value,
   return out;
 }
 
-/// Render the `nil` value to `out`.
+/// Renders the `nil` value to `out` as `{}`.
 template <class Policy = render_object, class OutIter>
 OutIter encode(none, OutIter out) {
   return append_encoded<Policy>("none", "{}", out);
 }
 
-/// Renders `value` to `out` as `T` for `true` and `F` for `false`.
+/// Renders a boolean, `count` or `integer` value to `out`. The latter two are
+/// rendered using `snprintf`, whereas boolean values are rendered as `true` or
+/// `false`.
 template <class Policy = render_object, class T, class OutIter>
 std::enable_if_t<std::is_integral_v<T>, OutIter> encode(T value, OutIter out) {
   using namespace std::literals;
@@ -137,7 +139,8 @@ std::enable_if_t<std::is_integral_v<T>, OutIter> encode(T value, OutIter out) {
   }
 }
 
-/// Writes `value` to `out` using `snprintf`.
+/// Writes `value` to `out` using `snprintf` with the default precision (6
+/// digits), e.g., `0.123456`.
 template <class Policy = render_object, class OutIter>
 OutIter encode(real value, OutIter out) {
   auto size = std::snprintf(nullptr, 0, "%f", value);
@@ -162,6 +165,9 @@ OutIter encode(std::string_view value, OutIter out) {
 }
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
+/// For an IPV4 address, the result is a string in dotted decimal notation,
+/// e.g., `192.168.99.9`. For an IPV6 address, the result is a string in
+/// hexadecimal notation, e.g., `2001:0db8:85a3::8a2e:0370:7334`.
 template <class Policy = render_object, class OutIter>
 OutIter encode(const address& value, OutIter out) {
   std::string str;
@@ -169,7 +175,8 @@ OutIter encode(const address& value, OutIter out) {
   return append_encoded<Policy>("address", quoted{str}, out);
 }
 
-/// Renders `value` using the `convert` API and copies the result to `out`.
+/// Renders `value` using the `convert` API and copies the result to `out`. The
+/// output string uses the format `prefix/length`, e.g., `192.168.99.0/24`.
 template <class Policy = render_object, class OutIter>
 OutIter encode(const subnet& value, OutIter out) {
   std::string str;
@@ -198,7 +205,9 @@ OutIter encode(timestamp value, OutIter out) {
                                 out);
 }
 
-/// Renders `value` to `out` in millisecond resolution.
+/// Renders `value` to `out` as an integer followed by a suffix, e.g., `42s`.
+/// The function picks the highest possible resolution for the given value
+/// without losing precision. The suffix is one of `ns`, `us`, `ms`, or `s`.
 template <class Policy = render_object, class OutIter>
 OutIter encode(timespan value, OutIter out) {
   using namespace std::literals;
@@ -265,7 +274,8 @@ OutIter encode(const broker::table& values, OutIter out) {
   return encode_list<Policy>("table", values.begin(), values.end(), out);
 }
 
-/// Renders a `data` object to `out`.
+/// Renders a `data` object to `out` by dispatching to the appropriate overload
+/// for the underlying type.
 template <class Policy = render_object, class Data, class OutIter>
 std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
                                                              OutIter out) {
