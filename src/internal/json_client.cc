@@ -1,6 +1,7 @@
 #include "broker/internal/json_client.hh"
 
 #include "broker/error.hh"
+#include "broker/format/json.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/message.hh"
 #include "broker/version.hh"
@@ -13,17 +14,9 @@
 
 using namespace std::literals;
 
-using string_map = caf::unordered_flat_map<std::string, std::string>;
-
 namespace broker::internal {
 
 namespace {
-
-constexpr std::string_view default_serialization_failed_error_str = R"_({
-  "type": "error",
-  "code": "serialization_failed",
-  "context": "internal JSON writer error"
-})_";
 
 /// Catches errors by converting them into complete events instead.
 struct handshake_step {
@@ -96,8 +89,6 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     addr(std::move(ws_addr)),
     ctrl_msgs(selfptr) {
   reader.mapper(&mapper);
-  writer.mapper(&mapper);
-  writer.skip_object_type_annotation(true);
   using caf::cow_string;
   using caf::flow::observable;
   using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
@@ -158,48 +149,31 @@ json_client_state::~json_client_state() {
 
 std::string json_client_state::render_error(std::string_view code,
                                             std::string_view context) {
-  string_map obj;
-  obj.reserve(3);
-  obj["type"s] = "error"s;
-  obj["code"s] = code;
-  obj["context"s] = context;
-  return render(obj);
+  using format::json::v1::append_field;
+  json_buf.clear();
+  auto out = std::back_inserter(json_buf);
+  *out++ = '{';
+  out = append_field("type", "error", out);
+  *out++ = ',';
+  out = append_field("code", code, out);
+  *out++ = ',';
+  out = append_field("context", context, out);
+  *out++ = '}';
+  return std::string{json_buf.data(), json_buf.size()};
 }
 
 std::string json_client_state::render_ack() {
-  string_map obj;
-  obj.reserve(3);
-  obj["type"s] = "ack"sv;
-  obj["endpoint"s] = to_string(id);
-  obj["version"s] = version::string();
-  return render(obj);
-}
-
-struct const_data_message_decorator {
-  const topic& t;
-  const data& d;
-};
-
-const_data_message_decorator decorated(const data_message& msg) {
-  auto& [t, d] = msg.data();
-  return const_data_message_decorator{t, d};
-}
-
-template <class Inspector>
-bool inspect(Inspector& f, const_data_message_decorator& x) {
-  static_assert(!Inspector::is_loading);
-  auto do_inspect = [&f, &x](const auto& val) -> bool {
-    json_type_mapper tm;
-    using val_t = std::decay_t<decltype(val)>;
-    auto type = "data-message"s;
-    auto dtype = to_string(tm(caf::type_id_v<val_t>));
-    // Note: const_cast is safe since we assert that the inspector is saving.
-    return f.object(x).fields(f.field("type", type),
-                              f.field("topic", const_cast<topic&>(x.t)),
-                              f.field("@data-type", dtype),
-                              f.field("data", const_cast<val_t&>(val)));
-  };
-  return visit(do_inspect, x.d);
+  using format::json::v1::append_field;
+  json_buf.clear();
+  auto out = std::back_inserter(json_buf);
+  *out++ = '{';
+  out = append_field("type", "ack", out);
+  *out++ = ',';
+  out = append_field("endpoint", to_string(id), out);
+  *out++ = ',';
+  out = append_field("version", version::string(), out);
+  *out++ = '}';
+  return std::string{json_buf.data(), json_buf.size()};
 }
 
 void json_client_state::init(
@@ -215,19 +189,9 @@ void json_client_state::init(
       self->make_observable()
         .from_resource(core_pull2)
         .map([this](const data_message& msg) -> caf::cow_string {
-          writer.reset();
-          auto decorator = decorated(msg);
-          if (writer.apply(decorator)) {
-            // Serialization OK, forward message to client.
-            auto json = writer.str();
-            auto str = std::string{json.begin(), json.end()};
-            return caf::cow_string{std::move(str)};
-          } else {
-            // Report internal error to client.
-            auto ctx = to_string(writer.get_error().context());
-            auto str = render_error(enum_str(ec::serialization_failed), ctx);
-            return caf::cow_string{std::move(str)};
-          }
+          json_buf.clear();
+          format::json::v1::encode(msg, std::back_inserter(json_buf));
+          return caf::cow_string{std::string{json_buf.begin(), json_buf.end()}};
         })
         .as_observable();
     auto sub = ctrl_msgs.as_observable().merge(core_json).subscribe(out);
@@ -243,10 +207,6 @@ void json_client_state::init(
   }
   // Setup complete. Send ACK to the client.
   ctrl_msgs.push(caf::cow_string{render_ack()});
-}
-
-std::string_view json_client_state::default_serialization_failed_error() {
-  return default_serialization_failed_error_str;
 }
 
 void json_client_state::on_down_msg(const caf::down_msg& msg) {

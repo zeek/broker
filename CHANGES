@@ -1,3 +1,13 @@
+2.8.0-dev.35 | 2024-01-30 18:31:39 +0100
+
+  * Implement JSON encoding for broker::data (Dominik Charousset, Corelight)
+
+    The new header `broker/format/json.hh` implements the `encode`-API for
+    `broker::variant`, akin to `broker/format/txt.hh`. The generated JSON
+    format is tailored to the WebSocket interface.
+
+    The format itself is documented in `web-socket.rst`.
+
 2.8.0-dev.24 | 2024-01-30 17:28:02 +0100
 
   * Fix build with Python >= 3.12 (Dominik Charousset, Corelight)
