@@ -7,7 +7,6 @@
 #include "broker/internal/native.hh"
 
 #include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
 #include <caf/detail/append_hex.hpp>
@@ -93,13 +92,14 @@ bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
     return false;
   }
   BROKER_DEBUG("serialize envelope:" << *msg);
-  caf::binary_serializer sink{nullptr, buf};
-  auto write_topic = [&msg, &sink] {
+  format::bin::v1::encoder sink{std::back_inserter(buf)};
+  auto write_topic = [&msg, &sink, this] {
     auto str = msg->topic();
     if (str.size() > 0xFFFF) {
       BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
-      sink.emplace_error(caf::sec::invalid_argument,
-                         "topic exceeds maximum size of 65,535 characters");
+      last_error_ =
+        make_error(caf::sec::invalid_argument,
+                   "topic exceeds maximum size of 65,535 characters");
       return false;
     }
     if (!sink.apply(static_cast<uint16_t>(str.size()))) {
@@ -107,26 +107,21 @@ bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
       return false;
     }
     auto first = reinterpret_cast<const caf::byte*>(str.data());
-    sink.buf().insert(sink.buf().end(), first, first + str.size());
+    sink.append(first, first + str.size());
     return true;
   };
   auto write_payload = [&msg, &sink] {
     auto [data, size] = msg->raw_bytes();
     auto first = reinterpret_cast<const caf::byte*>(data);
-    sink.buf().insert(sink.buf().end(), first, first + size);
+    sink.append(first, first + size);
     return true;
   };
-  auto ok = sink.apply(msg->sender())      //
-            && sink.apply(msg->receiver()) //
-            && sink.apply(msg->type())     //
-            && sink.apply(msg->ttl())      //
-            && write_topic()               //
-            && write_payload();            //
-  if (!ok) {
-    BROKER_ERROR("failed to serialize envelope: " << sink.get_error());
-    last_error_ = sink.get_error();
-  }
-  return ok;
+  return sink.apply(msg->sender())      //
+         && sink.apply(msg->receiver()) //
+         && sink.apply(msg->type())     //
+         && sink.apply(msg->ttl())      //
+         && write_topic()               //
+         && write_payload();
 }
 
 bool trait::convert(caf::const_byte_span bytes, envelope_ptr& msg) {

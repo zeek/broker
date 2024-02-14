@@ -2,16 +2,16 @@
 
 #include "broker/data.hh"
 #include "broker/data_envelope.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
-#include <caf/binary_serializer.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 
-namespace broker::internal {
+  namespace broker::internal {
 
 namespace {
 

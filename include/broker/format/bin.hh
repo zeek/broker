@@ -450,6 +450,11 @@ public:
     return fields(values...);
   }
 
+  template <class Iterator, class Sentinel>
+  void append(Iterator first, Sentinel last) {
+    out_ = std::copy(first, last, out_);
+  }
+
 private:
   OutIter out_;
 };

@@ -58,7 +58,7 @@ public:
     }
   }
 
-  static subnet unchecked(address net, uint8_t len) {
+  static subnet unchecked(const address& net, uint8_t len) {
     subnet res;
     res.net_ = net;
     res.len_ = len;

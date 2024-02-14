@@ -74,11 +74,7 @@ if ( NOT PY_MOD_INSTALL_DIR )
   elseif (BROKER_PYTHON_HOME)
     file(TO_CMAKE_PATH "${BROKER_PYTHON_HOME}/lib/python" PY_MOD_INSTALL_DIR)
   else ()
-    execute_process(COMMAND ${Python_EXECUTABLE} -c
-      "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-      OUTPUT_VARIABLE python_site_packages
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-    file(TO_CMAKE_PATH ${python_site_packages} PY_MOD_INSTALL_DIR)
+    set(PY_MOD_INSTALL_DIR "${Python_SITEARCH}")
   endif ()
 endif ()
 message(STATUS "Python bindings will be built and installed to:")

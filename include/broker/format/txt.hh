@@ -53,7 +53,7 @@ OutIter encode(real value, OutIter out) {
   } else {
     std::vector<char> buf;
     buf.resize(size + 1); // +1 for the null terminator
-    std::snprintf(buf.data(), buf.size(), "%f", value);
+    size = std::snprintf(buf.data(), size + 1, "%f", value);
     return std::copy(buf.data(), buf.data() + size, out);
   }
 }
@@ -134,10 +134,6 @@ template <class Data, class OutIter>
 std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
                                                              OutIter out);
 
-/// Renders `kvp` as `key -> value` to `out`.
-template <class Key, class Val, class OutIter>
-OutIter encode(const std::pair<Key, Val>& kvp, OutIter out);
-
 /// Helper function to render a sequence of values to `out`.
 template <class Iterator, class Sentinel, class OutIter>
 OutIter encode_range(Iterator first, Sentinel last, char left, char right,
@@ -196,6 +192,7 @@ OutIter encode(const broker::vector& values, OutIter out) {
   return encode_range(values.begin(), values.end(), '(', ')', out);
 }
 
+/// Renders `kvp` as `key -> value` to `out`.
 template <class Key, class Val, class OutIter>
 OutIter encode(const std::pair<Key, Val>& kvp, OutIter out) {
   using namespace std::literals;

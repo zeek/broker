@@ -10,7 +10,6 @@
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/fwd.hpp>
 #include <caf/json_reader.hpp>
-#include <caf/json_writer.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 
@@ -32,16 +31,6 @@ public:
 
   ~json_client_state();
 
-  template <class T>
-  std::string render(const T& x) {
-    writer.reset();
-    if (writer.apply(x)) {
-      return to_string(writer.str());
-    } else {
-      return std::string{default_serialization_failed_error()};
-    }
-  }
-
   std::string render_error(std::string_view code, std::string_view context);
 
   std::string render_ack();
@@ -55,9 +44,9 @@ public:
   json_type_mapper mapper;
   std::vector<std::byte> buf;
   caf::json_reader reader;
-  caf::json_writer writer;
   std::vector<caf::disposable> subscriptions;
   caf::flow::item_publisher<caf::cow_string> ctrl_msgs;
+  std::vector<char> json_buf;
 
   static std::string_view default_serialization_failed_error();
 

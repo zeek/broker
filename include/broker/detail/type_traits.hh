@@ -104,8 +104,8 @@ struct are_same<A, B> {
 
 template <class A, class B, class C, class... Ts>
 struct are_same<A, B, C, Ts...> {
-  static constexpr bool value = std::is_same_v<A, B>
-                                && are_same<B, C, Ts...>::value;
+  static constexpr bool value = //
+    std::is_same_v<A, B> && are_same<B, C, Ts...>::value;
 };
 
 template <class... Ts>
