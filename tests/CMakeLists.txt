@@ -114,7 +114,7 @@ if (BROKER_PYTHON_BINDINGS)
     set(script ${CMAKE_CURRENT_SOURCE_DIR}/python/${name}.py)
     set(test_name python-${name})
     add_test(NAME ${test_name}
-             COMMAND ${PYTHON_EXECUTABLE} ${script} ${ARGN}
+             COMMAND ${Python_EXECUTABLE} ${script} ${ARGN}
              WORKING_DIRECTORY ${BROKER_PYTHON_STAGING_DIR})
     set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
     set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
