@@ -117,7 +117,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     .map([this, n = 0](const caf::cow_string& cow_str) mutable {
       ++n;
       auto send_malformed_json = [this, n](const std::string& err_msg) {
-        auto ctx = "input #"+std::to_string(n);
+        auto ctx = "input #" + std::to_string(n);
         ctx += " contained malformed JSON -> ";
         ctx += err_msg;
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);

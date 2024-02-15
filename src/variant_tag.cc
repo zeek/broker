@@ -22,7 +22,7 @@ std::string_view json_type_name(variant_tag tag) {
   return json_type_names[static_cast<size_t>(tag)];
 }
 
-const char* cpp_type_name(variant_tag tag){
+const char* cpp_type_name(variant_tag tag) {
   return cpp_type_names[static_cast<size_t>(tag)];
 }
 

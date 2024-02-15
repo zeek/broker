@@ -15,7 +15,7 @@ namespace binfmt = broker::format::bin::v1;
 namespace broker {
 
 std::string_view routing_update_iterator::operator*() const {
-  auto len  = size_t{0};
+  auto len = size_t{0};
   auto ptr = pos_;
   if (!binfmt::read_varbyte(ptr, end_, len))
     throw std::logic_error{"invalid routing update"};

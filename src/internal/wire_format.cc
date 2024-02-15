@@ -81,7 +81,7 @@ std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
                  << x.code);
     return {ec::unspecified, x.description};
   }
-    return {ec::none, {}};
+  return {ec::none, {}};
 }
 
 namespace v1 {

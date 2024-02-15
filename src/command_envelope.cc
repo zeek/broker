@@ -19,13 +19,14 @@ namespace broker {
 namespace {
 
 /// Decorates another data envelope to override sender and receiver.
-class command_envelope_decorator : public envelope::decorator<command_envelope> {
+class command_envelope_decorator
+  : public envelope::decorator<command_envelope> {
 public:
   using super = envelope::decorator<command_envelope>;
 
   using super::super;
 
-  const internal_command& value() const noexcept override{
+  const internal_command& value() const noexcept override {
     return decorated_->value();
   }
 };
@@ -136,7 +137,7 @@ public:
 
   using super::super;
 
-  const internal_command& value() const noexcept override{
+  const internal_command& value() const noexcept override {
     return value_;
   }
 

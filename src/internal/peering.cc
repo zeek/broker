@@ -11,7 +11,7 @@
 
 #include <caf/scheduled_actor/flow.hpp>
 
-  namespace broker::internal {
+namespace broker::internal {
 
 namespace {
 

@@ -7,9 +7,7 @@ namespace broker::internal {
 metric_view::metric_view(const vector* row)
   : type_(static_cast<caf::telemetry::metric_type>(0)) {
   using std::string;
-  auto at = [row](field x) -> const auto& {
-    return (*row)[index(x)];
-  };
+  auto at = [row](field x) -> const auto& { return (*row)[index(x)]; };
   auto row_ok = row != nullptr && row->size() == row_size
                 && is<string>(at(field::prefix)) && is<string>(at(field::name))
                 && is<string>(at(field::type)) && is<string>(at(field::unit))
