@@ -258,22 +258,48 @@ public:
   /// @param d The message data.
   void publish(topic t, data d);
 
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(topic t, variant d);
+
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(std::string t, variant d) {
+    publish(topic{std::move(t)}, std::move(d));
+  }
+
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(std::string_view t, variant d) {
+    publish(topic{std::string{t}}, std::move(d));
+  }
+
+  /// Publishes a message.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(std::string_view t, const zeek::Message& d);
+
   /// Publishes a message to a specific peer endpoint only.
   /// @param dst The destination endpoint.
   /// @param t The topic of the message.
   /// @param d The message data.
   void publish(const endpoint_info& dst, topic t, data d);
 
-  /// Publishes a message.
-  /// @param t The topic of the message.
-  /// @param d The message data.
-  void publish(std::string_view t, zeek::Message&& d);
-
   /// Publishes a message to a specific peer endpoint only.
   /// @param dst The destination endpoint.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(const endpoint_info& dst, std::string_view t, zeek::Message&& d);
+  void publish(const endpoint_info& dst, topic t, const variant& d);
+
+  /// Publishes a message.
+  /// @param dst The destination endpoint.
+  /// @param t The topic of the message.
+  /// @param d The message data.
+  void publish(const endpoint_info& dst, std::string_view t,
+               const zeek::Message& d);
 
   /// Publishes a message as vector.
   /// @param t The topic of the messages.

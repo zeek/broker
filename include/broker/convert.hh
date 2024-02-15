@@ -13,6 +13,8 @@ namespace broker::detail {
 
 bool can_convert_data_to_node(const data& src);
 
+bool can_convert_data_to_node(const variant& src);
+
 } // namespace broker::detail
 
 namespace broker {
@@ -25,6 +27,9 @@ struct can_convert_predicate;
 template <>
 struct can_convert_predicate<endpoint_id> {
   static bool check(const data& src) {
+    return detail::can_convert_data_to_node(src);
+  }
+  static bool check(const variant& src) {
     return detail::can_convert_data_to_node(src);
   }
 };

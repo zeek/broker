@@ -35,17 +35,31 @@ struct fixture : test_coordinator_fixture<config> {
   using data_message_list = std::vector<data_message>;
 
   data_message_list test_data = data_message_list({
-    make_data_message("a", 0),
-    make_data_message("b", true),
-    make_data_message("a", 1),
-    make_data_message("a", 2),
-    make_data_message("b", false),
-    make_data_message("b", true),
-    make_data_message("a", 3),
-    make_data_message("b", false),
-    make_data_message("a", 4),
-    make_data_message("a", 5),
+    make_data_message("a", data{0}),
+    make_data_message("b", data{true}),
+    make_data_message("a", data{1}),
+    make_data_message("a", data{2}),
+    make_data_message("b", data{false}),
+    make_data_message("b", data{true}),
+    make_data_message("a", data{3}),
+    make_data_message("b", data{false}),
+    make_data_message("a", data{4}),
+    make_data_message("a", data{5}),
   });
+
+  auto topics(const std::vector<data_message>& xs) {
+    std::vector<std::string> result;
+    for (auto& x : xs)
+      result.emplace_back(x->topic());
+    return result;
+  }
+
+  auto values(const std::vector<data_message>& xs) {
+    std::vector<data> result;
+    for (auto& x : xs)
+      result.emplace_back(x->value().to_data());
+    return result;
+  }
 
   fixture() {
     // We don't do networking, but our flares use the socket API.
@@ -131,7 +145,8 @@ TEST(peers forward local data to direct peers) {
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   run();
-  CHECK_EQUAL(*buf, test_data);
+  CHECK_EQUAL(topics(*buf), topics(test_data));
+  CHECK_EQUAL(values(*buf), values(test_data));
 }
 
 TEST(peers forward local data to any peer with forwarding paths) {
@@ -152,7 +167,8 @@ TEST(peers forward local data to any peer with forwarding paths) {
   MESSAGE("publish data on ep1");
   push_data(ep1, test_data);
   run();
-  CHECK_EQUAL(*buf, test_data);
+  CHECK_EQUAL(topics(*buf), topics(test_data));
+  CHECK_EQUAL(values(*buf), values(test_data));
 }
 
 FIXTURE_SCOPE_END()

@@ -7,6 +7,7 @@
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/send.hpp>
 
+#include "broker/builder.hh"
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/flare.hh"
@@ -219,8 +220,8 @@ void publisher::drop_all_on_destruction() {
   drop_on_destruction_ = true;
 }
 
-void publisher::publish(data x) {
-  auto msg = make_data_message(topic_, std::move(x));
+void publisher::publish(const data& x) {
+  auto msg = make_data_message(topic_, x);
   BROKER_DEBUG("publishing" << msg);
   dptr(queue_)->push(caf::make_span(&msg, 1));
 }
@@ -229,13 +230,28 @@ void publisher::publish(std::vector<data> xs) {
   std::vector<data_message> msgs;
   msgs.reserve(xs.size());
   for (auto& x : xs)
-    msgs.emplace_back(topic_, std::move(x));
+    msgs.push_back(make_data_message(topic_, x));
 #ifdef DEBUG
   BROKER_DEBUG("publishing batch of size" << xs.size());
   for (auto& msg : msgs)
     BROKER_DEBUG("publishing" << msg);
 #endif
   dptr(queue_)->push(msgs);
+}
+
+void publisher::publish(set_builder&& x) {
+  auto msg = std::move(x).build_envelope(topic_.string());
+  dptr(queue_)->push(caf::make_span(&msg, 1));
+}
+
+void publisher::publish(table_builder&& x) {
+  auto msg = std::move(x).build_envelope(topic_.string());
+  dptr(queue_)->push(caf::make_span(&msg, 1));
+}
+
+void publisher::publish(list_builder&& x) {
+  auto msg = std::move(x).build_envelope(topic_.string());
+  dptr(queue_)->push(caf::make_span(&msg, 1));
 }
 
 void publisher::reset() {

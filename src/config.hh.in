@@ -1,5 +1,7 @@
 #pragma once
 
+#define BROKER_HAS_VARIANT
+
 #cmakedefine BROKER_APPLE
 #cmakedefine BROKER_FREEBSD
 #cmakedefine BROKER_LINUX

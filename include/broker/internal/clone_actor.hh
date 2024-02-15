@@ -14,6 +14,7 @@
 #include "broker/entity_id.hh"
 #include "broker/internal/store_actor.hh"
 #include "broker/internal_command.hh"
+#include "broker/message.hh"
 #include "broker/topic.hh"
 
 namespace broker::internal {

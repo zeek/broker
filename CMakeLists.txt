@@ -292,9 +292,12 @@ set(BROKER_SRC
   src/address.cc
   src/alm/multipath.cc
   src/alm/routing_table.cc
+  src/builder.cc
+  src/command_envelope.cc
   src/configuration.cc
   src/convert.cc
   src/data.cc
+  src/data_envelope.cc
   src/detail/abstract_backend.cc
   src/detail/filesystem.cc
   src/detail/flare.cc
@@ -313,6 +316,7 @@ set(BROKER_SRC
   src/endpoint_id.cc
   src/endpoint_info.cc
   src/entity_id.cc
+  src/envelope.cc
   src/error.cc
   src/filter_type.cc
   src/format/bin.cc
@@ -322,6 +326,7 @@ set(BROKER_SRC
   src/internal/connector_adapter.cc
   src/internal/core_actor.cc
   src/internal/flare_actor.cc
+  src/internal/json.cc
   src/internal/json_client.cc
   src/internal/json_type_mapper.cc
   src/internal/master_actor.cc
@@ -340,11 +345,14 @@ set(BROKER_SRC
   src/internal/wire_format.cc
   src/internal_command.cc
   src/mailbox.cc
-  src/message.cc
   src/network_info.cc
+  src/p2p_message_type.cc
   src/peer_status.cc
+  src/ping_envelope.cc
+  src/pong_envelope.cc
   src/port.cc
   src/publisher.cc
+  src/routing_update_envelope.cc
   src/shutdown_options.cc
   src/status.cc
   src/status_subscriber.cc
@@ -360,6 +368,12 @@ set(BROKER_SRC
   src/telemetry/metric_registry_impl.cc
   src/time.cc
   src/topic.cc
+  src/variant.cc
+  src/variant_data.cc
+  src/variant_list.cc
+  src/variant_set.cc
+  src/variant_table.cc
+  src/variant_tag.cc
   src/version.cc
   src/worker.cc
   src/zeek.cc

@@ -25,6 +25,7 @@
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/endpoint_info.hh"
+#include "broker/message.hh"
 #include "broker/network_info.hh"
 #include "broker/peer_flags.hh"
 #include "broker/peer_info.hh"
@@ -173,7 +174,7 @@ PYBIND11_MODULE(_broker, m) {
     .def("capacity", &broker::publisher::capacity)
     .def("fd", &broker::publisher::fd)
     .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
-    .def("publish", (void(broker::publisher::*)(broker::data d))
+    .def("publish", (void(broker::publisher::*)(const broker::data&))
                       & broker::publisher::publish)
     .def("publish_batch", [](broker::publisher& p,
                              std::vector<broker::data> xs) { p.publish(xs); })
@@ -196,18 +197,18 @@ PYBIND11_MODULE(_broker, m) {
     .def("get",
          [](broker::subscriber& ep) -> topic_data_pair {
            auto res = ep.get();
-           return std::make_pair(broker::get_topic(res), broker::get_data(res));
+           return std::make_pair(broker::topic{broker::get_topic(res)},
+                                 broker::get_data(res).to_data());
          })
 
     .def("get",
          [](broker::subscriber& ep,
             double secs) -> std::optional<topic_data_pair> {
-           auto res = ep.get(broker::to_duration(secs));
            std::optional<topic_data_pair> rval;
-           if (res) {
-             auto p = std::make_pair(broker::get_topic(*res),
-                                     broker::get_data(*res));
-             rval = std::optional<topic_data_pair>(std::move(p));
+           if (auto res = ep.get(broker::to_duration(secs))) {
+             rval.emplace();
+             rval->first = broker::get_topic(*res);
+             rval->second = broker::get_data(*res).to_data();
            }
            return rval;
          })
@@ -219,8 +220,8 @@ PYBIND11_MODULE(_broker, m) {
            std::vector<topic_data_pair> rval;
            rval.reserve(res.size());
            for (auto& e : res)
-             rval.emplace_back(
-               std::make_pair(broker::get_topic(e), broker::get_data(e)));
+             rval.emplace_back(broker::topic{broker::get_topic(e)},
+                               broker::get_data(e).to_data());
            return rval;
          })
 
@@ -231,8 +232,8 @@ PYBIND11_MODULE(_broker, m) {
            std::vector<topic_data_pair> rval;
            rval.reserve(res.size());
            for (auto& e : res)
-             rval.emplace_back(
-               std::make_pair(broker::get_topic(e), broker::get_data(e)));
+             rval.emplace_back(broker::topic{broker::get_topic(e)},
+                               broker::get_data(e).to_data());
            return rval;
          })
 
@@ -242,8 +243,8 @@ PYBIND11_MODULE(_broker, m) {
            std::vector<topic_data_pair> rval;
            rval.reserve(res.size());
            for (auto& e : res)
-             rval.emplace_back(
-               std::make_pair(broker::get_topic(e), broker::get_data(e)));
+             rval.emplace_back(broker::topic{broker::get_topic(e)},
+                               broker::get_data(e).to_data());
            return rval;
          })
     .def("available", &broker::subscriber::available)
@@ -392,18 +393,15 @@ PYBIND11_MODULE(_broker, m) {
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)
-    .def("publish", (void(broker::endpoint::*)(broker::topic t, broker::data d))
+    .def("publish", (void(broker::endpoint::*)(broker::topic, broker::data))
                       & broker::endpoint::publish)
-    .def("publish", (void(broker::endpoint::*)(const broker::endpoint_info& dst,
-                                               broker::topic t, broker::data d))
+    .def("publish", (void(broker::endpoint::*)(const broker::endpoint_info&,
+                                               broker::topic, broker::data))
                       & broker::endpoint::publish)
     .def("publish_batch",
          [](broker::endpoint& ep, std::vector<topic_data_pair> batch) {
-           std::vector<broker::data_message> xs;
-           xs.reserve(batch.size());
-           for (auto& m : batch)
-             xs.emplace_back(std::move(m.first), std::move(m.second));
-           ep.publish(std::move(xs));
+           for (auto& item : batch)
+             ep.publish(std::move(item.first), item.second);
          })
     .def("make_publisher", &broker::endpoint::make_publisher)
     .def("make_subscriber", &broker::endpoint::make_subscriber,

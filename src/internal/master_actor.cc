@@ -209,7 +209,8 @@ void master_state::set_expire_time(const data& key,
 
 void master_state::consume(consumer_type*, command_message& msg) {
   auto f = [this](auto& cmd) { consume(cmd); };
-  std::visit(f, get<1>(msg.unshared()).content);
+  auto val = msg->value();
+  std::visit(f, val.content);
 }
 
 void master_state::consume(put_command& x) {
