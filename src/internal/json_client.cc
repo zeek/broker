@@ -116,24 +116,24 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     // Parse all JSON coming in and forward them to the core.
     .map([this, n = 0](const caf::cow_string& cow_str) mutable {
       ++n;
-      auto send_malformed_json = [this, n](const std::string& err_msg) {
+      auto send_error = [this, n](auto&&... args) {
         auto ctx = "input #" + std::to_string(n);
-        ctx += " contained malformed JSON -> ";
-        ctx += err_msg;
+        ctx += ' ';
+        (ctx += ... += args);
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);
         ctrl_msgs.push(caf::cow_string{std::move(json)});
       };
       // Parse the received JSON.
       auto val = caf::json_value::parse_shallow(cow_str.str());
       if (!val) {
-        send_malformed_json(to_string(val.error()));
+        send_error("contained malformed JSON -> ", to_string(val.error()));
         return data_envelope_ptr{};
       }
       auto obj = val->to_object();
       // Try to convert the JSON to our internal representation.
       buf.clear();
       if (auto err = internal::json::data_message_to_binary(obj, buf)) {
-        send_malformed_json(to_string(err));
+        send_error("contained invalid data");
         return data_envelope_ptr{};
       }
       // Turn the binary data into a data envelope.
@@ -141,7 +141,8 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
         id, endpoint_id::nil(), defaults::ttl,
         caf::to_string(obj.value("topic").to_string()), buf.data(), buf.size());
       if (!maybe_msg) {
-        send_malformed_json(to_string(maybe_msg.error()));
+        send_error("caused an internal error -> ",
+                   to_string(maybe_msg.error()));
         return data_envelope_ptr{};
       }
       return std::move(*maybe_msg);
