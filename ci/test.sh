@@ -37,7 +37,9 @@ fi
 if command -v pip3 >/dev/null 2>&1 ; then
     BinDir="$(python3 -m site --user-base)/bin"
     export PATH="$PATH:$BinDir"
-    pip3 install --user btest websockets
+    python3 -m venv test-env
+    source test-env/bin/activate
+    pip3 install btest websockets
     cd $BaseDir/tests/btest
     btest || result=1
     [[ -d .tmp ]] && tar -czf tmp.tar.gz .tmp
