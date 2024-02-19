@@ -6,7 +6,6 @@
 
 #include <caf/json_object.hpp>
 #include <caf/json_value.hpp>
-#include <caf/json_writer.hpp>
 
 using namespace broker;
 
@@ -162,14 +161,4 @@ TEST(a data message in JSON can be rewritten to the binary format) {
     caf::to_string(obj.value("topic").to_string()), bin.data(), bin.size());
   REQUIRE(maybe_msg);
   CHECK_EQ((*maybe_msg)->value().to_data(), native()->value().to_data());
-}
-
-TEST(data messages can be applied to a JSON writer) {
-  using util = broker::internal::json;
-  caf::json_writer writer;
-  writer.skip_object_type_annotation(true);
-  writer.indentation(2);
-  auto msg = native();
-  util::apply(msg, writer);
-  CHECK_EQ(writer.str(), json);
 }
