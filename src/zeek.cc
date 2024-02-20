@@ -4,7 +4,15 @@ namespace broker::zeek {
 
 Message::~Message() {}
 
-Batch::Batch(data elements) : Message(std::move(elements)) {
+void Message::init(Type sub_type, const list_builder& content) {
+  data_ = list_builder{}
+            .add(ProtocolVersion)
+            .add(static_cast<count>(sub_type))
+            .add(content)
+            .build();
+}
+
+Batch::Batch(variant elements) : Message(std::move(elements)) {
   if (!validate_outer_fields(Type::Batch))
     return;
   auto&& items = sub_fields(); // Each field in the content is a message.
@@ -46,15 +54,13 @@ Batch::Batch(data elements) : Message(std::move(elements)) {
 }
 
 Batch BatchBuilder::build() {
-  vector tmp;
-  tmp.swap(inner_);
-  inner_.reserve(tmp.size());
-  vector outer;
-  outer.reserve(3);
-  outer.emplace_back(ProtocolVersion);
-  outer.emplace_back(static_cast<count>(Message::Type::Batch));
-  outer.emplace_back(std::move(tmp));
-  return Batch{data{std::move(outer)}};
+  auto result = Batch{list_builder{}
+                        .add(ProtocolVersion)
+                        .add(static_cast<count>(Message::Type::Batch))
+                        .add(inner_)
+                        .build()};
+  inner_.reset();
+  return result;
 }
 
 } // namespace broker::zeek

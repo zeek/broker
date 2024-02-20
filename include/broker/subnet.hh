@@ -16,10 +16,14 @@ bool convert(const std::string& str, subnet& sn);
 class subnet : detail::totally_ordered<subnet> {
 public:
   /// Default construct empty subnet ::/0.
-  subnet();
+  subnet() noexcept;
 
   /// Construct subnet from an address and length.
-  subnet(const address& addr, uint8_t length);
+  subnet(const address& addr, uint8_t length) noexcept;
+
+  subnet(const subnet&) noexcept = default;
+
+  subnet& operator=(const subnet&) noexcept = default;
 
   /// @return whether an address is contained within this subnet.
   bool contains(const address& addr) const;
@@ -31,6 +35,10 @@ public:
   uint8_t length() const;
 
   size_t hash() const;
+
+  uint8_t raw_len() const noexcept {
+    return len_;
+  }
 
   friend bool operator==(const subnet& lhs, const subnet& rhs);
   friend bool operator<(const subnet& lhs, const subnet& rhs);
@@ -50,8 +58,11 @@ public:
     }
   }
 
-  uint8_t raw_len() const noexcept {
-    return len_;
+  static subnet unchecked(const address& net, uint8_t len) {
+    subnet res;
+    res.net_ = net;
+    res.len_ = len;
+    return res;
   }
 
 private:

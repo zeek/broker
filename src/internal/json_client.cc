@@ -1,14 +1,20 @@
 #include "broker/internal/json_client.hh"
 
+#include "broker/data_envelope.hh"
+#include "broker/defaults.hh"
+#include "broker/envelope.hh"
 #include "broker/error.hh"
+#include "broker/expected.hh"
 #include "broker/format/json.hh"
+#include "broker/internal/json.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/message.hh"
 #include "broker/version.hh"
 
 #include <caf/cow_string.hpp>
 #include <caf/cow_tuple.hpp>
 #include <caf/event_based_actor.hpp>
+#include <caf/json_object.hpp>
+#include <caf/json_value.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/unordered_flat_map.hpp>
 
@@ -28,7 +34,7 @@ struct handshake_step {
 
   json_client_state::out_t push_to_ws; // Our push handle to the WebSocket.
 
-  using pull_from_core_t = caf::async::consumer_resource<data_message>;
+  using pull_from_core_t = caf::async::consumer_resource<data_envelope_ptr>;
 
   pull_from_core_t pull_from_core; // Allows the core to read our data.
 
@@ -99,7 +105,7 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   // Connects us to the core.
   using caf::async::make_spsc_buffer_resource;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
-  auto resources = make_spsc_buffer_resource<data_message>();
+  auto resources = make_spsc_buffer_resource<data_envelope_ptr>();
   auto& [core_pull, core_push] = resources;
   // Read from the WebSocket, push to core (core_push).
   self //
@@ -108,37 +114,40 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     .transform(handshake_step{this, std::move(out), core_pull}) // Calls init().
     .do_finally([this] { ctrl_msgs.close(); })
     // Parse all JSON coming in and forward them to the core.
-    .flat_map([this, n = 0](const caf::cow_string& str) mutable {
+    .map([this, n = 0](const caf::cow_string& cow_str) mutable {
       ++n;
-      std::optional<data_message> result;
-      reader.reset();
-      if (reader.load(str)) {
-        using std::get;
-        data_message msg;
-        auto decorator = decorated(msg);
-        if (reader.apply(decorator)) {
-          // Success: set the result to push it to the core actor.
-          result = std::move(msg);
-        } else {
-          // Failed to apply the JSON reader. Send error to client.
-          auto ctx = std::to_string(n);
-          ctx.insert(0, "input #");
-          ctx += " contained invalid data -> ";
-          ctx += to_string(reader.get_error());
-          auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-          ctrl_msgs.push(caf::cow_string{std::move(json)});
-        }
-      } else {
-        // Failed to parse JSON.
-        auto ctx = std::to_string(n);
-        ctx.insert(0, "input #");
-        ctx += " contained malformed JSON -> ";
-        ctx += to_string(reader.get_error());
+      auto send_error = [this, n](auto&&... args) {
+        auto ctx = "input #" + std::to_string(n);
+        ctx += ' ';
+        (ctx += ... += args);
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);
         ctrl_msgs.push(caf::cow_string{std::move(json)});
+      };
+      // Parse the received JSON.
+      auto val = caf::json_value::parse_shallow(cow_str.str());
+      if (!val) {
+        send_error("contained malformed JSON -> ", to_string(val.error()));
+        return data_envelope_ptr{};
       }
-      return result;
+      auto obj = val->to_object();
+      // Try to convert the JSON to our internal representation.
+      buf.clear();
+      if (auto err = internal::json::data_message_to_binary(obj, buf)) {
+        send_error("contained invalid data");
+        return data_envelope_ptr{};
+      }
+      // Turn the binary data into a data envelope.
+      auto maybe_msg = data_envelope::deserialize(
+        id, endpoint_id::nil(), defaults::ttl,
+        caf::to_string(obj.value("topic").to_string()), buf.data(), buf.size());
+      if (!maybe_msg) {
+        send_error("caused an internal error -> ",
+                   to_string(maybe_msg.error()));
+        return data_envelope_ptr{};
+      }
+      return std::move(*maybe_msg);
     })
+    .filter([](const data_envelope_ptr& ptr) { return ptr != nullptr; })
     .subscribe(core_push);
 }
 
@@ -178,17 +187,17 @@ std::string json_client_state::render_ack() {
 
 void json_client_state::init(
   const filter_type& filter, const out_t& out,
-  caf::async::consumer_resource<data_message> core_pull1) {
+  caf::async::consumer_resource<data_envelope_ptr> core_pull1) {
   using caf::async::make_spsc_buffer_resource;
   // Pull data from the core and forward as JSON.
   if (!filter.empty()) {
     // Note: structured bindings with values confuses clang-tidy's leak checker.
-    auto resources = make_spsc_buffer_resource<data_message>();
+    auto resources = make_spsc_buffer_resource<data_envelope_ptr>();
     auto& [core_pull2, core_push2] = resources;
     auto core_json = //
       self->make_observable()
         .from_resource(core_pull2)
-        .map([this](const data_message& msg) -> caf::cow_string {
+        .map([this](const data_envelope_ptr& msg) -> caf::cow_string {
           json_buf.clear();
           format::json::v1::encode(msg, std::back_inserter(json_buf));
           return caf::cow_string{std::string{json_buf.begin(), json_buf.end()}};
@@ -203,7 +212,7 @@ void json_client_state::init(
     subscriptions.push_back(std::move(sub));
     caf::anon_send(core, atom::attach_client_v, addr, "web-socket"s,
                    filter_type{}, std::move(core_pull1),
-                   caf::async::producer_resource<data_message>{});
+                   caf::async::producer_resource<data_envelope_ptr>{});
   }
   // Setup complete. Send ACK to the client.
   ctrl_msgs.push(caf::cow_string{render_ack()});

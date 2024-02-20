@@ -347,6 +347,6 @@ inline std::vector<broker::data_message>
 data_msgs(std::initializer_list<std::pair<broker::topic, broker::data>> xs) {
   std::vector<broker::data_message> result;
   for (auto& x : xs)
-    result.emplace_back(x.first, x.second);
+    result.push_back(broker::make_data_message(x.first, x.second));
   return result;
 }

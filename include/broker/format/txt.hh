@@ -2,6 +2,8 @@
 
 #include "broker/config.hh"
 #include "broker/data.hh"
+#include "broker/variant.hh"
+#include "broker/variant_data.hh"
 
 #include <algorithm>
 #include <cstddef>
@@ -110,6 +112,12 @@ OutIter encode(const enum_value& value, OutIter out) {
   return encode(value.name, out);
 }
 
+/// Copies the name of `value` to `out`.
+template <class OutIter>
+OutIter encode(const enum_value_view& value, OutIter out) {
+  return encode(value.name, out);
+}
+
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces.
 template <class OutIter>
 OutIter encode(const broker::set& values, OutIter out);
@@ -126,32 +134,37 @@ template <class Data, class OutIter>
 std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
                                                              OutIter out);
 
-/// Renders `kvp` as `key -> value` to `out`.
-template <class Key, class Val, class OutIter>
-OutIter encode(const std::pair<Key, Val>& kvp, OutIter out) {
-  using namespace std::literals;
-  out = encode(kvp.first, out);
-  auto sep = " -> "sv;
-  out = std::copy(sep.begin(), sep.end(), out);
-  return encode(kvp.second, out);
-}
-
 /// Helper function to render a sequence of values to `out`.
 template <class Iterator, class Sentinel, class OutIter>
 OutIter encode_range(Iterator first, Sentinel last, char left, char right,
-                     OutIter out) {
-  using namespace std::literals;
-  *out++ = left;
-  if (first != last) {
-    out = encode(*first++, out);
-    auto sep = ", "sv;
-    while (first != last) {
-      out = std::copy(sep.begin(), sep.end(), out);
-      out = encode(*first++, out);
-    }
-  }
-  *out++ = right;
-  return out;
+                     OutIter out);
+
+template <class OutIter>
+OutIter encode(const variant_data& value, OutIter out);
+
+template <class OutIter>
+OutIter encode(const variant& value, OutIter out) {
+  return encode(*value.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::set* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '{', '}', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '{', '}', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out) {
+  return encode_range(values->begin(), values->end(), '(', ')', out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data& value, OutIter out) {
+  return std::visit([&](auto&& x) { return encode(x, out); }, value.value);
 }
 
 // Unfortunately, broker::data is a nasty type due to its implicit conversions.
@@ -177,6 +190,33 @@ OutIter encode(const broker::table& values, OutIter out) {
 template <class OutIter>
 OutIter encode(const broker::vector& values, OutIter out) {
   return encode_range(values.begin(), values.end(), '(', ')', out);
+}
+
+/// Renders `kvp` as `key -> value` to `out`.
+template <class Key, class Val, class OutIter>
+OutIter encode(const std::pair<Key, Val>& kvp, OutIter out) {
+  using namespace std::literals;
+  out = encode(kvp.first, out);
+  auto sep = " -> "sv;
+  out = std::copy(sep.begin(), sep.end(), out);
+  return encode(kvp.second, out);
+}
+
+template <class Iterator, class Sentinel, class OutIter>
+OutIter encode_range(Iterator first, Sentinel last, char left, char right,
+                     OutIter out) {
+  using namespace std::literals;
+  *out++ = left;
+  if (first != last) {
+    out = encode(*first++, out);
+    auto sep = ", "sv;
+    while (first != last) {
+      out = std::copy(sep.begin(), sep.end(), out);
+      out = encode(*first++, out);
+    }
+  }
+  *out++ = right;
+  return out;
 }
 
 } // namespace broker::format::txt::v1

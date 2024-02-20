@@ -48,21 +48,37 @@ using publisher_id [[deprecated("use entity_id instead")]] = entity_id;
 // -- classes ------------------------------------------------------------------
 
 class address;
+class command_envelope;
 class configuration;
 class data;
+class data_envelope;
 class endpoint;
 class endpoint_id;
+class enum_value_view;
+class envelope;
+class error;
 class internal_command;
+class list_builder;
 class mailbox;
+class ping_envelope;
+class pong_envelope;
 class port;
 class publisher;
+class routing_update_envelope;
+class set_builder;
 class shared_filter_type;
 class shutdown_options;
 class status;
 class store;
 class subnet;
 class subscriber;
+class table_builder;
 class topic;
+class variant;
+class variant_data;
+class variant_list;
+class variant_set;
+class variant_table;
 class worker;
 
 // -- templates ----------------------------------------------------------------
@@ -73,13 +89,16 @@ class expected;
 template <class... Ts>
 class cow_tuple;
 
+template <class T>
+class intrusive_ptr;
+
 // -- enum classes -------------------------------------------------------------
 
 enum class backend : uint8_t;
 enum class ec : uint8_t;
 enum class p2p_message_type : uint8_t;
-enum class packed_message_type : uint8_t;
 enum class sc : uint8_t;
+enum class variant_tag : uint8_t;
 
 // -- STD type aliases ---------------------------------------------------------
 
@@ -136,11 +155,20 @@ using routing_table = std::unordered_map<endpoint_id, routing_table_row>;
 
 namespace broker {
 
-using packed_message =
-  cow_tuple<packed_message_type, uint16_t, topic, std::vector<std::byte>>;
-using command_message = cow_tuple<topic, internal_command>;
-using data_message = cow_tuple<topic, data>;
-using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;
+using command_envelope_ptr = intrusive_ptr<const command_envelope>;
+using data_envelope_ptr = intrusive_ptr<const data_envelope>;
+using envelope_ptr = intrusive_ptr<const envelope>;
+using ping_envelope_ptr = intrusive_ptr<const ping_envelope>;
+using pong_envelope_ptr = intrusive_ptr<const pong_envelope>;
+using routing_update_envelope_ptr =
+  intrusive_ptr<const routing_update_envelope>;
+
+// Backwards compatibility.
+using node_message = envelope_ptr;
+using data_message = data_envelope_ptr;
+using command_message = command_envelope_ptr;
+using ping_message = ping_envelope_ptr;
+using pong_message = pong_envelope_ptr;
 
 } // namespace broker
 
@@ -149,6 +177,7 @@ using node_message = cow_tuple<endpoint_id, endpoint_id, packed_message>;
 namespace broker::detail {
 
 class abstract_backend;
+class monotonic_buffer_resource;
 
 } // namespace broker::detail
 

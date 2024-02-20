@@ -17,12 +17,6 @@ namespace {
 
 using namespace broker;
 
-constexpr const char* data_type_names[] = {
-  "none",     "boolean",    "count",  "integer", "real",
-  "string",   "address",    "subnet", "port",    "timestamp",
-  "timespan", "enum_value", "set",    "table",   "vector",
-};
-
 template <broker::data::type Type>
 using data_variant_at_t =
   std::variant_alternative_t<static_cast<size_t>(Type), data_variant>;
@@ -88,10 +82,6 @@ data data::from_type(data::type t) {
     default:
       return data{};
   }
-}
-
-const char* data::get_type_name() const {
-  return data_type_names[data_.index()];
 }
 
 namespace {

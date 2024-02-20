@@ -113,7 +113,7 @@ TEST(regression GH196) {
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {
       auto msg = sub1.get();
-      CHECK_EQUAL(get_topic(msg).string(), "/test");
+      CHECK_EQUAL(get_topic(msg), "/test");
       CHECK_EQUAL(get_data(msg), data(i));
     }
   }
@@ -123,7 +123,7 @@ TEST(regression GH196) {
   for (size_t n = 0; n < 2; ++n) {
     for (size_t i = 0; i < cap; ++i) {
       auto& msg = res[(n * cap) + i];
-      CHECK_EQUAL(get_topic(msg).string(), "/test");
+      CHECK_EQUAL(get_topic(msg), "/test");
       CHECK_EQUAL(get_data(msg), data(i));
     }
   }

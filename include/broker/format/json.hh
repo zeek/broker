@@ -250,6 +250,12 @@ OutIter encode(const enum_value& value, OutIter out) {
   return append_encoded<Policy>("enum-value", quoted{value.name}, out);
 }
 
+/// Copies the name of `value` to `out`.
+template <class Policy = render_object, class OutIter>
+OutIter encode(const enum_value_view& value, OutIter out) {
+  return append_encoded<Policy>("enum-value", quoted{value.name}, out);
+}
+
 /// Encodes a JSON list.
 template <class Policy, class ForwardIterator, class Sentinel, class OutIter>
 OutIter encode_list(std::string_view type, ForwardIterator first, Sentinel last,
@@ -263,8 +269,20 @@ OutIter encode(const broker::set& values, OutIter out) {
 
 /// Renders `value` to `out` as a JSON list.
 template <class Policy = render_object, class OutIter>
+OutIter encode(const variant_data::set* values, OutIter out) {
+  return encode_list<Policy>("set", values->begin(), values->end(), out);
+}
+
+/// Renders `value` to `out` as a JSON list.
+template <class Policy = render_object, class OutIter>
 OutIter encode(const broker::vector& values, OutIter out) {
   return encode_list<Policy>("vector", values.begin(), values.end(), out);
+}
+
+/// Renders `value` to `out` as a JSON list.
+template <class Policy = render_object, class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out) {
+  return encode_list<Policy>("vector", values->begin(), values->end(), out);
 }
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces and
@@ -272,6 +290,13 @@ OutIter encode(const broker::vector& values, OutIter out) {
 template <class Policy = render_object, class OutIter>
 OutIter encode(const broker::table& values, OutIter out) {
   return encode_list<Policy>("table", values.begin(), values.end(), out);
+}
+
+/// Renders `value` to `out` as a sequence, enclosing it in curly braces and
+/// displaying key/value pairs as `key -> value`.
+template <class Policy = render_object, class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out) {
+  return encode_list<Policy>("table", values->begin(), values->end(), out);
 }
 
 /// Renders a `data` object to `out` by dispatching to the appropriate overload
@@ -283,9 +308,38 @@ std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
                     value.get_data());
 }
 
+/// Renders a `data` object to `out` by dispatching to the appropriate overload
+/// for the underlying type.
+template <class Policy = render_object, class OutIter>
+OutIter encode(const variant_data& value, OutIter out) {
+  return std::visit([&](auto&& x) { return encode<Policy>(x, out); },
+                    value.value);
+}
+
+/// Renders a `data` object to `out` by dispatching to the appropriate overload
+/// for the underlying type.
+template <class Policy = render_object, class OutIter>
+OutIter encode(const variant& value, OutIter out) {
+  return encode<Policy>(*value.raw(), out);
+}
+
 /// Renders the key-value pair to `out` as a JSON object.
 template <class OutIter>
 OutIter encode(const broker::table::value_type& values, OutIter out) {
+  // Note: this overload needs no policy because it's only used by the
+  //      `encode(const broker::table&, OutIter)` overload and must always
+  //      render sub-objects with enclosing curly braces.
+  out = append(R"_({"key":)_", out);
+  out = encode(values.first, out);
+  out = append(R"_(,"value":)_", out);
+  out = encode(values.second, out);
+  *out++ = '}';
+  return out;
+}
+
+/// Renders the key-value pair to `out` as a JSON object.
+template <class OutIter>
+OutIter encode(const variant_data::table::value_type& values, OutIter out) {
   // Note: this overload needs no policy because it's only used by the
   //      `encode(const broker::table&, OutIter)` overload and must always
   //      render sub-objects with enclosing curly braces.
@@ -324,9 +378,9 @@ template <class OutIter>
 OutIter encode(const data_message& msg, OutIter out) {
   *out++ = '{';
   out = append(R"_("type":"data-message","topic":)_", out);
-  out = append(quoted{get_topic(msg).string()}, out);
+  out = append(quoted{get_topic(msg)}, out);
   *out++ = ',';
-  encode<render_embedded>(get_data(msg), out);
+  out = encode<render_embedded>(get_data(msg), out);
   *out++ = '}';
   return out;
 }

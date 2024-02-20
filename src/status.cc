@@ -5,6 +5,8 @@
 #include "broker/error.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
 
 using namespace std::literals;
 
@@ -37,9 +39,14 @@ bool convert(std::string_view str, sc& code) noexcept {
 bool convert(const data& src, sc& code) noexcept {
   if (auto val = get_if<enum_value>(src)) {
     return convert(val->name, code);
-  } else {
-    return false;
   }
+  return false;
+}
+
+bool convert(const variant& src, sc& code) noexcept {
+  if (!src.is_enum_value())
+    return false;
+  return convert(src.to_enum_value().name, code);
 }
 
 bool convertible_to_sc(const data& src) noexcept {
@@ -134,6 +141,22 @@ bool convertible_to_status(const data& src) noexcept {
   return false;
 }
 
+bool convertible_to_status(const variant_list& xs) noexcept {
+  if (xs.size() != 4)
+    return false;
+  if (xs.front().to_string() != "status")
+    return false;
+  if (auto code = to<sc>(xs[1]))
+    return *code != sc::unspecified
+             ? contains<any_type, any_type, endpoint_info, std::string>(xs)
+             : contains<any_type, any_type, none, none>(xs);
+  return false;
+}
+
+bool convertible_to_status(const variant& src) noexcept {
+  return convertible_to_status(src.to_list());
+}
+
 bool convert(const data& src, status& dst) {
   if (!convertible_to_status(src))
     return false;
@@ -151,6 +174,10 @@ bool convert(const data& src, status& dst) {
     return true;
   }
   return false;
+}
+
+bool convert(const variant& src, status& dst) {
+  return convert(src.to_data(), dst);
 }
 
 bool convert(const status& src, data& dst) {

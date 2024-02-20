@@ -11,9 +11,10 @@
 
 namespace broker {
 
-subnet::subnet() : len_(0) {}
+subnet::subnet() noexcept : len_(0) {}
 
-subnet::subnet(const address& addr, uint8_t length) : net_(addr), len_(length) {
+subnet::subnet(const address& addr, uint8_t length) noexcept
+  : net_(addr), len_(length) {
   if (init())
     return;
   net_ = {};

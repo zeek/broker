@@ -9,7 +9,7 @@
 #include "broker/internal/logger.hh"
 
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
-  auto& t = get_topic(msg);                                                    \
+  const auto& t = get_topic(msg);                                              \
   if (t == topic::errors_str) {                                                \
     if (auto value = to<error>(get_data(msg)))                                 \
       return value_type{std::move(*value)};                                    \
@@ -21,7 +21,7 @@
   }
 
 #define BROKER_APPEND_CONVERTED_MSG()                                          \
-  auto& t = get_topic(msg);                                                    \
+  const auto& t = get_topic(msg);                                              \
   if (t == topic::errors_str) {                                                \
     if (auto value = to<error>(get_data(msg)))                                 \
       result.emplace_back(std::move(*value));                                  \

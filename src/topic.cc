@@ -47,8 +47,9 @@ std::string&& topic::move_string() && {
   return std::move(str_);
 }
 
-bool topic::prefix_of(const topic& t) const {
-  return is_prefix(t, str_);
+bool topic::is_prefix(std::string_view str, std::string_view prefix) noexcept {
+  return str.size() >= prefix.size()
+         && str.compare(0, prefix.size(), prefix) == 0;
 }
 
 std::string_view topic::suffix() const noexcept {
@@ -58,12 +59,6 @@ std::string_view topic::suffix() const noexcept {
   } else {
     return {str_};
   }
-}
-
-bool is_prefix(const topic& t, std::string_view prefix) noexcept {
-  const auto& str = t.string();
-  return str.size() >= prefix.size()
-         && str.compare(0, prefix.size(), prefix) == 0;
 }
 
 bool operator==(const topic& lhs, const topic& rhs) {

@@ -3,9 +3,9 @@
 namespace broker::detail {
 
 bool prefix_matcher::operator()(const filter_type& filter,
-                                const topic& t) const noexcept {
+                                std::string_view t) const noexcept {
   for (auto& prefix : filter)
-    if (prefix.prefix_of(t))
+    if (topic::is_prefix(t, prefix.string()))
       return true;
   return false;
 }

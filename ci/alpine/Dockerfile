@@ -16,7 +16,8 @@ RUN apk add --no-cache \
   make \
   openssl-dev \
   py3-pip \
+  py3-websockets \
   python3 \
   python3-dev
 
-RUN pip3 install websockets junit2html
+RUN pip3 install --break-system-packages junit2html

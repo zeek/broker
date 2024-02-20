@@ -4,6 +4,8 @@
 
 #include "test.hh"
 
+#include "broker/internal_command.hh"
+
 using namespace broker;
 using namespace std::literals;
 

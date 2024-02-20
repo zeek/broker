@@ -3,6 +3,11 @@
 #include "broker/config.hh"
 #include "broker/data.hh"
 #include "broker/detail/type_traits.hh"
+#include "broker/variant.hh"
+#include "broker/variant_data.hh"
+#include "broker/variant_list.hh"
+#include "broker/variant_set.hh"
+#include "broker/variant_table.hh"
 
 #include <cstddef>
 #include <cstdint>
@@ -243,6 +248,67 @@ OutIter encode(const enum_value& value, OutIter out) {
   return write_bytes(value.name, out);
 }
 
+template <class OutIter>
+OutIter encode(enum_value_view value, OutIter out) {
+  out = write_varbyte(value.name.size(), out);
+  return write_bytes(value.name, out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data& value, OutIter out);
+
+template <class OutIter>
+OutIter encode(const variant& value, OutIter out) {
+  return encode(*value.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::set* values, OutIter out) {
+  out = write_varbyte(values->size(), out);
+  for (const auto& x : *values)
+    out = encode(x, out);
+  return out;
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::table* values, OutIter out) {
+  out = write_varbyte(values->size(), out);
+  for (const auto& [key, val] : *values) {
+    out = encode(key, out);
+    out = encode(val, out);
+  }
+  return out;
+}
+
+template <class OutIter>
+OutIter encode(const variant_data::list* values, OutIter out) {
+  out = write_varbyte(values->size(), out);
+  for (const auto& x : *values)
+    out = encode(x, out);
+  return out;
+}
+
+template <class OutIter>
+OutIter encode(const variant_list& values, OutIter out) {
+  return encode(values.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_set& values, OutIter out) {
+  return encode(values.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_table& values, OutIter out) {
+  return encode(values.raw(), out);
+}
+
+template <class OutIter>
+OutIter encode(const variant_data& value, OutIter out) {
+  out = write_unsigned(value.get_tag(), out);
+  return std::visit([&](const auto& x) { return encode(x, out); }, value.value);
+}
+
 // Note: enable_if trickery to suppress implicit conversions.
 template <class Data, class OutIter>
 std::enable_if_t<std::is_same_v<Data, data>, OutIter> encode(const Data& value,
@@ -384,8 +450,18 @@ public:
     return fields(values...);
   }
 
+  template <class Iterator, class Sentinel>
+  void append(Iterator first, Sentinel last) {
+    out_ = std::copy(first, last, out_);
+  }
+
 private:
   OutIter out_;
 };
+
+template <class OutIter, class T>
+auto encode_with_tag(const T& x, OutIter out) -> decltype(encode(x, out)) {
+  return encode(x, write_unsigned(data_tag_v<T>, out));
+}
 
 } // namespace broker::format::bin::v1

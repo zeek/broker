@@ -1,3 +1,31 @@
+2.8.0-dev.41 | 2024-02-20 09:15:14 -0700
+
+  * Remove obsolete code (Dominik Charousset, Corelight)
+
+  * CI: Use a python venv in test.sh to avoid pip errors on newer platforms (Tim Wojtulewicz, Corelight)
+
+  * CI: Pin Windows openssl to 3.1.1 (Tim Wojtulewicz, Corelight)
+
+  * CI: Fix building of alpine image with regards to python packages (Tim Wojtulewicz, Corelight)
+
+  * Implement new variant type and builder API (Dominik Charousset, Corelight)
+
+    - The new `broker::variant` is similar to `broker::data` in so far that
+      it can represent similar types. However, once constructed, the new
+      `broker::variant` is a read-only type. Internally, the variant stores
+      the binary representation of the represented value. This makes
+      serializing into the binary format essentially a no-op. When
+      deserializing a value from the wire, we also keep the original byte
+      representation around. For the actual data structure on top of the
+      buffer, `broker::variant` uses a monotonic buffer resource in order to
+      efficiently allocate the data structure representing the value.
+    - For building a `broker::variant`, Broker now ships a new builder API.
+      A builder must be filled with the entire data set for a
+      `broker::variant` before constructing the final object.
+    - The new `broker::variant` also comes with a matching "envelope" type.
+      An envelope is basically the raw data plus meta data (such as topic).
+      The envelopes represent the old message types such as `data_message`.
+
 2.8.0-dev.35 | 2024-01-30 18:31:39 +0100
 
   * Implement JSON encoding for broker::data (Dominik Charousset, Corelight)
