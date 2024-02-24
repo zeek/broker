@@ -43,9 +43,9 @@ enum class term_color {
 
 namespace {
 
-constexpr uint64_t default_peer_count = 20;
+constexpr uint64_t default_peer_count = 10;
 
-constexpr uint64_t default_message_count = 10'000'000;
+constexpr uint64_t default_message_count = 10'000;
 
 constexpr uint64_t default_payload_size = 1'000;
 
@@ -187,7 +187,6 @@ void add_options(configuration& cfg, parameters& ps) {
                  "enables more console output");
   cfg.add_option(&ps.naive_publish, "naive-publish",
                  "publish data via endpoint::publish instead of publish_all");
-  ;
 }
 
 struct generator {
