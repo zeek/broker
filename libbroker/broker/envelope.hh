@@ -80,6 +80,10 @@ public:
   /// write format.
   static expected<envelope_ptr> deserialize(const std::byte* data, size_t size);
 
+  /// Attempts to deserialize an envelope from the given message in Broker's
+  /// JSON format.
+  static expected<envelope_ptr> deserialize_json(const char* data, size_t size);
+
   /// @pre `type == envelope_type::data`
   data_envelope_ptr as_data() const;
 

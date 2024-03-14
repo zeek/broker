@@ -103,6 +103,8 @@ enum class ec : uint8_t {
   redundant_connection,
   /// Broker encountered a
   logic_error = 40,
+  /// Broker failed to parse a JSON object.
+  invalid_json,
 };
 // --ec-enum-end
 
