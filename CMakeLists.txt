@@ -6,6 +6,8 @@ include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 include(cmake/CommonCMakeConfig.cmake)
 
+set(BROKER_TEST_TIMEOUT 60)
+
 get_directory_property(parent_dir PARENT_DIRECTORY)
 if(parent_dir)
   set(broker_is_subproject ON)
@@ -213,11 +215,9 @@ if (CAF_ROOT)
   message(STATUS "Using system CAF version ${CAF_VERSION}")
   # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
   if (CMAKE_VERSION VERSION_LESS 3.12)
-    find_package(CAF REQUIRED
-                 COMPONENTS openssl test io core
-                 PATHS "${CAF_ROOT}")
+    find_package(CAF REQUIRED COMPONENTS test io core net PATHS "${CAF_ROOT}")
   else()
-    find_package(CAF REQUIRED COMPONENTS openssl test io core net)
+    find_package(CAF REQUIRED COMPONENTS test io core net)
   endif()
   list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
   set(BROKER_USE_EXTERNAL_CAF ON)
@@ -227,11 +227,12 @@ else ()
   # able to find a CAF installation.
   message(STATUS "Using bundled CAF")
   add_bundled_caf()
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_core_obj>)
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_io_obj>)
-  list(APPEND OPTIONAL_SRC $<TARGET_OBJECTS:libcaf_net_obj>)
   set(BROKER_USE_EXTERNAL_CAF OFF)
 endif ()
+
+if ( NOT BROKER_DISABLE_TESTS )
+  enable_testing()
+endif()
 
 # -- libroker -----------------------------------------------------------------
 
@@ -256,169 +257,24 @@ install(
   CODE "file(REMOVE_RECURSE \"${CMAKE_INSTALL_PREFIX}/include/broker\")")
 
 # Install all headers except the files from broker/internal.
-install(DIRECTORY include/broker
+install(DIRECTORY libbroker/broker
         DESTINATION include
         FILES_MATCHING PATTERN "*.hh"
-                       PATTERN "include/broker/internal" EXCLUDE)
+        PATTERN "libbroker/broker/internal" EXCLUDE
+        PATTERN "*.test.hh" EXCLUDE)
 
-include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.hh.in
-               ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh DESTINATION include/broker)
+# install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh DESTINATION include/broker)
 
 if (NOT BROKER_EXTERNAL_SQLITE_TARGET)
   include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
   set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS
                               -DSQLITE_OMIT_LOAD_EXTENSION)
-  list(APPEND OPTIONAL_SRC 3rdparty/sqlite3.c)
+  list(APPEND OPTIONAL_SRC ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sqlite3.c)
 else()
   list(APPEND LINK_LIBS ${BROKER_EXTERNAL_SQLITE_TARGET})
 endif()
 
-set(BROKER_SRC
-  # src/detail/core_recorder.cc
-  # src/detail/generator_file_reader.cc
-  # src/detail/generator_file_writer.cc
-  # src/gateway.cc
-  # src/internal/data_generator.cc
-  # src/internal/generator_file_reader.cc
-  # src/internal/generator_file_writer.cc
-  # src/internal/meta_command_writer.cc
-  # src/internal/meta_data_writer.cc
-  ${OPTIONAL_SRC}
-  src/address.cc
-  src/alm/multipath.cc
-  src/alm/routing_table.cc
-  src/builder.cc
-  src/command_envelope.cc
-  src/configuration.cc
-  src/convert.cc
-  src/data.cc
-  src/data_envelope.cc
-  src/detail/abstract_backend.cc
-  src/detail/filesystem.cc
-  src/detail/flare.cc
-  src/detail/make_backend.cc
-  src/detail/memory_backend.cc
-  src/detail/monotonic_buffer_resource.cc
-  src/detail/opaque_type.cc
-  src/detail/peer_status_map.cc
-  src/detail/prefix_matcher.cc
-  src/detail/sink_driver.cc
-  src/detail/source_driver.cc
-  src/detail/sqlite_backend.cc
-  src/detail/store_state.cc
-  src/domain_options.cc
-  src/endpoint.cc
-  src/endpoint_id.cc
-  src/endpoint_info.cc
-  src/entity_id.cc
-  src/envelope.cc
-  src/error.cc
-  src/filter_type.cc
-  src/format/bin.cc
-  src/format/json.cc
-  src/internal/clone_actor.cc
-  src/internal/connector.cc
-  src/internal/connector_adapter.cc
-  src/internal/core_actor.cc
-  src/internal/flare_actor.cc
-  src/internal/json.cc
-  src/internal/json_client.cc
-  src/internal/json_type_mapper.cc
-  src/internal/master_actor.cc
-  src/internal/master_resolver.cc
-  src/internal/metric_collector.cc
-  src/internal/metric_exporter.cc
-  src/internal/metric_factory.cc
-  src/internal/metric_scraper.cc
-  src/internal/metric_view.cc
-  src/internal/peering.cc
-  src/internal/pending_connection.cc
-  src/internal/println.cc
-  src/internal/prometheus.cc
-  src/internal/store_actor.cc
-  src/internal/web_socket.cc
-  src/internal/wire_format.cc
-  src/internal_command.cc
-  src/mailbox.cc
-  src/network_info.cc
-  src/p2p_message_type.cc
-  src/peer_status.cc
-  src/ping_envelope.cc
-  src/pong_envelope.cc
-  src/port.cc
-  src/publisher.cc
-  src/routing_update_envelope.cc
-  src/shutdown_options.cc
-  src/status.cc
-  src/status_subscriber.cc
-  src/store.cc
-  src/store_event.cc
-  src/subnet.cc
-  src/subscriber.cc
-  src/telemetry/counter.cc
-  src/telemetry/gauge.cc
-  src/telemetry/histogram.cc
-  src/telemetry/metric_family.cc
-  src/telemetry/metric_registry.cc
-  src/telemetry/metric_registry_impl.cc
-  src/time.cc
-  src/topic.cc
-  src/variant.cc
-  src/variant_data.cc
-  src/variant_list.cc
-  src/variant_set.cc
-  src/variant_table.cc
-  src/variant_tag.cc
-  src/version.cc
-  src/worker.cc
-  src/zeek.cc
-)
-
-if (ENABLE_SHARED)
-  add_library(broker SHARED ${BROKER_SRC})
-  set_target_properties(broker PROPERTIES
-                        SOVERSION ${BROKER_SOVERSION}
-                        VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
-                        MACOSX_RPATH true
-                        OUTPUT_NAME broker)
-  target_link_libraries(broker PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::net)
-  install(TARGETS broker
-          EXPORT BrokerTargets
-          DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  target_include_directories(broker INTERFACE
-                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                             $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-                             $<INSTALL_INTERFACE:include>)
-endif ()
-
-if (ENABLE_STATIC)
-  add_library(broker_static STATIC ${BROKER_SRC})
-  set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
-  if (NOT DISABLE_PYTHON_BINDINGS)
-    set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-  endif()
-  target_link_libraries(broker_static PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::net)
-  install(TARGETS broker_static
-          EXPORT BrokerTargets
-          DESTINATION ${CMAKE_INSTALL_LIBDIR})
-  target_include_directories(broker_static INTERFACE
-                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                             $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-                             $<INSTALL_INTERFACE:include>)
-endif ()
-
-if (ENABLE_SHARED)
-  set(BROKER_LIBRARY broker)
-else()
-  set(BROKER_LIBRARY broker_static)
-endif()
+add_subdirectory(libbroker)
 
 set(tidyCfgFile "${CMAKE_SOURCE_DIR}/.clang-tidy")
 if (BROKER_ENABLE_TIDY)
@@ -437,30 +293,11 @@ if (BROKER_ENABLE_TIDY)
 endif ()
 
 
-# -- Tools --------------------------------------------------------------------
+# -- Tools and benchmarks -----------------------------------------------------
 
-macro(add_tool name)
-  add_executable(${name} src/${name}.cc ${ARGN})
-  if (ENABLE_SHARED)
-    target_link_libraries(${name} broker CAF::core CAF::io CAF::net)
-    add_dependencies(${name} broker)
-  else()
-    target_link_libraries(${name} broker_static CAF::core CAF::io CAF::net)
-    add_dependencies(${name} broker_static)
-  endif()
-  if (BROKER_ENABLE_TIDY)
-    set_target_properties(${name} PROPERTIES
-                          CXX_CLANG_TIDY "clang-tidy;--config-file=${tidyCfgFile}")
-    target_compile_definitions(${name} PRIVATE ${BROKER_CLANG_TIDY_DEF})
-  endif ()
-endmacro()
-
-if (NOT BROKER_DISABLE_TOOLS)
-  # TODO: fix these tools
-  # add_tool(broker-gateway)
-  add_tool(broker-node)
-  add_tool(broker-pipe)
-endif ()
+add_subdirectory(broker-node)
+add_subdirectory(broker-pipe)
+add_subdirectory(broker-throughput)
 
 # -- Bindings -----------------------------------------------------------------
 
@@ -499,7 +336,6 @@ endif ()
 # -- Unit Tests ---------------------------------------------------------------
 
 if ( NOT BROKER_DISABLE_TESTS )
-  enable_testing()
   add_subdirectory(tests)
 endif ()
 
@@ -518,7 +354,7 @@ install(
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
 
 configure_package_config_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/BrokerConfig.cmake.in"
+  "${CMAKE_CURRENT_SOURCE_DIR}/libbroker/BrokerConfig.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/BrokerConfig.cmake"
   INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
 

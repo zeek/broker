@@ -423,7 +423,7 @@ In order to wait for two nodes to add each other their routing tables and
 exchange subscriptions, the class ``endpoint`` provides the member function
 ``await_peer``:
 
-.. literalinclude:: ../include/broker/endpoint.hh
+.. literalinclude:: ../libbroker/broker/endpoint.hh
    :language: cpp
    :start-after: --await-peer-start
    :end-before: --await-peer-end
@@ -470,7 +470,7 @@ Data Stores
 When working with data stores, the member function ``store::await_idle`` allows
 establishing a predefined order:
 
-.. literalinclude:: ../include/broker/store.hh
+.. literalinclude:: ../libbroker/broker/store.hh
    :language: cpp
    :start-after: --await-idle-start
    :end-before: --await-idle-end

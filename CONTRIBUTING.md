@@ -97,7 +97,8 @@ General
 Header
 ------
 
-- Header filenames end in `.hh` and implementation filenames in `.cc`.
+- Header filenames end in `.hh`, implementation filenames in `.cc` and files for
+  unit tests end in `.test.cc`.
 
 - All header files should use `#pragma once` to prevent multiple inclusion.
 

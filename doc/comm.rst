@@ -194,7 +194,7 @@ Errors reflect failures that may impact the correctness of operation.
 ``err.code()`` returns an enum ``ec`` that codifies existing error
 codes:
 
-.. literalinclude:: ../include/broker/error.hh
+.. literalinclude:: ../libbroker/broker/error.hh
    :language: cpp
    :start-after: --ec-enum-start
    :end-before: --ec-enum-end
@@ -211,7 +211,7 @@ example, after a successful peering, both endpoints receive a
 ``peer_added`` status message. The concrete semantics of a status
 depend on its embedded code, which the enum ``sc`` codifies:
 
-.. literalinclude:: ../include/broker/status.hh
+.. literalinclude:: ../libbroker/broker/status.hh
    :language: cpp
    :start-after: --sc-enum-start
    :end-before: --sc-enum-end
