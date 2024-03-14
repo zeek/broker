@@ -211,7 +211,7 @@ foreach(file_path ${BROKER_TEST_SRC})
   if (${test_name} STREQUAL broker.radix_tree)
     set(test_verbosity 3)  # otherwise it just produces way too much output
   endif ()
-  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "^${suite}$" ${ARGN})
+  add_test(NAME ${test_name} COMMAND broker-test -v ${test_verbosity} -s "^${test_name}$" ${ARGN})
   set_tests_properties(${test_name} PROPERTIES TIMEOUT ${BROKER_TEST_TIMEOUT})
   set_tests_properties(${test_name} PROPERTIES ENVIRONMENT
                        "BROKER_TEST_DIR=${BROKER_TEST_DIR}")
