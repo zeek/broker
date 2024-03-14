@@ -341,9 +341,9 @@ endif ()
 
 # -- Documentation ------------------------------------------------------------
 
-# if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
-#   add_subdirectory(doc)
-# endif ()
+if (NOT WIN32 AND NOT BROKER_DISABLE_DOCS)
+  add_subdirectory(doc)
+endif ()
 
 # -- CMake package install ----------------------------------------------------
 
