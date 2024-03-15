@@ -1,3 +1,7 @@
+2.8.0-dev.49 | 2024-03-15 22:18:06 +0100
+
+  * CI: Remove CentOS 7 and Debian 10 builds (Christian Kreibich, Corelight)
+
 2.8.0-dev.47 | 2024-03-14 20:56:38 +0100
 
   * Fix CTest setup for the unit tests (Dominik Charousset, Corelight)
