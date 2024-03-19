@@ -20,8 +20,6 @@ struct linear_routing_table_row {
 
   endpoint_id id;
 
-  caf::actor hdl;
-
   std::vector<versioned_path_type> versioned_paths;
 
   linear_routing_table_row() = default;
@@ -32,11 +30,6 @@ struct linear_routing_table_row {
   operator=(const linear_routing_table_row&) = default;
 
   explicit linear_routing_table_row(endpoint_id id) : id(std::move(id)) {
-    versioned_paths.reserve(32);
-  }
-
-  linear_routing_table_row(endpoint_id id, caf::actor hdl)
-    : id(std::move(id)), hdl(std::move(hdl)) {
     versioned_paths.reserve(32);
   }
 };
@@ -182,20 +175,18 @@ bool add_or_update_path(sorted_linear_routing_table& tbl,
 using path_type = std::vector<endpoint_id>;
 
 struct id_generator {
-  using array_type = caf::hashed_node_id::host_id_type;
+  using array_type = broker::endpoint_id::array_type;
 
   id_generator() : rng(0xB7E57) {
     // nop
   }
 
   endpoint_id next() {
-    using value_type = array_type::value_type;
-    std::uniform_int_distribution<> d{0,
-                                      std::numeric_limits<value_type>::max()};
-    array_type result;
-    for (auto& x : result)
-      x = static_cast<value_type>(d(rng));
-    return caf::make_node_id(d(rng), result);
+    std::uniform_int_distribution<> d{0, 255};
+    array_type bytes;
+    for (auto& x : bytes)
+      x = static_cast<std::byte>(d(rng));
+    return broker::endpoint_id(bytes);
   }
 
   std::minstd_rand rng;
