@@ -1,3 +1,17 @@
+2.8.0-dev.51 | 2024-03-19 15:28:32 -0700
+
+  * docs/python: Point users at WebSocket (Arne Welzel, Corelight)
+
+    Users on Slack somewhat regularly ask questions around how to use the Python
+    bindings and finding quirks with it. Just for us to tell them they
+    should be using WebSockets instead. These might not be perfect, but at
+    least we're open to hear feedback and improve them, which isn't
+    necessarily our stance for the Python bindings.
+
+    Put up a big banner to redirect users into the future. Seems "warning" is
+    warranted given our reluctance and future ideas around deprecation for
+    the bindings.
+
 2.8.0-dev.49 | 2024-03-15 22:18:06 +0100
 
   * CI: Remove CentOS 7 and Debian 10 builds (Christian Kreibich, Corelight)
