@@ -1,3 +1,7 @@
+2.8.0-dev.56 | 2024-03-19 15:54:34 -0700
+
+  * Fix update-changes config due to version.hh moving (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.55 | 2024-03-19 15:30:46 -0700
 
   * Restore the routing-table benchmark program (Dominik Charousset, Corelight)
