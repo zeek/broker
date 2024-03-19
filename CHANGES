@@ -1,3 +1,7 @@
+2.8.0-dev.53 | 2024-03-19 15:30:10 -0700
+
+  * Restore python-ssl test (Dominik Charousset, Corelight)
+
 2.8.0-dev.51 | 2024-03-19 15:28:32 -0700
 
   * docs/python: Point users at WebSocket (Arne Welzel, Corelight)
