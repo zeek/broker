@@ -1,6 +1,10 @@
 #include "broker/format/json.hh"
 
 #include "broker/broker-test.test.hh"
+#include "broker/variant.hh"
+#include "broker/variant_list.hh"
+#include "broker/variant_set.hh"
+#include "broker/variant_table.hh"
 
 using namespace broker;
 using namespace std::literals;
@@ -587,4 +591,130 @@ TEST(data_message) {
     auto msg = make_data_message("/test/topic", data{xs});
     CHECK_EQUAL(to_v1(msg), baseline);
   }
+}
+
+TEST(decode JSON into a variant) {
+  constexpr std::string_view json = R"_({
+    "@data-type": "vector",
+    "data": [
+      {
+        "@data-type": "none",
+        "data": {}
+      },
+      {
+        "@data-type": "boolean",
+        "data": true
+      },
+      {
+        "@data-type": "count",
+        "data": 42
+      },
+      {
+        "@data-type": "integer",
+        "data": 23
+      },
+      {
+        "@data-type": "real",
+        "data": 12.48
+      },
+      {
+        "@data-type": "string",
+        "data": "this is a string"
+      },
+      {
+        "@data-type": "address",
+        "data": "2001:db8::"
+      },
+      {
+        "@data-type": "subnet",
+        "data": "255.255.255.0/24"
+      },
+      {
+        "@data-type": "port",
+        "data": "8080/tcp"
+      },
+      {
+        "@data-type": "timestamp",
+        "data": "2014-07-09T10:16:44.000"
+      },
+      {
+        "@data-type": "timespan",
+        "data": "23s"
+      },
+      {
+        "@data-type": "enum-value",
+        "data": "foo"
+      },
+      {
+        "@data-type": "set",
+        "data": [
+          {
+            "@data-type": "integer",
+            "data": 1
+          },
+          {
+            "@data-type": "integer",
+            "data": 2
+          },
+          {
+            "@data-type": "integer",
+            "data": 3
+          }
+        ]
+      },
+      {
+        "@data-type": "table",
+        "data": [
+          {
+            "key": {
+              "@data-type": "string",
+              "data": "first-name"
+            },
+            "value": {
+              "@data-type": "string",
+              "data": "John"
+            }
+          },
+          {
+            "key": {
+              "@data-type": "string",
+              "data": "last-name"
+            },
+            "value": {
+              "@data-type": "string",
+              "data": "Doe"
+            }
+          }
+        ]
+      }
+    ]
+  })_";
+  variant res;
+  auto err = format::json::v1::decode(json, res);
+  REQUIRE(!err);
+  auto xs = res.to_list();
+  REQUIRE_EQ(xs.size(), 14u);
+  CHECK(xs.at(0).is_none());
+  CHECK_EQ(xs.at(1).to_boolean(), true);
+  CHECK_EQ(xs.at(2).to_count(), 42u);
+  CHECK_EQ(xs.at(3).to_integer(), 23);
+  CHECK_EQ(xs.at(4).to_real(), 12.48);
+  CHECK_EQ(xs.at(5).to_string(), "this is a string"sv);
+  CHECK_EQ(xs.at(6).to_address(), addr("2001:db8::"));
+  CHECK_EQ(xs.at(7).to_subnet(), snet("255.255.255.0/24"));
+  CHECK_EQ(xs.at(8).to_port(), port(8080, port::protocol::tcp));
+  CHECK_EQ(xs.at(9).to_timestamp(), broker_genesis());
+  CHECK_EQ(xs.at(10).to_timespan(), timespan{23s});
+  CHECK_EQ(xs.at(11).to_enum_value(), enum_value{"foo"});
+  auto set = xs.at(12).to_set();
+  REQUIRE_EQ(set.size(), 3u);
+  CHECK(!set.contains(integer{0}));
+  CHECK(set.contains(integer{1}));
+  CHECK(set.contains(integer{2}));
+  CHECK(set.contains(integer{3}));
+  CHECK(!set.contains(integer{4}));
+  auto tbl = xs.at(13).to_table();
+  REQUIRE_EQ(tbl.size(), 2u);
+  CHECK_EQ(tbl["first-name"].to_string(), "John"sv);
+  CHECK_EQ(tbl["last-name"].to_string(), "Doe"sv);
 }

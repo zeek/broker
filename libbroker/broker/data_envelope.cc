@@ -5,11 +5,16 @@
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
+#include "broker/internal/json.hh"
+#include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/topic.hh"
 
 #include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
+#include <caf/expected.hpp>
+#include <caf/json_object.hpp>
+#include <caf/json_value.hpp>
 
 using namespace std::literals;
 

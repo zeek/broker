@@ -2,6 +2,7 @@
 
 #include "broker/config.hh"
 #include "broker/data.hh"
+#include "broker/fwd.hh"
 #include "broker/message.hh"
 
 #include <algorithm>
@@ -384,5 +385,11 @@ OutIter encode(const data_message& msg, OutIter out) {
   *out++ = '}';
   return out;
 }
+
+/// Tries to decode a JSON object from `str`. On success, the result is stored
+/// in `result` and the functions a default-constructed `error`. Otherwise, the
+/// function returns a non-empty error and leaves `result` in an unspecified
+/// state.
+error decode(std::string_view str, variant& result);
 
 } // namespace broker::format::json::v1

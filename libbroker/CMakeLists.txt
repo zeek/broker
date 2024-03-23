@@ -165,6 +165,7 @@ set(BROKER_TEST_SRC
   broker/data.test.cc
   broker/detail/peer_status_map.test.cc
   broker/domain_options.test.cc
+  broker/envelope.test.cc
   broker/error.test.cc
   broker/filter_type.test.cc
   broker/format/bin.test.cc

@@ -7,6 +7,7 @@
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
+#include "broker/internal/json.hh"
 #include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/p2p_message_type.hh"
@@ -20,6 +21,9 @@
 #include <caf/byte_buffer.hpp>
 #include <caf/detail/ieee_754.hpp>
 #include <caf/detail/network_order.hpp>
+#include <caf/expected.hpp>
+#include <caf/json_object.hpp>
+#include <caf/json_value.hpp>
 
 namespace broker {
 
@@ -146,6 +150,39 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
       return pong_envelope::deserialize(sender, receiver, ttl, topic_str, data,
                                         size);
   }
+}
+
+expected<envelope_ptr> envelope::deserialize_json(const char* data,
+                                                  size_t size) {
+  // Parse the JSON text into a JSON object.
+  auto val = caf::json_value::parse_shallow(std::string_view{data, size});
+  if (!val)
+    return error{ec::invalid_json};
+  auto obj = val->to_object();
+  // Type-checking.
+  if (obj.value("type").to_string() != "data-message")
+    return error{ec::deserialization_failed};
+  // Read the topic.
+  auto topic = obj.value("topic").to_string();
+  if (topic.empty())
+    return error{ec::deserialization_failed};
+  auto stl_topic = std::string_view{topic.data(), topic.size()};
+  // Try to convert the JSON structure into our binary serialization format.
+  std::vector<std::byte> buf;
+  buf.reserve(512); // Allocate some memory to avoid small allocations.
+  if (auto err = internal::json::data_message_to_binary(obj, buf))
+    return err;
+  // Turn the binary data into a data envelope. TTL and sender/receiver are
+  // not part of the JSON representation, so we use defaults values.
+  auto res = data_envelope::deserialize(endpoint_id::nil(), endpoint_id::nil(),
+                                        defaults::ttl, stl_topic, buf.data(),
+                                        buf.size());
+  // Note: must manually "unbox" the expected to convert from
+  // expected<data_envelope_ptr> to expected<envelope_ptr>.
+  if (res)
+    return *res;
+  else
+    return res.error();
 }
 
 data_envelope_ptr envelope::as_data() const {
