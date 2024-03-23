@@ -51,7 +51,7 @@ constexpr std::string_view json = R"_({
     },
     {
       "@data-type": "timestamp",
-      "data": "2022-04-10T16:07:00.000"
+      "data": "2014-07-09T10:16:44.000"
     },
     {
       "@data-type": "timespan",
