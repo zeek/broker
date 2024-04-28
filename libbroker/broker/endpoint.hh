@@ -32,6 +32,10 @@
 #include "broker/topic.hh"
 #include "broker/worker.hh"
 
+namespace prometheus {
+class Exposer;
+} // namespace prometheus
+
 namespace broker::internal {
 
 struct endpoint_access;
@@ -85,41 +89,6 @@ public:
     internal::endpoint_context* ctx_;
   };
 
-  /// Utility class for configuring the metrics exporter.
-  class metrics_exporter_t {
-  public:
-    explicit metrics_exporter_t(endpoint* parent) : parent_(parent) {
-      // nop
-    }
-
-    metrics_exporter_t(const metrics_exporter_t&) noexcept = default;
-    metrics_exporter_t& operator=(const metrics_exporter_t&) noexcept = default;
-
-    /// Changes the frequency for publishing scraped metrics to the topic.
-    /// Passing a zero-length interval has no effect.
-    void set_interval(timespan new_interval);
-
-    /// Sets a new target topic for the metrics. Passing an empty topic has no
-    /// effect.
-    void set_target(topic new_target);
-
-    /// Sets a new ID for the metrics exporter. Passing an empty string has no
-    /// effect.
-    void set_id(std::string new_id);
-
-    /// Sets a prefix selection for the metrics exporter. An empty vector means
-    /// *all*.
-    void set_prefixes(std::vector<std::string> new_prefixes);
-
-    /// Sets a new filter for the Prometheus metrics exporter to collect metrics
-    /// from remote endpoints. An empty vector means *none*.
-    /// @note Has no effect when not configuring Prometheus export.
-    void set_import_topics(std::vector<std::string> new_topics);
-
-  private:
-    endpoint* parent_;
-  };
-
   struct background_task {
     virtual ~background_task();
   };
@@ -130,10 +99,12 @@ public:
 
   endpoint();
 
-  explicit endpoint(configuration config);
+  explicit endpoint(configuration config,
+                    prometheus_registry_ptr registry = nullptr);
 
   /// @private
-  endpoint(configuration config, endpoint_id this_peer);
+  endpoint(configuration config, endpoint_id this_peer,
+           prometheus_registry_ptr registry = nullptr);
 
   endpoint(endpoint&&) = delete;
   endpoint(const endpoint&) = delete;
@@ -523,11 +494,6 @@ public:
       shutdown_options_.unset(flag);
   }
 
-  /// Returns a configuration object for the metrics exporter.
-  metrics_exporter_t metrics_exporter() {
-    return metrics_exporter_t{this};
-  }
-
   bool is_shutdown() const {
     return ctx_ == nullptr;
   }
@@ -569,11 +535,12 @@ private:
   endpoint_id id_;
   worker core_;
   shutdown_options shutdown_options_;
-  worker telemetry_exporter_;
   bool await_stores_on_shutdown_ = false;
   std::vector<worker> workers_;
   std::unique_ptr<clock> clock_;
   std::vector<std::unique_ptr<background_task>> background_tasks_;
+  prometheus_registry_ptr registry_;
+  std::unique_ptr<prometheus::Exposer> exposer_;
 };
 
 } // namespace broker

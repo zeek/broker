@@ -6,76 +6,66 @@ namespace broker::internal {
 
 // -- 'imports' to safe ourselves some typing ----------------------------------
 
-using dbl_gauge = metric_factory::dbl_gauge;
+using gauge = metric_factory::gauge;
 
-using dbl_gauge_family = metric_factory::dbl_gauge_family;
+using gauge_family = metric_factory::gauge_family;
 
-using int_gauge = metric_factory::int_gauge;
+using counter = metric_factory::counter;
 
-using int_gauge_family = metric_factory::int_gauge_family;
+using counter_family = metric_factory::counter_family;
 
-using dbl_counter = metric_factory::dbl_counter;
+using histogram = metric_factory::histogram;
 
-using dbl_counter_family = metric_factory::dbl_counter_family;
-
-using int_counter = metric_factory::int_counter;
-
-using int_counter_family = metric_factory::int_counter_family;
-
-using dbl_histogram = metric_factory::dbl_histogram;
-
-using dbl_histogram_family = metric_factory::dbl_histogram_family;
-
-using int_histogram = metric_factory::int_histogram;
-
-using int_histogram_family = metric_factory::int_histogram_family;
+using histogram_family = metric_factory::histogram_family;
 
 // -- core metrics -------------------------------------------------------------
 
 using core_t = metric_factory::core_t;
 
-int_gauge_family* core_t::connections_family() {
-  return reg_->gauge_family("broker", "connections", {"type"},
-                            "Number of active network connections.");
+gauge_family* core_t::connections_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_connections")
+            .Help("Number of active network connections.")
+            .Register(*reg_);
 }
 
 core_t::connections_t core_t::connections_instances() {
   auto fm = connections_family();
   return {
-    fm->get_or_add({{"type", "native"}}),
-    fm->get_or_add({{"type", "web-socket"}}),
+    &fm->Add({{"type", "native"}}),
+    &fm->Add({{"type", "web-socket"}}),
   };
 }
 
-int_counter_family* core_t::processed_messages_family() {
-  return reg_->counter_family("broker", "processed-messages", {"type"},
-                              "Total number of processed messages.", "1", true);
+counter_family* core_t::processed_messages_family() {
+  return &prometheus::BuildCounter()
+            .Name("broker_processed_messages_total")
+            .Help("Total number of processed messages.")
+            .Register(*reg_);
 }
 
 core_t::processed_messages_t core_t::processed_messages_instances() {
   auto fm = processed_messages_family();
   return {
-    fm->get_or_add({{"type", "data"}}),
-    fm->get_or_add({{"type", "command"}}),
-    fm->get_or_add({{"type", "routing-update"}}),
-    fm->get_or_add({{"type", "ping"}}),
-    fm->get_or_add({{"type", "pong"}}),
+    &fm->Add({{"type", "data"}}),           &fm->Add({{"type", "command"}}),
+    &fm->Add({{"type", "routing-update"}}), &fm->Add({{"type", "ping"}}),
+    &fm->Add({{"type", "pong"}}),
   };
 }
 
-int_gauge_family* core_t::buffered_messages_family() {
-  return reg_->gauge_family("broker", "buffered-messages", {"type"},
-                            "Number of currently buffered messages.");
+gauge_family* core_t::buffered_messages_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_buffered_messages")
+            .Help("Number of currently buffered messages.")
+            .Register(*reg_);
 }
 
 core_t::buffered_messages_t core_t::buffered_messages_instances() {
   auto fm = buffered_messages_family();
   return {
-    fm->get_or_add({{"type", "data"}}),
-    fm->get_or_add({{"type", "command"}}),
-    fm->get_or_add({{"type", "routing-update"}}),
-    fm->get_or_add({{"type", "ping"}}),
-    fm->get_or_add({{"type", "pong"}}),
+    &fm->Add({{"type", "data"}}),           &fm->Add({{"type", "command"}}),
+    &fm->Add({{"type", "routing-update"}}), &fm->Add({{"type", "ping"}}),
+    &fm->Add({{"type", "pong"}}),
   };
 }
 
@@ -83,67 +73,70 @@ core_t::buffered_messages_t core_t::buffered_messages_instances() {
 
 using store_t = metric_factory::store_t;
 
-int_gauge_family* store_t::input_channels_family() {
-  return reg_->gauge_family("broker", "store-input-channels", {"name"},
-                            "Number of active input channels in a data store.");
+gauge_family* store_t::input_channels_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_store_input_channels")
+            .Help("Number of active input channels in a data store.")
+            .Register(*reg_);
 }
 
-int_gauge* store_t::input_channels_instance(std::string_view name) {
-  return input_channels_family()->get_or_add({{"name", name}});
+gauge* store_t::input_channels_instance(std::string name) {
+  return &input_channels_family()->Add({{"name", std::move(name)}});
 }
 
-int_gauge_family* store_t::out_of_order_updates_family() {
-  return reg_->gauge_family("broker", "store-input-channels", {"name"},
-                            "Number of active input channels in a data store.");
+gauge_family* store_t::out_of_order_updates_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_store_out_of_order_updates")
+            .Help("Number of out-of-order data store updates.")
+            .Register(*reg_);
 }
 
-int_gauge* store_t::out_of_order_updates_instance(std::string_view name) {
-  return out_of_order_updates_family()->get_or_add({{"name", name}});
+gauge* store_t::out_of_order_updates_instance(std::string name) {
+  return &out_of_order_updates_family()->Add({{"name", std::move(name)}});
 }
 
-int_gauge_family* store_t::output_channels_family() {
-  return reg_->gauge_family(
-    "broker", "store-output-channels", {"name"},
-    "Number of active output channels in a data store.");
+gauge_family* store_t::output_channels_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_store_output_channels")
+            .Help("Number of active output channels in a data store.")
+            .Register(*reg_);
 }
 
-int_gauge* store_t::output_channels_instance(std::string_view name) {
-  return output_channels_family()->get_or_add({{"name", name}});
+gauge* store_t::output_channels_instance(std::string name) {
+  return &output_channels_family()->Add({{"name", std::move(name)}});
 }
 
-int_gauge_family* store_t::entries_family() {
-  return reg_->gauge_family("broker", "store-entries", {"name"},
-                            "Number of entries in the data store.");
+gauge_family* store_t::entries_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_store_entries")
+            .Help("Number of entries in the data store.")
+            .Register(*reg_);
 }
 
-int_gauge* store_t::entries_instance(std::string_view name) {
-  return entries_family()->get_or_add({{"name", name}});
+gauge* store_t::entries_instance(std::string name) {
+  return &entries_family()->Add({{"name", std::move(name)}});
 }
 
-int_counter_family* store_t::processed_updates_family() {
-  return reg_->counter_family("broker", "store-processed-updates", {"name"},
-                              "Number of processed data store updates.", "1",
-                              true);
+counter_family* store_t::processed_updates_family() {
+  return &prometheus::BuildCounter()
+            .Name("broker_store_processed_updates_total")
+            .Help("Total number of processed data store updates.")
+            .Register(*reg_);
 }
 
-int_counter* store_t::processed_updates_instance(std::string_view name) {
-  return processed_updates_family()->get_or_add({{"name", name}});
+counter* store_t::processed_updates_instance(std::string name) {
+  return &processed_updates_family()->Add({{"name", std::move(name)}});
 }
 
-int_gauge_family* store_t::unacknowledged_updates_family() {
-  return reg_->gauge_family("broker", "store-unacknowledged-updates", {"name"},
-                            "Number of unacknowledged data store updates.");
+gauge_family* store_t::unacknowledged_updates_family() {
+  return &prometheus::BuildGauge()
+            .Name("broker_store_unacknowledged_updates")
+            .Help("Number of unacknowledged data store updates.")
+            .Register(*reg_);
 }
 
-int_gauge* store_t::unacknowledged_updates_instance(std::string_view name) {
-  return unacknowledged_updates_family()->get_or_add({{"name", name}});
-}
-
-// --- constructors ------------------------------------------------------------
-
-metric_factory::metric_factory(caf::actor_system& sys) noexcept
-  : metric_factory(sys.metrics()) {
-  // nop
+gauge* store_t::unacknowledged_updates_instance(std::string name) {
+  return &unacknowledged_updates_family()->Add({{"name", std::move(name)}});
 }
 
 } // namespace broker::internal

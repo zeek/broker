@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(broker C CXX)
 include(CMakePackageConfigHelpers)
+include(FetchContent)
 include(GNUInstallDirs)
 include(cmake/CommonCMakeConfig.cmake)
 
@@ -207,6 +208,51 @@ function(add_bundled_caf)
   set(BUILD_SHARED_LIBS OFF)
   add_subdirectory(caf EXCLUDE_FROM_ALL)
 endfunction()
+
+FetchContent_Declare(
+  dl_prometheus_cpp
+  GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
+  GIT_TAG        v1.2.4)
+
+# Bundle prometheus-cpp setup as an interface library.
+add_library(broker-prometheus-cpp INTERFACE)
+
+function(add_prometheus_cpp)
+  # Skip if already configured.
+  # Get prometheus-cpp if the target is not already available.
+  if(NOT TARGET prometheus-cpp::core)
+    set(BUILD_SHARED_LIBS OFF) # bundle prometheus-cpp as static library
+    set(ENABLE_PUSH OFF)
+    set(ENABLE_TESTING OFF)
+    set(GENERATE_PKGCONFIG OFF)
+    set(CIVETWEB_ENABLE_DEBUG_TOOLS OFF)
+    set(OVERRIDE_CXX_STANDARD_FLAGS OFF)
+    if(NOT dl_prometheus_cpp_POPULATED)
+      FetchContent_Populate(dl_prometheus_cpp)
+      add_subdirectory(${dl_prometheus_cpp_SOURCE_DIR}
+                       ${dl_prometheus_cpp_BINARY_DIR}
+                       EXCLUDE_FROM_ALL)
+    endif()
+    # Tell CMake to look for the headers in the build tree.
+    target_include_directories(
+      broker-prometheus-cpp
+      INTERFACE
+        $<BUILD_INTERFACE:${dl_prometheus_cpp_SOURCE_DIR}/core/include>
+        $<BUILD_INTERFACE:${dl_prometheus_cpp_BINARY_DIR}/core/include>
+        $<BUILD_INTERFACE:${dl_prometheus_cpp_SOURCE_DIR}/pull/include>
+        $<BUILD_INTERFACE:${dl_prometheus_cpp_BINARY_DIR}/pull/include>)
+  endif()
+  # Link against prometheus-cpp.
+  target_link_libraries(
+    broker-prometheus-cpp
+    INTERFACE
+      prometheus-cpp::core
+      prometheus-cpp::pull)
+    # Prometheus-cpp sets cxx_std_11, but we need cxx_std_17.
+    target_compile_features(broker-prometheus-cpp INTERFACE cxx_std_17)
+endfunction()
+
+add_prometheus_cpp()
 
 # NOTE: building and linking against an external CAF version is NOT supported!
 #       This variable is FOR DEVELOPMENT ONLY. The only officially supported CAF

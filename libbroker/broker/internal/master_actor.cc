@@ -44,21 +44,22 @@ auto to_caf_res(expected<T>&& x) {
 
 // -- metrics ------------------------------------------------------------------
 
-master_state::metrics_t::metrics_t(caf::actor_system& sys,
+master_state::metrics_t::metrics_t(prometheus::Registry& reg,
                                    const std::string& name) noexcept {
-  metric_factory factory{sys};
+  metric_factory factory{reg};
   entries = factory.store.entries_instance(name);
 }
 
 // -- initialization -----------------------------------------------------------
 
 master_state::master_state(
-  caf::event_based_actor* ptr, endpoint_id this_endpoint, std::string nm,
-  backend_pointer bp, caf::actor parent, endpoint::clock* ep_clock,
+  caf::event_based_actor* ptr, prometheus_registry_ptr reg,
+  endpoint_id this_endpoint, std::string nm, backend_pointer bp,
+  caf::actor parent, endpoint::clock* ep_clock,
   caf::async::consumer_resource<command_message> in_res,
   caf::async::producer_resource<command_message> out_res)
-  : super(ptr), output(this), metrics(ptr->system(), nm) {
-  super::init(this_endpoint, ep_clock, std::move(nm), std::move(parent),
+  : super(ptr), output(this), metrics(*reg, nm) {
+  super::init(reg, this_endpoint, ep_clock, std::move(nm), std::move(parent),
               std::move(in_res), std::move(out_res));
   super::init(output);
   clones_topic = store_name / topic::clone_suffix();
@@ -70,7 +71,7 @@ master_state::master_state(
     detail::die("failed to get master expiries while initializing");
   }
   if (auto entries = backend->size(); entries && *entries > 0) {
-    metrics.entries->value(static_cast<int64_t>(*entries));
+    metrics.entries->Set(*entries);
   }
   BROKER_INFO("attached master" << id << "to" << store_name);
 }
@@ -188,7 +189,7 @@ void master_state::tick() {
         expire_command cmd{key, id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
-        metrics.entries->dec();
+        metrics.entries->Decrement();
       }
       i = expirations.erase(i);
     } else {
@@ -229,7 +230,7 @@ void master_state::consume(put_command& x) {
     emit_update_event(x, *old_value);
   } else {
     emit_insert_event(x);
-    metrics.entries->inc();
+    metrics.entries->Increment();
   }
   broadcast(std::move(x));
 }
@@ -261,7 +262,7 @@ void master_state::consume(put_unique_command& x) {
   }
   set_expire_time(x.key, x.expiry);
   emit_insert_event(x);
-  metrics.entries->inc();
+  metrics.entries->Increment();
   // Broadcast a regular "put" command (clones don't have to do their own
   // existence check) followed by the (positive) result message.
   broadcast(
@@ -281,7 +282,7 @@ void master_state::consume(erase_command& x) {
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   emit_erase_event(x.key, x.publisher);
-  metrics.entries->dec();
+  metrics.entries->Decrement();
   broadcast(std::move(x));
 }
 
@@ -309,7 +310,7 @@ void master_state::consume(add_command& x) {
       emit_update_event(cmd, *old_value);
     } else {
       emit_insert_event(cmd);
-      metrics.entries->inc();
+      metrics.entries->Increment();
     }
     broadcast(std::move(cmd));
   }
@@ -355,11 +356,11 @@ void master_state::consume(clear_command& x) {
     if (auto keys = get_if<vector>(*keys_res)) {
       for (auto& key : *keys)
         emit_erase_event(key, x.publisher);
-      metrics.entries->value(0);
+      metrics.entries->Set(0);
     } else if (auto keys = get_if<set>(*keys_res)) {
       for (auto& key : *keys)
         emit_erase_event(key, x.publisher);
-      metrics.entries->value(0);
+      metrics.entries->Set(0);
     } else if (!is<none>(*keys_res)) {
       BROKER_ERROR("backend->keys() returned an unexpected result type");
     }

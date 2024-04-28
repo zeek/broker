@@ -116,8 +116,8 @@ using status_collector_actor = caf::stateful_actor<status_collector_state>;
 
 // -- constructors and destructors ---------------------------------------------
 
-core_actor_state::metrics_t::metrics_t(caf::actor_system& sys) {
-  metric_factory factory{sys};
+core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
+  metric_factory factory{reg};
   // Initialize connection metrics.
   auto [native, ws] = factory.core.connections_instances();
   native_connections = native;
@@ -132,7 +132,8 @@ core_actor_state::metrics_t::metrics_t(caf::actor_system& sys) {
   message_metric_sets[5].assign(proc.pong, buf.pong);
 }
 
-core_actor_state::core_actor_state(caf::event_based_actor* self,
+core_actor_state::core_actor_state(caf::event_based_actor* self, //
+                                   prometheus_registry_ptr reg,
                                    endpoint_id this_peer,
                                    filter_type initial_filter,
                                    endpoint::clock* clock,
@@ -142,9 +143,10 @@ core_actor_state::core_actor_state(caf::event_based_actor* self,
     id(this_peer),
     filter(std::make_shared<shared_filter_type>(std::move(initial_filter))),
     clock(clock),
-    metrics(self->system()),
+    metrics(*reg),
     unsafe_inputs(self),
-    flow_inputs(self) {
+    flow_inputs(self),
+    registry(reg) {
   // Read config and check for extra configuration parameters.
   ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {
@@ -185,8 +187,8 @@ caf::behavior core_actor_state::make_behavior() {
       auto sender = get_sender(msg);
       // Update metrics.
       auto& metrics = metrics_for(get_type(msg));
-      metrics.processed->inc();
-      metrics.buffered->dec();
+      metrics.processed->Increment();
+      metrics.buffered->Decrement();
       // Ignore our own outputs.
       if (is_local(msg))
         return;
@@ -409,7 +411,7 @@ caf::behavior core_actor_state::make_behavior() {
           ->make_observable() //
           .from_resource(std::move(src))
           .do_on_next([this](const data_message&) {
-            metrics_for(packed_message_type::data).buffered->inc();
+            metrics_for(packed_message_type::data).buffered->Increment();
           })
           .map([this](const data_message& msg) { return node_message{msg}; })
           .compose(local_publisher_scope_adder())
@@ -625,8 +627,8 @@ table core_actor_state::message_metrics_snapshot() const {
   for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
     auto& msg_metrics = metrics.message_metric_sets[msg_type];
     table vals;
-    vals.emplace("processed"s, msg_metrics.processed->value());
-    vals.emplace("buffered"s, msg_metrics.buffered->value());
+    vals.emplace("processed"s, msg_metrics.processed->Value());
+    vals.emplace("buffered"s, msg_metrics.buffered->Value());
     auto key = static_cast<packed_message_type>(msg_type);
     result.emplace(to_string(key), std::move(vals));
   }
@@ -683,8 +685,8 @@ table core_actor_state::status_snapshot() const {
   add("id", to_string(id));
   add("cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
   add("time", caf::timestamp_to_string(caf::make_timestamp()));
-  add("native-connections", metrics.native_connections->value());
-  add("web-socket-connections", metrics.web_socket_connections->value());
+  add("native-connections", metrics.native_connections->Value());
+  add("web-socket-connections", metrics.web_socket_connections->Value());
   add("message-metrics", message_metrics_snapshot());
   add("peerings", peer_stats_snapshot());
   add("local-subscribers", local_subscriber_stats_snapshot());
@@ -823,7 +825,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     return caf::make_error(ec::invalid_status, to_string(status));
   }
   // All sanity checks have passed, update our state.
-  metrics.native_connections->inc();
+  metrics.native_connections->Increment();
   // Hook into the central merge point for forwarding the data to the peer.
   auto filter_ptr = std::make_shared<filter_type>(filter);
   auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
@@ -855,7 +857,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     in
       // Add instrumentation for metrics.
       .do_on_next([this](const node_message& msg) {
-        metrics_for(get_type(msg)).buffered->inc();
+        metrics_for(get_type(msg)).buffered->Increment();
       })
       // Handle peer disconnect events.
       .do_on_complete([this, peer_id, ptr]() mutable {
@@ -938,7 +940,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                            "cannot add client without valid input buffer");
   }
   // All sanity checks have passed, update our state.
-  metrics.web_socket_connections->inc();
+  metrics.web_socket_connections->Increment();
   // We cannot simply treat a client like we treat a local publisher or
   // subscriber, because events from the client must be visible locally. Hence,
   // we assign a UUID to each client and treat it almost like a peer.
@@ -966,26 +968,27 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
     subscriptions.emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
-  auto [in, ks] = self->make_observable()
-                    .from_resource(std::move(in_res))
-                    // If the client closes this buffer, we assume a disconnect.
-                    .do_finally([this, client_id, addr, type] {
-                      BROKER_DEBUG("client" << addr << "disconnected");
-                      client_removed(client_id, addr, type);
-                      metrics.web_socket_connections->dec();
-                    })
-                    .map([this, client_id](const data_message& msg) {
-                      metrics_for(packed_message_type::data).buffered->inc();
-                      node_message result;
-                      if (msg->sender() == client_id)
-                        result = msg;
-                      else
-                        result = msg->with(client_id, msg->receiver());
-                      return result;
-                    })
-                    // Ignore any errors from the client.
-                    .on_error_complete()
-                    .compose(add_killswitch_t{});
+  auto [in, ks] =
+    self->make_observable()
+      .from_resource(std::move(in_res))
+      // If the client closes this buffer, we assume a disconnect.
+      .do_finally([this, client_id, addr, type] {
+        BROKER_DEBUG("client" << addr << "disconnected");
+        client_removed(client_id, addr, type);
+        metrics.web_socket_connections->Decrement();
+      })
+      .map([this, client_id](const data_message& msg) {
+        metrics_for(packed_message_type::data).buffered->Increment();
+        node_message result;
+        if (msg->sender() == client_id)
+          result = msg;
+        else
+          result = msg->with(client_id, msg->receiver());
+        return result;
+      })
+      // Ignore any errors from the client.
+      .on_error_complete()
+      .compose(add_killswitch_t{});
   flow_inputs.push(in);
   subscriptions.emplace_back(ks);
   return caf::none;
@@ -1046,10 +1049,10 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   auto resources2 = make_spsc_buffer_resource<command_message>();
   auto& [con2, prod2] = resources2;
   // Spin up the master and connect it to our flows.
-  auto hdl = self->system().spawn<master_actor_type>(id, name, std::move(ptr),
-                                                     caf::actor{self}, clock,
-                                                     std::move(con1),
-                                                     std::move(prod2));
+  auto hdl =
+    self->system().spawn<master_actor_type>(registry, id, name, std::move(ptr),
+                                            caf::actor{self}, clock,
+                                            std::move(con1), std::move(prod2));
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
   command_outputs
@@ -1062,7 +1065,7 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
               ->make_observable() //
               .from_resource(con2)
               .map([this](const command_message& msg) {
-                metrics_for(packed_message_type::command).buffered->inc();
+                metrics_for(packed_message_type::command).buffered->Increment();
                 return node_message{msg};
               })
               .as_observable();
@@ -1098,8 +1101,10 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   auto& [con1, prod1] = resources1;
   auto resources2 = make_spsc_buffer_resource<command_message>();
   auto& [con2, prod2] = resources2;
-  auto hdl = self->system().spawn<clone_actor_type>(
-    id, name, tout, caf::actor{self}, clock, std::move(con1), std::move(prod2));
+  auto hdl = self->system().spawn<clone_actor_type>(registry, id, name, tout,
+                                                    caf::actor{self}, clock,
+                                                    std::move(con1),
+                                                    std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
   command_outputs
@@ -1112,7 +1117,7 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
               ->make_observable() //
               .from_resource(con2)
               .map([this](const command_message& msg) {
-                metrics_for(packed_message_type::command).buffered->inc();
+                metrics_for(packed_message_type::command).buffered->Increment();
                 return node_message{msg};
               })
               .as_observable();
@@ -1137,7 +1142,7 @@ void core_actor_state::shutdown_stores() {
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
 void core_actor_state::dispatch(const node_message& msg) {
-  metrics_for(get_type(msg)).buffered->inc();
+  metrics_for(get_type(msg)).buffered->Increment();
   unsafe_inputs.push(msg);
 }
 

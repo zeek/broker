@@ -54,15 +54,10 @@ set(BROKER_SRC
   broker/internal/json_type_mapper.cc
   broker/internal/master_actor.cc
   broker/internal/master_resolver.cc
-  broker/internal/metric_collector.cc
-  broker/internal/metric_exporter.cc
   broker/internal/metric_factory.cc
-  broker/internal/metric_scraper.cc
-  broker/internal/metric_view.cc
   broker/internal/peering.cc
   broker/internal/pending_connection.cc
   broker/internal/println.cc
-  broker/internal/prometheus.cc
   broker/internal/store_actor.cc
   broker/internal/web_socket.cc
   broker/internal/wire_format.cc
@@ -83,12 +78,6 @@ set(BROKER_SRC
   broker/store_event.cc
   broker/subnet.cc
   broker/subscriber.cc
-  broker/telemetry/counter.cc
-  broker/telemetry/gauge.cc
-  broker/telemetry/histogram.cc
-  broker/telemetry/metric_family.cc
-  broker/telemetry/metric_registry.cc
-  broker/telemetry/metric_registry_impl.cc
   broker/time.cc
   broker/topic.cc
   broker/variant.cc
@@ -110,7 +99,13 @@ if (ENABLE_SHARED)
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
   target_link_libraries(broker PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::net)
+  target_link_libraries(
+    broker
+    PRIVATE
+      CAF::core
+      CAF::io
+      CAF::net
+      broker-prometheus-cpp)
   install(TARGETS broker
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -127,7 +122,13 @@ if (ENABLE_STATIC)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
   target_link_libraries(broker_static PUBLIC ${LINK_LIBS})
-  target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::net)
+  target_link_libraries(
+    broker_static
+    PRIVATE
+      CAF::core
+      CAF::io
+      CAF::net
+      broker-prometheus-cpp)
   install(TARGETS broker_static
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -172,8 +173,6 @@ set(BROKER_TEST_SRC
   broker/internal/channel.test.cc
   broker/internal/core_actor.test.cc
   broker/internal/json.test.cc
-  broker/internal/metric_collector.test.cc
-  broker/internal/metric_exporter.test.cc
   broker/internal/wire_format.test.cc
   broker/master.test.cc
   broker/peering.test.cc
@@ -185,7 +184,6 @@ set(BROKER_TEST_SRC
   broker/store.test.cc
   broker/store_event.test.cc
   broker/subscriber.test.cc
-  broker/telemetry/histogram.test.cc
   broker/topic.test.cc
   broker/variant.test.cc
   broker/zeek.test.cc
@@ -199,8 +197,15 @@ set(BROKER_TEST_SRC
 # endif()
 
 add_executable(broker-test ${BROKER_TEST_SRC})
-target_link_libraries(broker-test PRIVATE
-                      ${main_lib_target} CAF::core CAF::io CAF::net CAF::test)
+target_link_libraries(
+  broker-test
+  PRIVATE
+    ${main_lib_target}
+    CAF::core
+    CAF::io
+    CAF::net
+    CAF::test
+    broker-prometheus-cpp)
 
 foreach(file_path ${BROKER_TEST_SRC})
   get_filename_component(test_dir ${file_path} DIRECTORY)
