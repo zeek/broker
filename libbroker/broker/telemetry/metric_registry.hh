@@ -382,7 +382,7 @@ private:
     } else {
       std::vector<std::string_view> buf;
       for (auto x : xs)
-        buf.emplace_back(x.first, x.second);
+        buf.emplace_back(x.first);
       return continuation(span{buf});
     }
   }
