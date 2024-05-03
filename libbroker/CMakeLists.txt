@@ -124,7 +124,7 @@ endif ()
 
 if (ENABLE_STATIC)
   add_library(broker_static STATIC ${BROKER_SRC})
-  target_compile_features(broker PRIVATE ${ZEEK_CXX_STD})
+  target_compile_features(broker_static PRIVATE ${ZEEK_CXX_STD})
   set_target_properties(broker_static PROPERTIES
                         OUTPUT_NAME broker
                         CXX_EXTENSIONS OFF)
