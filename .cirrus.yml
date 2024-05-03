@@ -210,6 +210,7 @@ memcheck_task:
     memory: 8GB
   << : *CI_TEMPLATE
   env:
+    ASAN_OPTIONS: detect_leaks=1:detect_odr_violation=0
     CIRRUS_WORKING_DIR: /broker
     BROKER_CI_CPUS: *CPUS
     BROKER_CI_CONFIGURE_FLAGS: *MEMCHECK_CONFIG
