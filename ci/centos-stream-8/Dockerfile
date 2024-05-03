@@ -7,8 +7,8 @@ ENV DOCKERFILE_VERSION 20220519
 RUN dnf -y install \
     cmake \
     diffutils \
-    gcc \
-    gcc-c++ \
+    gcc-toolset-10-gcc \
+    gcc-toolset-10-gcc-c++ \
     git \
     make \
     openssl \
@@ -17,3 +17,10 @@ RUN dnf -y install \
     python38-devel \
     python38-pip\
   && dnf clean all && rm -rf /var/cache/dnf
+
+RUN echo 'unset BASH_ENV PROMPT_COMMAND ENV' > /usr/bin/zeek-ci-env && \
+    echo 'source /opt/rh/gcc-toolset-10/enable' >> /usr/bin/zeek-ci-env
+
+ENV BASH_ENV="/usr/bin/zeek-ci-env" \
+    ENV="/usr/bin/zeek-ci-env" \
+    PROMPT_COMMAND=". /usr/bin/zeek-ci-env"

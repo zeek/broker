@@ -8,11 +8,14 @@ ENV DOCKERFILE_VERSION 20220519
 
 RUN apt-get update && apt-get -y install \
     cmake \
-    g++ \
-    git \
+    g++-10 \
+    gcc-10 \
     libssl-dev \
     make \
     python3 \
     python3-dev \
   && apt autoclean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
