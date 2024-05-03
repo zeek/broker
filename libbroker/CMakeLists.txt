@@ -104,9 +104,11 @@ set(BROKER_SRC
 
 if (ENABLE_SHARED)
   add_library(broker SHARED ${BROKER_SRC})
+  target_compile_features(broker PRIVATE ${ZEEK_CXX_STD})
   set_target_properties(broker PROPERTIES
                         SOVERSION ${BROKER_SOVERSION}
                         VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
+                        CXX_EXTENSIONS OFF
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
   target_link_libraries(broker PUBLIC ${LINK_LIBS})
@@ -122,7 +124,10 @@ endif ()
 
 if (ENABLE_STATIC)
   add_library(broker_static STATIC ${BROKER_SRC})
-  set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
+  target_compile_features(broker PRIVATE ${ZEEK_CXX_STD})
+  set_target_properties(broker_static PROPERTIES
+                        OUTPUT_NAME broker
+                        CXX_EXTENSIONS OFF)
   if (NOT DISABLE_PYTHON_BINDINGS)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
@@ -199,6 +204,8 @@ set(BROKER_TEST_SRC
 # endif()
 
 add_executable(broker-test ${BROKER_TEST_SRC})
+target_compile_features(broker-test PRIVATE ${ZEEK_CXX_STD})
+set_target_properties(broker-test PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(broker-test PRIVATE
                       ${main_lib_target} CAF::core CAF::io CAF::net CAF::test)
 
