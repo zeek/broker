@@ -12,11 +12,43 @@ endif ()
 
 # Tries to find a package in the Zeek package cache.
 function(ZeekBundle_Find name)
-  find_package(${name} QUIET NO_DEFAULT_PATH HINTS ${ZEEK_BUNDLE_PREFIX})
+  find_package(${name} CONFIG QUIET NO_DEFAULT_PATH HINTS ${ZEEK_BUNDLE_PREFIX})
   if (${name}_FOUND)
     set(ZeekBundle_FOUND ON PARENT_SCOPE)
   else()
     set(ZeekBundle_FOUND OFF PARENT_SCOPE)
+  endif ()
+endfunction()
+
+function(ZeekBundle_BuildStep name type binDir)
+  # Build the external project.
+  message(STATUS "Building bundled project: ${name} as ${type}")
+  execute_process(
+    COMMAND
+      "${CMAKE_COMMAND}"
+      --build "${binDir}"
+      --config ${type}
+    OUTPUT_FILE "${binDir}/build${type}.out"
+    ERROR_FILE "${binDir}/build${type}.err"
+    RESULT_VARIABLE buildResult)
+  if (NOT buildResult EQUAL 0)
+    file(READ "${binDir}/build${type}.err" cmakeErr)
+    message(FATAL_ERROR "Failed to build ${name}:\n\n${cmakeErr}")
+  endif ()
+  # Install the external project.
+  message(STATUS "Installing bundled project: ${name} as ${type}")
+  execute_process(
+    COMMAND
+      "${CMAKE_COMMAND}"
+      --build "${binDir}"
+      --config ${type}
+      --target install
+    OUTPUT_FILE "${binDir}/install${type}.out"
+    ERROR_FILE "${binDir}/install${type}.err"
+    RESULT_VARIABLE installResult)
+  if (NOT installResult EQUAL 0)
+    file(READ "${binDir}/install${type}.err" cmakeErr)
+    message(FATAL_ERROR "Failed to install ${name}:\n\n${cmakeErr}")
   endif ()
 endfunction()
 
@@ -27,6 +59,8 @@ function(ZeekBundle_Build name srcDir binDir)
   foreach (arg IN LISTS ARGN)
     list(APPEND cmakeArgs "-D${arg}")
   endforeach ()
+  # Make sure we can build debug and release versions of the project separately.
+  list(APPEND cmakeArgs "-DCMAKE_DEBUG_POSTFIX=d")
   # Run CMake for the external project.
   message(STATUS "Configuring bundled project: ${name}")
   execute_process(
@@ -34,7 +68,6 @@ function(ZeekBundle_Build name srcDir binDir)
       "${CMAKE_COMMAND}"
       -G "${CMAKE_GENERATOR}"
       ${cmakeArgs}
-      -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=OFF
       -DENABLE_TESTING=OFF
       "-DCMAKE_INSTALL_PREFIX=${ZEEK_BUNDLE_PREFIX}"
@@ -44,35 +77,23 @@ function(ZeekBundle_Build name srcDir binDir)
     ERROR_FILE "${binDir}/cmake.err"
     RESULT_VARIABLE cmakeResult)
   if (NOT cmakeResult EQUAL 0)
-    message(FATAL_ERROR "Failed to configure external project: ${srcDir}!\nSee ${binDir}/cmake.out and ${binDir}/cmake.err for details.")
+    file(READ "${binDir}/cmake.err" cmakeErr)
+    message(FATAL_ERROR "Failed to configure external project ${name}:\n\n${cmakeErr}")
   endif ()
-  # Build the external project.
-  message(STATUS "Building bundled project: ${name}")
-  execute_process(
-    COMMAND
-      "${CMAKE_COMMAND}"
-      --build "${binDir}"
-      --config Release
-    OUTPUT_FILE "${binDir}/build.out"
-    ERROR_FILE "${binDir}/build.err"
-    RESULT_VARIABLE buildResult)
-  if (NOT buildResult EQUAL 0)
-    message(FATAL_ERROR "Failed to build external project: ${srcDir}!\nSee ${binDir}/build.out and ${binDir}/build.err for details.")
+  get_property(isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+  if (isMultiConfig)
+    ZeekBundle_BuildStep(${name} Debug ${binDir})
+    ZeekBundle_BuildStep(${name} Release ${binDir})
+  else ()
+    # On Windows, we cannot mix debug and release libraries.
+    if (WIN32)
+      ZeekBundle_BuildStep(${name} ${CMAKE_BUILD_TYPE} ${binDir})
+    else()
+      ZeekBundle_BuildStep(${name} Release ${binDir})
+    endif()
   endif ()
-  # Install the external project.
-  message(STATUS "Installing bundled project: ${name}")
-  execute_process(
-    COMMAND
-      "${CMAKE_COMMAND}"
-      --build "${binDir}"
-      --config Release
-      --target install
-    OUTPUT_FILE "${binDir}/install.out"
-    ERROR_FILE "${binDir}/install.err"
-    RESULT_VARIABLE installResult)
-  if (NOT installResult EQUAL 0)
-    message(FATAL_ERROR "Failed to install external project: ${srcDir}!\nSee ${binDir}/install.out and ${binDir}/install.err for details.")
-  endif ()
+
+
 endfunction ()
 
 # Adds a bundled package to Zeek.
@@ -95,7 +116,7 @@ function (ZeekBundle_Add)
   # Use find_package if the user explicitly requested the package.
   if (DEFINED ${arg_NAME}_ROOT)
     message(STATUS "ZeekBundle: use system library for ${arg_NAME}")
-    find_package(${arg_NAME} QUIET REQUIRED NO_DEFAULT_PATH PATHS ${${arg_NAME}_ROOT})
+    find_package(${arg_NAME} CONFIG QUIET REQUIRED NO_DEFAULT_PATH PATHS ${${arg_NAME}_ROOT})
     return ()
   endif ()
   # Check if we already have the package.
@@ -113,5 +134,5 @@ function (ZeekBundle_Add)
     "${${internalName}_SOURCE_DIR}"
     "${${internalName}_BINARY_DIR}"
     ${arg_CONFIGURE})
-  find_package(${arg_NAME} QUIET REQUIRED NO_DEFAULT_PATH PATHS ${ZEEK_BUNDLE_PREFIX})
+  find_package(${arg_NAME} CONFIG QUIET REQUIRED NO_DEFAULT_PATH PATHS ${ZEEK_BUNDLE_PREFIX})
 endfunction ()

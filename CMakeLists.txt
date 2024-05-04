@@ -217,9 +217,10 @@ ZeekBundle_Add(
     GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
     GIT_TAG        v1.2.4
   CONFIGURE
+    CMAKE_POSITION_INDEPENDENT_CODE=ON
+    ENABLE_COMPRESSION=OFF
     ENABLE_PUSH=OFF
-    ENABLE_TESTING=OFF
-    CMAKE_POSITION_INDEPENDENT_CODE=ON)
+    ENABLE_TESTING=OFF)
 
 # Bundle all prometheus-cpp libraries that we need as single interface library.
 add_library(broker-prometheus-cpp INTERFACE)
