@@ -263,8 +263,6 @@ install(DIRECTORY libbroker/broker
         PATTERN "libbroker/broker/internal" EXCLUDE
         PATTERN "*.test.hh" EXCLUDE)
 
-# install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/broker/config.hh DESTINATION include/broker)
-
 if (NOT BROKER_EXTERNAL_SQLITE_TARGET)
   include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
   set_source_files_properties(3rdparty/sqlite3.c PROPERTIES COMPILE_FLAGS

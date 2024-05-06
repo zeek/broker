@@ -1,3 +1,14 @@
+2.8.0-dev.61 | 2024-05-06 14:26:27 -0700
+
+  * Properly install config.hh header (again) (Dominik Charousset, Corelight)
+
+  * Disable tools when building Broker as sub-project (Dominik Charousset, Corelight)
+
+    Projects that build Broker only as a dependency (like Zeek) have no use
+    for the benchmark tools. Hence, those targets should be excluded from
+    the build to avoid building superfluous binaries but also since they
+    might cause build issues in some scenarios.
+
 2.8.0-dev.56 | 2024-03-19 15:54:34 -0700
 
   * Fix update-changes config due to version.hh moving (Tim Wojtulewicz, Corelight)
