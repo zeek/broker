@@ -1,7 +1,7 @@
 # CMake dependencies.
 include(FetchContent)
 
-# Override this path
+# Users may override this path to place the compiled packages elsewhere.
 set(ZEEK_BUNDLE_PREFIX "${PROJECT_BINARY_DIR}/zeek-bundle" CACHE STRING
     "Path to the Zeek packages cache directory")
 
@@ -20,6 +20,7 @@ function(ZeekBundle_Find name)
   endif ()
 endfunction()
 
+# Runs the build and install steps for an external project.
 function(ZeekBundle_BuildStep name type binDir)
   # Build the external project.
   message(STATUS "Building bundled project: ${name} as ${type}")
@@ -69,6 +70,7 @@ function(ZeekBundle_Build name srcDir binDir)
       -G "${CMAKE_GENERATOR}"
       ${cmakeArgs}
       -DBUILD_SHARED_LIBS=OFF
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
       -DENABLE_TESTING=OFF
       "-DCMAKE_INSTALL_PREFIX=${ZEEK_BUNDLE_PREFIX}"
       "${srcDir}"
