@@ -4,7 +4,6 @@ cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(broker C CXX)
 
 include(CMakePackageConfigHelpers)
-include(FetchContent)
 include(GNUInstallDirs)
 include(ZeekBundle.cmake)
 include(cmake/CommonCMakeConfig.cmake)
@@ -217,10 +216,8 @@ ZeekBundle_Add(
     GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
     GIT_TAG        v1.2.4
   CONFIGURE
-    CMAKE_POSITION_INDEPENDENT_CODE=ON
     ENABLE_COMPRESSION=OFF
-    ENABLE_PUSH=OFF
-    ENABLE_TESTING=OFF)
+    ENABLE_PUSH=OFF)
 
 # Bundle all prometheus-cpp libraries that we need as single interface library.
 add_library(broker-prometheus-cpp INTERFACE)
@@ -229,10 +226,9 @@ target_link_libraries(
   INTERFACE
     $<BUILD_INTERFACE:prometheus-cpp::core>
     $<BUILD_INTERFACE:prometheus-cpp::pull>)
-# Prometheus-cpp sets cxx_std_11, but we need cxx_std_17.
+# Prometheus-cpp sets C++ 11 via CMake property, but we need C++ 17.
 target_compile_features(broker-prometheus-cpp INTERFACE cxx_std_17)
-# Keep CMake happy: our Broker targets will depend on broker-prometheus-cpp, so
-#      this target also must be exported.
+# Must be exported to keep CMake happy, even though we only need it internally.
 install(TARGETS broker-prometheus-cpp
         EXPORT BrokerTargets
         DESTINATION ${CMAKE_INSTALL_LIBDIR})
