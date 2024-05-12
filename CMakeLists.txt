@@ -210,14 +210,20 @@ function(add_bundled_caf)
   add_subdirectory(caf EXCLUDE_FROM_ALL)
 endfunction()
 
-ZeekBundle_Add(
-  NAME prometheus-cpp
-  FETCH
-    GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
-    GIT_TAG        v1.2.4
-  CONFIGURE
-    ENABLE_COMPRESSION=OFF
-    ENABLE_PUSH=OFF)
+# Bundle prometheus-cpp if not building as subproject. Otherwise, the parent
+# project is responsible for adding the prometheus-cpp targets.
+if (NOT broker_is_subproject)
+  ZeekBundle_Add(
+    NAME prometheus-cpp
+    FETCH
+      GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
+      GIT_TAG        v1.2.4
+    CONFIGURE
+      ENABLE_COMPRESSION=OFF
+      ENABLE_PUSH=OFF)
+elseif (NOT TARGET prometheus-cpp::core OR NOT TARGET prometheus-cpp::pull)
+  message(FATAL_ERROR "building Broker as sub-project requires prometheus-cpp targets")
+endif ()
 
 # Bundle all prometheus-cpp libraries that we need as single interface library.
 add_library(broker-prometheus-cpp INTERFACE)
