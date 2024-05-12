@@ -9,35 +9,39 @@
 
 class generator {
 public:
-  generator();
+  static constexpr std::string_view charset = "0123456789"
+                                              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                              "abcdefghijklmnopqrstuvwxyz";
+
+  generator()
+    : rng_(0xB7E57), byte_dis_(0, 255), char_dis_(0, charset.size() - 1) {
+    // nop
+  }
 
   broker::endpoint_id next_endpoint_id();
 
-  static auto make_endpoint_id() {
-    generator g;
-    return g.next_endpoint_id();
-  }
-
-  broker::count next_count();
-
-  caf::uuid next_uuid();
-
   std::string next_string(size_t length);
 
-  broker::timestamp next_timestamp();
-
-  // Generates events for one of three possible types:
-  // 1. Trivial data consisting of a number and a string.
-  // 2. More complex data that resembles a line in a conn.log.
-  // 3. Large tables of size 100 by 10, filled with random strings.
-  broker::data next_data(size_t event_type);
-
-  static auto make_data(size_t event_type) {
-    generator g;
-    return g.next_data(event_type);
+  broker::count next_count() {
+    return count_dis_(rng_);
   }
+
+  broker::integer next_integer() {
+    return integer_dis_(rng_);
+  }
+
+  broker::timestamp next_timestamp() {
+    ts_ += std::chrono::seconds(byte_dis_(rng_));
+    return ts_;
+  }
+
+  broker::data next_data(int event_type);
 
 private:
   std::minstd_rand rng_;
+  std::uniform_int_distribution<> byte_dis_;
+  std::uniform_int_distribution<size_t> char_dis_;
+  std::uniform_int_distribution<broker::count> count_dis_;
+  std::uniform_int_distribution<broker::integer> integer_dis_;
   broker::timestamp ts_;
 };
