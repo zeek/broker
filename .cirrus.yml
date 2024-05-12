@@ -127,10 +127,10 @@ opensuse_tumbleweed_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu23_task:
+ubuntu24_task:
   container:
-    # Ubuntu 23.10 EOL: July 2024
-    dockerfile: ci/ubuntu-23.10/Dockerfile
+    # Ubuntu 24.04 EOL: Jun 2029
+    dockerfile: ci/ubuntu-24.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
