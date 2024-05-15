@@ -29,8 +29,8 @@ RUN choco install -y --no-progress visualstudio2022buildtools
 RUN choco install -y --no-progress visualstudio2022-workload-vctools
 
 # Install some dependencies that aren't included in the MSVC tools
-RUN choco install -y --no-progress openssl
-RUN choco install -y --no-progress --version=3.10.0 python
+RUN choco install -y --no-progress openssl --version=3.1.1
+RUN choco install -y --no-progress python
 RUN choco install -y --no-progress msysgit
 
 # Add git to the global PATH
