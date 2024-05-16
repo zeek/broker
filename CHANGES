@@ -1,3 +1,7 @@
+2.8.0-dev.68 | 2024-05-16 20:51:52 +0200
+
+  * Restore the serialization benchmark program (Dominik Charousset, Corelight)
+
 2.8.0-dev.66 | 2024-05-12 13:49:48 +0200
 
   * CI: Replace Ubuntu 23.10 with Ubuntu 24.04 (Tim Wojtulewicz, Corelight)

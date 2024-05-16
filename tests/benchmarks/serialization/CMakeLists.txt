@@ -4,6 +4,7 @@ endif ()
 
 add_executable(broker-serialization-benchmark
   serialization.cc
+  generator.cc
 )
 
 target_include_directories(broker-serialization-benchmark PRIVATE
