@@ -47,8 +47,8 @@ clone_state::clone_state(caf::event_based_actor* ptr,
                          caf::async::consumer_resource<command_message> in_res,
                          caf::async::producer_resource<command_message> out_res)
   : super(ptr), input(this), max_sync_interval(master_timeout) {
-  super::init(reg, this_endpoint, ep_clock, std::move(nm), std::move(parent),
-              std::move(in_res), std::move(out_res));
+  super::init(std::move(reg), this_endpoint, ep_clock, std::move(nm),
+              std::move(parent), std::move(in_res), std::move(out_res));
   master_topic = store_name / topic::master_suffix();
   super::init(input);
   max_get_delay = caf::get_or(ptr->config(), "broker.store.max-get-delay",

@@ -15,6 +15,7 @@
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/die.hh"
+#include "broker/internal/checked.hh"
 #include "broker/internal/master_actor.hh"
 #include "broker/internal/metric_factory.hh"
 #include "broker/store.hh"
@@ -58,9 +59,13 @@ master_state::master_state(
   caf::actor parent, endpoint::clock* ep_clock,
   caf::async::consumer_resource<command_message> in_res,
   caf::async::producer_resource<command_message> out_res)
-  : super(ptr), output(this), metrics(*reg, nm) {
-  super::init(reg, this_endpoint, ep_clock, std::move(nm), std::move(parent),
-              std::move(in_res), std::move(out_res));
+  : super(ptr),
+    output(this),
+    metrics(checked_deref(reg,
+                          "cannot construct a master actor without registry"),
+            nm) {
+  super::init(std::move(reg), this_endpoint, ep_clock, std::move(nm),
+              std::move(parent), std::move(in_res), std::move(out_res));
   super::init(output);
   clones_topic = store_name / topic::clone_suffix();
   backend = std::move(bp);
