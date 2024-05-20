@@ -243,6 +243,9 @@ public:
   /// Enables manual time management by the user.
   endpoint::clock* clock;
 
+  /// Stores a reference to the metrics registry.
+  prometheus_registry_ptr registry;
+
   /// Caches pointers to the Broker metrics.
   metrics_t metrics;
 
@@ -353,9 +356,6 @@ public:
   /// Counts messages that were published directly via message, i.e., without
   /// using the back-pressure of flows.
   int64_t published_via_async_msg = 0;
-
-  /// Stores a reference to the metrics registry.
-  prometheus_registry_ptr registry;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

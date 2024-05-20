@@ -72,7 +72,7 @@ void store_actor_state::init(prometheus_registry_ptr reg,
                              consumer_resource<command_message> in_res,
                              producer_resource<command_message> out_res) {
   BROKER_ASSERT(clock != nullptr);
-  this->registry = reg;
+  this->registry = std::move(reg);
   this->clock = clock;
   this->store_name = std::move(store_name);
   this->id.endpoint = this_endpoint;
