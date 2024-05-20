@@ -26,6 +26,7 @@
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
 #include "broker/format/bin.hh"
+#include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
@@ -143,10 +144,11 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
     id(this_peer),
     filter(std::make_shared<shared_filter_type>(std::move(initial_filter))),
     clock(clock),
-    metrics(*reg),
+    registry(checked(std::move(reg),
+                     "cannot construct the core actor without registry")),
+    metrics(*registry),
     unsafe_inputs(self),
-    flow_inputs(self),
-    registry(reg) {
+    flow_inputs(self) {
   // Read config and check for extra configuration parameters.
   ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {

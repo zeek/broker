@@ -30,7 +30,7 @@ struct fixture : test_coordinator_fixture<config> {
 
   std::vector<caf::actor> bridges;
 
-  prometheus_registry_ptr registry;
+  prometheus_registry_ptr registry = std::make_shared<prometheus::Registry>();
 
   using data_message_list = std::vector<data_message>;
 
@@ -62,7 +62,6 @@ struct fixture : test_coordinator_fixture<config> {
   }
 
   fixture() {
-    registry = std::make_shared<prometheus::Registry>();
     // We don't do networking, but our flares use the socket API.
     ep1.id = endpoint_id::random(1);
     ep2.id = endpoint_id::random(2);
