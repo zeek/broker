@@ -1,3 +1,15 @@
+2.8.0-dev.74 | 2024-05-25 14:51:52 +0200
+
+  * Add missing include (Dominik Charousset, Corelight)
+
+  * CI: bump FreeBSD 13 to 13.3 (Christian Kreibich, Corelight)
+
+  * CI: add Opensuse Leap 15.6 (Christian Kreibich, Corelight)
+
+  * CI: remove CentOS Stream 8 (Christian Kreibich, Corelight)
+
+  * CI: add Fedora 40, drop 38 (Christian Kreibich, Corelight)
+
 2.8.0-dev.68 | 2024-05-16 20:51:52 +0200
 
   * Restore the serialization benchmark program (Dominik Charousset, Corelight)
