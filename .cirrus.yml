@@ -87,14 +87,6 @@ centosstream9_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-centosstream8_task:
-  container:
-    # Stream 8 EOL: May 31, 2024
-    dockerfile: ci/centos-stream-8/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
 debian12_task:
   container:
     # Debian 12 (bookworm) EOL: TBD
