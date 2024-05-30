@@ -261,6 +261,8 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
       throw ssl_error("failed to set anonymous cipher");
   }
+  // Prohibit outdated and insecure protocols.
+  SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION);
   return ctx;
 }
 
