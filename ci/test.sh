@@ -39,7 +39,7 @@ if command -v pip3 >/dev/null 2>&1 ; then
     export PATH="$PATH:$BinDir"
     python3 -m venv test-env
     source test-env/bin/activate
-    pip3 install btest websockets
+    pip3 install btest websockets jsonschema
     cd $BaseDir/tests/btest
     btest || result=1
     [[ -d .tmp ]] && tar -czf tmp.tar.gz .tmp
