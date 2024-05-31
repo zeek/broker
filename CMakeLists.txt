@@ -213,12 +213,7 @@ endfunction()
 #       version is the bundled version!
 if (CAF_ROOT)
   message(STATUS "Using system CAF version ${CAF_VERSION}")
-  # TODO: drop < 3.12 compatibility check when raising the minimum CMake version
-  if (CMAKE_VERSION VERSION_LESS 3.12)
-    find_package(CAF REQUIRED COMPONENTS test io core net PATHS "${CAF_ROOT}")
-  else()
-    find_package(CAF REQUIRED COMPONENTS test io core net)
-  endif()
+  find_package(CAF REQUIRED COMPONENTS test io core net)
   list(APPEND LINK_LIBS CAF::core CAF::io CAF::net)
   set(BROKER_USE_EXTERNAL_CAF ON)
 else ()
