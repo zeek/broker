@@ -13,4 +13,5 @@ target_include_directories(broker-serialization-benchmark PRIVATE
 target_link_libraries(broker-serialization-benchmark
   PRIVATE
     benchmark::benchmark_main
-    ${BROKER_LIBRARY})
+    ${BROKER_LIBRARY}
+    CAF::core)

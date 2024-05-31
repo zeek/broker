@@ -1,3 +1,7 @@
+2.8.0-dev.76 | 2024-05-31 09:08:22 +0200
+
+  * Add missing dependency to serialization benchmark (Dominik Charousset, Corelight)
+
 2.8.0-dev.74 | 2024-05-25 14:51:52 +0200
 
   * Add missing include (Dominik Charousset, Corelight)
