@@ -2,6 +2,8 @@
 #
 # @TEST-PORT: BROKER_WEB_SOCKET_PORT
 #
+# @TEST-COPY-FILE: ${API_ROOT}/v1-broker-out.json
+#
 # @TEST-EXEC: btest-bg-run node "broker-node --config-file=../node.cfg"
 # @TEST-EXEC: btest-bg-run recv "python3 ../recv.py >recv.out"
 # @TEST-EXEC: $SCRIPTS/wait-for-file recv/ready 15 || (btest-bg-wait -k 1 && false)
@@ -27,9 +29,13 @@ verbose = true
 
 import asyncio, websockets, os, time, json, sys
 
+from jsonschema import validate
+
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
 ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
+
+schema = json.load(open('../v1-broker-out.json'))
 
 async def do_run():
     # Try up to 30 times.
@@ -41,17 +47,22 @@ async def do_run():
             # send filter and wait for ack
             await ws.send('["/test"]')
             ack_json = await ws.recv()
-            ack = json.loads(ack_json)
-            if not 'type' in ack or ack['type'] != 'ack':
-                print('*** unexpected ACK from server:')
-                print(ack_json)
-                sys.exit()
+            try:
+                validate(json.loads(ack_json), schema)
+            except Exception as err:
+                print(f'received invalid ack: {err}')
+                sys.exit(1)
             # tell btest to start the sender now
             with open('ready', 'w') as f:
                 f.write('ready')
             # the message must be valid JSON
             msg_json = await ws.recv()
             msg = json.loads(msg_json)
+            try:
+                validate(msg, schema)
+            except Exception as err:
+                print(f'received invalid data message: {err}')
+                sys.exit(1)
             # pretty-print to stdout (redirected to recv.out)
             print(json.dumps(msg, indent=2))
             # tell btest we're done

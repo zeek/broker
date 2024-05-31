@@ -7,6 +7,7 @@
 # @TEST-COPY-FILE: ${CERTS_ROOT}/key.1.enc.pem
 # @TEST-COPY-FILE: ${CERTS_ROOT}/cert.2.pem
 # @TEST-COPY-FILE: ${CERTS_ROOT}/key.2.pem
+# @TEST-COPY-FILE: ${API_ROOT}/v1-broker-out.json
 #
 # @TEST-EXEC: btest-bg-run node "broker-node --config-file=../node.cfg"
 # @TEST-EXEC: btest-bg-run recv "python3 ../recv.py >recv.out"
@@ -38,6 +39,8 @@ verbose = true
 
 import asyncio, websockets, os, time, json, sys, ssl
 
+from jsonschema import validate
+
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
 ws_url = f'wss://localhost:{ws_port}/v1/messages/json'
@@ -45,6 +48,8 @@ ws_url = f'wss://localhost:{ws_port}/v1/messages/json'
 ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS)
 ssl_ctx.load_verify_locations("../ca.pem")
 ssl_ctx.load_cert_chain(certfile="../cert.2.pem", keyfile="../key.2.pem")
+
+schema = json.load(open('../v1-broker-out.json'))
 
 async def do_run():
     # Try up to 30 times.
@@ -56,17 +61,22 @@ async def do_run():
             # send filter and wait for ack
             await ws.send('["/test"]')
             ack_json = await ws.recv()
-            ack = json.loads(ack_json)
-            if not 'type' in ack or ack['type'] != 'ack':
-                print('*** unexpected ACK from server:')
-                print(ack_json)
-                sys.exit()
+            try:
+                validate(json.loads(ack_json), schema)
+            except Exception as err:
+                print(f'received invalid ack: {err}')
+                sys.exit(1)
             # tell btest to start the sender now
             with open('ready', 'w') as f:
                 f.write('ready')
             # dump messages to stdout (redirected to recv.out)
             for i in range(10):
                 msg = await ws.recv()
+                try:
+                    validate(json.loads(msg), schema)
+                except Exception as err:
+                    print(f'received invalid data message: {err}')
+                    sys.exit(1)
                 print(f'{msg}')
             # tell btest we're done
             with open('done', 'w') as f:

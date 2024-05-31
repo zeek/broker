@@ -2,6 +2,8 @@
 #
 # @TEST-PORT: BROKER_WEB_SOCKET_PORT
 #
+# @TEST-COPY-FILE: ${API_ROOT}/v1-broker-out.json
+#
 # @TEST-EXEC: btest-bg-run node "broker-node --config-file=../node.cfg"
 # @TEST-EXEC: btest-bg-run send "python3 ../send.py >send.out"
 #
@@ -24,6 +26,8 @@ verbose = true
 
 import asyncio, websockets, os, json, sys, traceback
 
+from jsonschema import validate
+
 ws_port = os.environ['BROKER_WEB_SOCKET_PORT'].split('/')[0]
 
 ws_url = f'ws://localhost:{ws_port}/v1/messages/json'
@@ -33,6 +37,8 @@ msg = {
     '@data-type': 'phone',
     "data": '555-0123'
 }
+
+schema = json.load(open('../v1-broker-out.json'))
 
 async def do_run():
     # Try up to 30 times.
@@ -48,6 +54,11 @@ async def do_run():
             # are likely to change in the future
             err_json = await ws.recv()
             err = json.loads(err_json)
+            try:
+                validate(err, schema)
+            except Exception as ex:
+                print(f'received invalid error message: {ex}')
+                sys.exit(1)
             want = 'input #1 contained invalid data'
             got = err['context']
             if got.startswith(want):

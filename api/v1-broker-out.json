@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Messages that Broker Sends over WebSocket",
+  "type": "object",
+  "anyOf": [
+    { "$ref": "#/definitions/AckMessage" },
+    { "$ref": "#/definitions/DataMessage" },
+    { "$ref": "#/definitions/ErrorMessage" }
+  ],
+  "definitions": {
+    "AckMessage": {
+      "properties": {
+        "type": {
+          "const": "ack"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "endpoint", "version"]
+    },
+    "DataMessage": {
+      "$ref": "#/definitions/Data",
+      "properties": {
+        "type": {
+          "const": "data-message"
+        },
+        "topic": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "topic"]
+    },
+    "ErrorMessage": {
+      "properties": {
+        "type": {
+          "const": "error"
+        },
+        "code": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        }
+      },
+      "required": ["type", "code", "context"]
+    },
+    "Data": {
+      "anyOf": [
+        { "$ref": "#/definitions/None" },
+        { "$ref": "#/definitions/Boolean" },
+        { "$ref": "#/definitions/Count" },
+        { "$ref": "#/definitions/Integer" },
+        { "$ref": "#/definitions/Real" },
+        { "$ref": "#/definitions/Timespan" },
+        { "$ref": "#/definitions/Timestamp" },
+        { "$ref": "#/definitions/String" },
+        { "$ref": "#/definitions/EnumValue" },
+        { "$ref": "#/definitions/Address" },
+        { "$ref": "#/definitions/Subnet" },
+        { "$ref": "#/definitions/Port" },
+        { "$ref": "#/definitions/Vector" },
+        { "$ref": "#/definitions/Set" },
+        { "$ref": "#/definitions/Table" }
+      ]
+    },
+    "None": {
+      "properties": {
+        "@data-type": {
+          "const": "none"
+        },
+        "data": { }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Boolean": {
+      "properties": {
+        "@data-type": {
+          "const": "boolean"
+        },
+        "data": {
+          "type": "boolean"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Count": {
+      "properties": {
+        "@data-type": {
+          "const": "count"
+        },
+        "data": {
+          "type": "integer",
+          "minimum" : 0
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Integer": {
+      "properties": {
+        "@data-type": {
+          "const": "integer"
+        },
+        "data": {
+          "type": "integer"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Real": {
+      "properties": {
+        "@data-type": {
+          "const": "real"
+        },
+        "data": {
+          "type": "number"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Timespan": {
+      "properties": {
+        "@data-type": {
+          "const": "timespan"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^[0-9]+(ns|ms|s|min|h|d)$"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Timestamp": {
+      "properties": {
+        "@data-type": {
+          "const": "timestamp"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?$"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "String": {
+      "properties": {
+        "@data-type": {
+          "const": "string"
+        },
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "EnumValue": {
+      "properties": {
+        "@data-type": {
+          "const": "enum-value"
+        },
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Address": {
+      "properties": {
+        "@data-type": {
+          "const": "address"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|([0-9a-fA-F:.]+)?$"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Subnet": {
+      "properties": {
+        "@data-type": {
+          "const": "subnet"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)|([0-9a-fA-F:.]+)?/[0-9]+$"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Port": {
+      "properties": {
+        "@data-type": {
+          "const": "port"
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^[0-9]+/(tcp|udp|icmp|\\?)?$"
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Vector": {
+      "properties": {
+        "@data-type": {
+          "const": "vector"
+        },
+        "data": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Data" }
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "Set": {
+      "properties": {
+        "@data-type": {
+          "const": "set"
+        },
+        "data": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/Data" }
+        }
+      },
+      "required": ["@data-type", "data"]
+    },
+    "KeyValuePair": {
+      "properties": {
+        "key": { "$ref": "#/definitions/Data" },
+        "value": { "$ref": "#/definitions/Data" }
+      },
+      "required": ["key", "value"]
+    },
+    "Table": {
+      "properties": {
+        "@data-type": {
+          "const": "table"
+        },
+        "data": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/KeyValuePair" }
+        }
+      },
+      "required": ["@data-type", "data"]
+    }
+  }
+}
