@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace broker {
 
@@ -23,6 +24,14 @@ bool inspect(Inspector& f, backend& x) {
     }
   };
   return f.apply(get, set);
+}
+
+/// @relates backend
+inline void convert(backend x, std::string& str) {
+  if (x == backend::memory)
+    str = "memory";
+  else if (x == backend::sqlite)
+    str = "sqlite";
 }
 
 } // namespace broker
