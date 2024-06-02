@@ -36,6 +36,8 @@ public:
   enum class component_type {
     /// The Broker core has emitted the event.
     core,
+    /// The endpoint has emitted the event.
+    endpoint,
     /// A Broker data store running in master mode has emitted the event.
     master_store,
     /// A Broker data store running in clone mode has emitted the event.
