@@ -86,7 +86,8 @@ struct status_collector_state {
     } else if (auto entries = get_if<table>(j->second)) {
       entries->emplace(data{key}, std::move(res));
     } else {
-      BROKER_ERROR("status collector found a malformed result table");
+      log::core::error("on-response",
+                       "status collector found a malformed result table");
     }
     // Mark as processed and emit result after receiving all responses.
     src.erase(i);
@@ -152,10 +153,11 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
   // Read config and check for extra configuration parameters.
   ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {
-    BROKER_INFO("disable forwarding on this peer");
+    log::core::info("disable-forwarding", "disable forwarding on this peer");
     disable_forwarding = true;
   } else {
-    BROKER_INFO("enable forwarding on this peer (default)");
+    log::core::info("enable-forwarding",
+                    "enable forwarding on this peer (default)");
   }
   // Callback setup when running with a connector attached.
   if (conn) {
@@ -175,7 +177,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
 }
 
 core_actor_state::~core_actor_state() {
-  BROKER_DEBUG("core_actor_state destroyed");
+  log::core::debug("dtor", "core_actor_state destroyed");
 }
 
 // -- initialization and tear down ---------------------------------------------
@@ -205,15 +207,17 @@ caf::behavior core_actor_state::make_behavior() {
             for (auto new_topic : *msg->as_routing_update()) {
               new_filter.emplace_back(std::string{new_topic});
             }
-            BROKER_DEBUG(sender << "changed its filter to" << new_filter);
+            log::core::debug("routing-update", "{} changed its filter to {}",
+                             sender, new_filter);
             i->second->filter(std::move(new_filter));
           }
           // else: ignore. Probably a stale message after unpeering.
           break;
         case packed_message_type::ping: {
           // Respond to PING messages with a PONG that has the same payload.
-          BROKER_DEBUG("received a PING message with a payload of"
-                       << msg->raw_bytes().second << "bytes");
+          log::core::debug("ping",
+                           "received a PING message with a payload of {} bytes",
+                           msg->raw_bytes().second);
           dispatch(make_pong_message(msg->as_ping()));
           break;
         }
@@ -256,8 +260,10 @@ caf::behavior core_actor_state::make_behavior() {
   // Override the default exit handler to add logging.
   self->set_exit_handler([this](caf::exit_msg& msg) {
     if (msg.reason) {
-      BROKER_DEBUG("shutting down after receiving an exit message with reason:"
-                   << msg.reason);
+      log::core::debug(
+        "exit-msg",
+        "shutting down after receiving an exit message with reason {}",
+        msg.reason);
       shutdown(shutdown_options{});
     }
   });
@@ -509,7 +515,6 @@ caf::behavior core_actor_state::make_behavior() {
 }
 
 void core_actor_state::shutdown(shutdown_options options) {
-  BROKER_TRACE(BROKER_ARG(options));
   if (shutting_down())
     return;
   // Tell the connector to shut down. No new connection allowed.
@@ -527,8 +532,8 @@ void core_actor_state::shutdown(shutdown_options options) {
   }
   subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
-  BROKER_DEBUG("cancel" << awaited_peers.size()
-                        << "pending await_peer requests");
+  log::core::debug("shutdown", "cancel {} pending await_peer requests",
+                   awaited_peers.size());
   for (auto& kvp : awaited_peers)
     kvp.second.deliver(caf::make_error(ec::shutting_down));
   awaited_peers.clear();
@@ -698,41 +703,42 @@ table core_actor_state::status_snapshot() const {
 // -- callbacks ----------------------------------------------------------------
 
 void core_actor_state::cannot_remove_peer(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
   emit(endpoint_info{peer_id}, ec_constant<ec::peer_invalid>(),
        "cannot unpeer from unknown peer");
-  BROKER_DEBUG("cannot unpeer from unknown peer" << peer_id);
+  log::core::debug("cannot-remove-peer-id",
+                   "cannot unpeer from unknown peer {}", peer_id);
 }
 
 void core_actor_state::cannot_remove_peer(const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(addr));
   emit(endpoint_info{endpoint_id::nil(), addr}, ec_constant<ec::peer_invalid>(),
        "cannot unpeer from unknown peer");
-  BROKER_DEBUG("cannot unpeer from unknown peer" << addr);
+  log::core::debug("cannot-remove-peer-addr",
+                   "cannot unpeer from unknown peer {}", addr);
 }
 
 void core_actor_state::peer_unavailable(const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(addr));
   emit(endpoint_info{endpoint_id::nil(), addr},
        ec_constant<ec::peer_unavailable>(), "unable to connect to remote peer");
+  log::core::debug("peer-unavailable", "unable to connect to remote peer {}",
+                   addr);
 }
 
 void core_actor_state::client_added(endpoint_id client_id,
                                     const network_info& addr,
                                     const std::string& type) {
-  BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
   emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_discovered>(),
        "found a new client in the network");
   emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_added>(),
        "handshake successful");
+  log::core::debug("client-added", "added client {} of type {} with address {}",
+                   client_id, type, addr);
 }
 
 void core_actor_state::client_removed(endpoint_id client_id,
                                       const network_info& addr,
                                       const std::string& type,
                                       const caf::error& reason, bool removed) {
-  BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
   auto i = subscriptions.find(client_id);
   if (i == subscriptions.end()) {
     return;
@@ -754,13 +760,15 @@ void core_actor_state::client_removed(endpoint_id client_id,
   }
   emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_unreachable>(), "lost the last path");
+  log::core::debug("client-removed",
+                   "removed client {} of type {} with address {}", client_id,
+                   type, addr);
 }
 
 // -- connection management ----------------------------------------------------
 
 void core_actor_state::try_connect(const network_info& addr,
                                    caf::response_promise rp) {
-  BROKER_TRACE(BROKER_ARG(addr));
   if (!adapter) {
     rp.deliver(caf::make_error(ec::no_connector_available));
     return;
@@ -770,21 +778,28 @@ void core_actor_state::try_connect(const network_info& addr,
     [this, rp](endpoint_id peer, const network_info& addr,
                const filter_type& filter,
                const pending_connection_ptr& conn) mutable {
-      BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
+      log::core::debug(
+        "try-connect-success",
+        "connected to remote peer {} with initial filter {} at {}", peer,
+        filter, addr);
       if (auto err = init_new_peer(peer, addr, filter, conn);
           err && err != ec::repeated_peering_handshake_request)
         rp.deliver(std::move(err));
       else
         rp.deliver(atom::peer_v, atom::ok_v, peer);
     },
-    [this, rp](endpoint_id peer, const network_info& addr) mutable {
-      BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
+    [this, rp, addr](endpoint_id peer,
+                     const network_info& actual_addr) mutable {
       if (auto i = peers.find(peer); i != peers.end()) {
+        log::core::debug("try-connect-redundant",
+                         "dropped redundant connection to {}: tried connecting "
+                         "to {}, but already connected prior via {}",
+                         peer, addr, actual_addr);
         // Override the address if this one has a retry field. This makes
         // sure we "prefer" a user-defined address over addresses we read
         // from sockets for incoming peerings.
-        if (addr.has_retry_time() && !i->second->addr().has_retry_time())
-          i->second->addr(addr);
+        if (actual_addr.has_retry_time() && !i->second->addr().has_retry_time())
+          i->second->addr(actual_addr);
         rp.deliver(atom::peer_v, atom::ok_v, peer);
       } else {
         // Race on the state. May happen if the remote peer already
@@ -793,20 +808,26 @@ void core_actor_state::try_connect(const network_info& addr,
         // so we just enqueue this request again and the second time
         // we should find it in the cache.
         using namespace std::literals;
-        self->run_delayed(1ms, [this, peer, addr, rp]() mutable {
-          BROKER_TRACE(BROKER_ARG(peer) << BROKER_ARG(addr));
+        self->run_delayed(1ms, [this, peer, addr, actual_addr, rp]() mutable {
           if (auto i = peers.find(peer); i != peers.end()) {
-            if (addr.has_retry_time() && !i->second->addr().has_retry_time())
-              i->second->addr(addr);
+            log::core::debug(
+              "try-connect-redundant-delayed",
+              "dropped redundant connection to {}: tried connecting "
+              "to {}, but already connected prior via {}",
+              peer, addr, actual_addr);
+            if (actual_addr.has_retry_time()
+                && !i->second->addr().has_retry_time())
+              i->second->addr(actual_addr);
             rp.deliver(atom::peer_v, atom::ok_v, peer);
           } else {
-            try_connect(addr, rp);
+            try_connect(actual_addr, rp);
           }
         });
       }
     },
     [this, rp, addr](const caf::error& what) mutable {
-      BROKER_TRACE(BROKER_ARG(what));
+      log::core::debug("try-connect-failed", "failed to connect to {}: {}",
+                       addr, what);
       rp.deliver(what);
       peer_unavailable(addr);
     });
@@ -819,27 +840,32 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                            const filter_type& filter,
                                            node_consumer_res in_res,
                                            node_producer_res out_res) {
-  BROKER_TRACE(BROKER_ARG(peer_id) << BROKER_ARG(filter));
   if (shutting_down()) {
-    BROKER_DEBUG("drop new peer: shutting down");
+    log::core::debug("init-new-peer-shutdown",
+                     "drop incoming peering: shutting down");
     return caf::make_error(ec::shutting_down);
   }
   // Sanity checking: make sure this isn't a repeated handshake.
   auto i = peers.find(peer_id);
-  if (i != peers.end())
+  if (i != peers.end()) {
+    log::core::debug("init-new-peer-repeated",
+                     "drop incoming peering: repeated handshake request");
     return caf::make_error(ec::repeated_peering_handshake_request);
+  }
   // Set the status for this peer to 'peered'. The only legal transitions are
   // 'nil -> peered' and 'connected -> peered'.
   auto& psm = *peer_statuses;
   auto status = peer_status::peered;
   if (psm.insert(peer_id, status)) {
-    BROKER_DEBUG(peer_id << ":: () -> peered");
+    log::core::debug("init-new-peer-nil", "{} changed state: () -> peered",
+                     peer_id);
   } else if (status == peer_status::connected
              && psm.update(peer_id, status, peer_status::peered)) {
-    BROKER_DEBUG(peer_id << ":: connected -> peered");
+    log::core::debug("init-new-peer-connected",
+                     "{} changed state: connected -> peered", peer_id);
   } else {
-    BROKER_ERROR("invalid status for new peer" << BROKER_ARG(peer_id)
-                                               << BROKER_ARG(status));
+    log::core::error("init-new-peer-invalid", "{} reports invalid status {}",
+                     peer_id, status);
     return caf::make_error(ec::invalid_status, to_string(status));
   }
   // All sanity checks have passed, update our state.
@@ -890,10 +916,11 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
         // Update our 'global' state for this peer.
         auto status = peer_status::peered;
         if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
-          BROKER_DEBUG(peer_id << ":: peered -> disconnected");
+          log::core::debug("init-new-peer-disconnected",
+                           "{} changed state: peered -> disconnected", peer_id);
         } else {
-          BROKER_ERROR("invalid status for disconnected peer"
-                       << BROKER_ARG(peer_id) << BROKER_ARG(status));
+          log::core::error("init-new-peer-invalid-disconnected",
+                           "{} reports invalid status {}", peer_id, status);
           // TODO: maybe we should consider this a fatal error?
         }
         // Clean up state our local state.
@@ -939,7 +966,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   auto resources2 = caf::async::make_spsc_buffer_resource<node_message>();
   auto& [rd_2, wr_2] = resources2;
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
-    BROKER_DEBUG("failed to run pending connection:" << err);
+    log::core::debug("init-new-peer-failed",
+                     "failed to run pending connection: {}", err);
     return err;
   } else {
     // With the connected buffers, dispatch to the other overload.
@@ -952,10 +980,10 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
                                              filter_type filter,
                                              data_consumer_res in_res,
                                              data_producer_res out_res) {
-  BROKER_TRACE(BROKER_ARG(addr) << BROKER_ARG(filter));
   // Fail early when shutting down.
   if (shutting_down()) {
-    BROKER_DEBUG("drop new client: shutting down");
+    log::core::debug("init-new-client-shutdown",
+                     "drop new client: shutting down");
     return caf::make_error(ec::shutting_down);
   }
   // Sanity checking.
@@ -1005,11 +1033,15 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
       .from_resource(std::move(in_res))
       // If the client closes this buffer, we assume a disconnect.
       .do_on_complete([this, client_id, addr, type] {
-        BROKER_DEBUG("client" << addr << "disconnected");
+        log::core::debug("client-disconnected",
+                         "client {} of type {} at {} disconnected", client_id,
+                         type, addr);
         client_removed(client_id, addr, type, caf::error{}, false);
       })
       .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-        BROKER_DEBUG("client" << addr << "disconnected");
+        log::core::debug("client-disconnected",
+                         "client {} of type {} at {} disconnected", client_id,
+                         type, addr);
         client_removed(client_id, addr, type, reason, false);
       })
       .map([this, client_id](const data_message& msg) {
@@ -1032,7 +1064,6 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
 // -- topic management ---------------------------------------------------------
 
 void core_actor_state::subscribe(const filter_type& what) {
-  BROKER_TRACE(BROKER_ARG(what));
   auto changed = filter->update([this, &what](auto&, auto& xs) {
     auto not_internal = [](const topic& x) { return !is_internal(x); };
     if (filter_extend(xs, what, not_internal)) {
@@ -1044,9 +1075,11 @@ void core_actor_state::subscribe(const filter_type& what) {
   // Note: this member function is the only place we call `update`. Hence, we
   // need not worry about the filter changing again concurrently.
   if (changed) {
+    log::core::debug("subscribe-added", "subscribed to new topics: {}", what);
     broadcast_subscriptions();
   } else {
-    BROKER_DEBUG("already subscribed to topics:" << what);
+    log::core::debug("subscribe-dropped", "already subscribed to topics: {}",
+                     what);
   }
 }
 
@@ -1063,20 +1096,23 @@ bool core_actor_state::has_remote_master(const std::string& name) const {
 caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
                                                         backend backend_type,
                                                         backend_options opts) {
-  BROKER_TRACE(BROKER_ARG(name)
-               << BROKER_ARG(backend_type) << BROKER_ARG(opts));
   // Sanity checking: master must not already exist locally or on a peer.
-  if (auto i = masters.find(name); i != masters.end())
+  if (auto i = masters.find(name); i != masters.end()) {
+    log::core::debug("attach-master-redundant",
+                     "master with name {} already exists", name);
     return i->second;
+  }
   if (has_remote_master(name)) {
-    BROKER_WARNING("remote master with same name exists already");
+    log::core::warning("attach-master-failed",
+                       "master with name {} already exists on a different node",
+                       name);
     return caf::make_error(ec::master_exists);
   }
   // Create backend and buffers.
   auto ptr = detail::make_backend(backend_type, std::move(opts));
   if (!ptr)
     return caf::make_error(ec::backend_failure);
-  BROKER_INFO("spawning new master:" << name);
+  log::core::info("attach-master-new", "spawning new master: {}", name);
   using caf::async::make_spsc_buffer_resource;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
   auto resources1 = make_spsc_buffer_resource<command_message>();
@@ -1115,18 +1151,20 @@ caf::result<caf::actor>
 core_actor_state::attach_clone(const std::string& name, double resync_interval,
                                double stale_interval,
                                double mutation_buffer_interval) {
-  BROKER_TRACE(BROKER_ARG(name)
-               << BROKER_ARG(resync_interval) << BROKER_ARG(stale_interval)
-               << BROKER_ARG(mutation_buffer_interval));
   // Sanity checking: make sure there is no master or clone already.
   if (auto i = masters.find(name); i != masters.end()) {
-    BROKER_WARNING("attempted to run clone & master on the same endpoint");
+    log::core::warning(
+      "attach-clone-failed",
+      "attempted to run clone and master for {} on the same endpoint", name);
     return caf::make_error(ec::no_such_master);
   }
-  if (auto i = clones.find(name); i != clones.end())
+  if (auto i = clones.find(name); i != clones.end()) {
+    log::core::debug("attach-clone-redundant",
+                     "clone with name {} already exists", name);
     return i->second;
+  }
   // Spin up the clone and connect it to our flows.
-  BROKER_INFO("spawning new clone:" << name);
+  log::core::info("attach-clone-new", "spawning new clone: {}", name);
   using std::chrono::duration_cast;
   // TODO: make configurable.
   auto tout = duration_cast<timespan>(fractional_seconds{10});
@@ -1163,8 +1201,9 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
 }
 
 void core_actor_state::shutdown_stores() {
-  BROKER_TRACE(BROKER_ARG2("masters.size()", masters.size())
-               << BROKER_ARG2("clones.size()", clones.size()));
+  log::core::debug("shutdown-stores",
+                   "shutting down data stores: {} masters, {} clones",
+                   masters.size(), clones.size());
   // TODO: consider re-implementing graceful shutdown of the store actors
   for (auto& kvp : masters)
     self->send_exit(kvp.second, caf::exit_reason::kill);
@@ -1190,7 +1229,7 @@ void core_actor_state::broadcast_subscriptions() {
 // -- unpeering ----------------------------------------------------------------
 
 void core_actor_state::unpeer(endpoint_id peer_id) {
-  BROKER_TRACE(BROKER_ARG(peer_id));
+  log::core::debug("unpeer-id", "unpeering from peer {}", peer_id);
   if (auto i = peers.find(peer_id); i != peers.end())
     i->second->remove(self, unsafe_inputs);
   else
@@ -1198,7 +1237,7 @@ void core_actor_state::unpeer(endpoint_id peer_id) {
 }
 
 void core_actor_state::unpeer(const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(addr));
+  log::core::debug("unpeer-addr", "unpeering from peer {}", addr);
   auto pred = [&addr](auto& kvp) { return kvp.second->addr() == addr; };
   if (auto i = std::find_if(peers.begin(), peers.end(), pred); i != peers.end())
     i->second->remove(self, unsafe_inputs);
