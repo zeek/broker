@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace broker {
 
 /// Describes the possible states of a peer. A local peer begins in state
@@ -15,6 +17,9 @@ enum class peer_status {
   reconnecting, ///< Reconnecting after a lost connection.
   unknown,      ///< No information available.
 };
+
+/// @relates peer_status
+void convert(peer_status x, std::string& str);
 
 /// @relates peer_status
 const char* to_string(peer_status);
