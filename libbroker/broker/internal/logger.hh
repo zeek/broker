@@ -165,4 +165,6 @@ void do_log(event::severity_level level, event::component_type component,
 
 BROKER_DECLARE_LOG_COMPONENT(core)
 
+BROKER_DECLARE_LOG_COMPONENT(endpoint)
+
 #undef BROKER_DECLARE_LOG_COMPONENT
