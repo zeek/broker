@@ -37,6 +37,9 @@ bool inspect(Inspector& f, network_info& x) {
 }
 
 /// @relates network_info
+void convert(const network_info& x, std::string& str);
+
+/// @relates network_info
 std::string to_string(const network_info& x);
 
 /// @relates network_info

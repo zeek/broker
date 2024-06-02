@@ -126,3 +126,43 @@ void do_log(event::severity_level level, event::component_type component,
 }
 
 } // namespace broker::internal
+
+/// Generates functions for logging messages with a specific component type.
+#define BROKER_DECLARE_LOG_COMPONENT(name)                                     \
+  namespace broker::internal::log::name {                                      \
+  constexpr auto component = event::component_type::name;                      \
+  template <class... Ts>                                                       \
+  void critical(std::string_view identifier, std::string_view fmt_str,         \
+                Ts&&... args) {                                                \
+    do_log(event::severity_level::critical, component, identifier, fmt_str,    \
+           std::forward<Ts>(args)...);                                         \
+  }                                                                            \
+  template <class... Ts>                                                       \
+  void error(std::string_view identifier, std::string_view fmt_str,            \
+             Ts&&... args) {                                                   \
+    do_log(event::severity_level::error, component, identifier, fmt_str,       \
+           std::forward<Ts>(args)...);                                         \
+  }                                                                            \
+  template <class... Ts>                                                       \
+  void warning(std::string_view identifier, std::string_view fmt_str,          \
+               Ts&&... args) {                                                 \
+    do_log(event::severity_level::warning, component, identifier, fmt_str,     \
+           std::forward<Ts>(args)...);                                         \
+  }                                                                            \
+  template <class... Ts>                                                       \
+  void info(std::string_view identifier, std::string_view fmt_str,             \
+            Ts&&... args) {                                                    \
+    do_log(event::severity_level::info, component, identifier, fmt_str,        \
+           std::forward<Ts>(args)...);                                         \
+  }                                                                            \
+  template <class... Ts>                                                       \
+  void debug(std::string_view identifier, std::string_view fmt_str,            \
+             Ts&&... args) {                                                   \
+    do_log(event::severity_level::debug, component, identifier, fmt_str,       \
+           std::forward<Ts>(args)...);                                         \
+  }                                                                            \
+  }
+
+BROKER_DECLARE_LOG_COMPONENT(core)
+
+#undef BROKER_DECLARE_LOG_COMPONENT
