@@ -128,6 +128,9 @@ inline void convert(const topic& t, std::string& str) {
   str = t.string();
 }
 
+/// @relates topic
+void convert(const std::vector<topic>& ts, std::string& str);
+
 /// Checks whether a topic is internal, i.e., messages on this topic are always
 /// only visible locally and never forwarded to peers.
 /// @relates topic
