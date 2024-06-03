@@ -47,6 +47,12 @@ struct hash<broker::internal::local_request_key> {
 
 namespace broker::internal {
 
+struct expiry_formatter {
+  std::optional<timespan> expiry;
+};
+
+void convert(const expiry_formatter& x, std::string& str);
+
 class store_actor_state {
 public:
   // -- member types -----------------------------------------------------------
@@ -63,6 +69,10 @@ public:
   store_actor_state(caf::event_based_actor* self);
 
   virtual ~store_actor_state();
+
+  // -- customization point for logging ----------------------------------------
+
+  virtual event::component_type component() const noexcept = 0;
 
   // -- initialization ---------------------------------------------------------
 
@@ -98,8 +108,10 @@ public:
                                      defaults::store::connection_timeout);
     auto nack_timeout = get_or(cfg, "broker.store.nack-timeout",
                                defaults::store::nack_timeout);
-    BROKER_DEBUG(BROKER_ARG(heartbeat_interval)
-                 << BROKER_ARG(connection_timeout) << BROKER_ARG(nack_timeout));
+    do_log(event::severity_level::debug, component(), "store-consumer-init",
+           "initialize new consumer: heartbeat_interval = {}, "
+           "connection_timeout = {}, nack_timeout = {}",
+           heartbeat_interval, connection_timeout, nack_timeout);
     in.heartbeat_interval(heartbeat_interval);
     in.connection_timeout_factor(connection_timeout);
     in.nack_timeout(nack_timeout);
@@ -111,7 +123,6 @@ public:
 
   template <class... Fs>
   caf::behavior make_behavior(Fs... fs) {
-    BROKER_TRACE("");
     return {
       std::move(fs)...,
       [this](atom::increment, detail::shared_store_state_ptr ptr) {

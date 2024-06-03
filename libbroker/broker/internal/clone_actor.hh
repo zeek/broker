@@ -12,6 +12,7 @@
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/entity_id.hh"
+#include "broker/internal/logger.hh"
 #include "broker/internal/store_actor.hh"
 #include "broker/internal_command.hh"
 #include "broker/message.hh"
@@ -31,6 +32,10 @@ public:
 
   /// Callback for set_store;
   using on_set_store = std::function<void()>;
+
+  // -- customization point for logging ----------------------------------------
+
+  event::component_type component() const noexcept override;
 
   // -- initialization ---------------------------------------------------------
 
@@ -70,7 +75,8 @@ public:
 
   template <class T>
   void consume(T& cmd) {
-    BROKER_ERROR("master got unexpected command:" << cmd);
+    log::master_store::debug("unexpected-command",
+                             "clone got unexpected command: {}", cmd);
   }
 
   error consume_nil(consumer_type* src);
