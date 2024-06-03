@@ -51,6 +51,9 @@ bool inspect(Inspector& f, put_command& x) {
             f.field("publisher", x.publisher));
 }
 
+/// @relates put_command
+void convert(const put_command& x, std::string& str);
+
 /// Sets a value in the key-value store if its key does not already exist.
 struct put_unique_command {
   data key;
@@ -76,6 +79,9 @@ bool inspect(Inspector& f, put_unique_command& x) {
             f.field("publisher", x.publisher));
 }
 
+/// @relates put_unique_command
+void convert(const put_unique_command& x, std::string& str);
+
 /// Sets a value in the key-value store if its key does not already exist.
 struct put_unique_result_command {
   bool inserted;
@@ -97,6 +103,9 @@ bool inspect(Inspector& f, put_unique_result_command& x) {
             f.field("publisher", x.publisher));
 }
 
+/// @relates put_unique_result_command
+void convert(const put_unique_result_command& x, std::string& str);
+
 /// Removes a value in the key-value store.
 struct erase_command {
   data key;
@@ -113,6 +122,9 @@ bool inspect(Inspector& f, erase_command& x) {
     .fields(f.field("key", x.key), //
             f.field("publisher", x.publisher));
 }
+
+/// @relates erase_command
+void convert(const erase_command& x, std::string& str);
 
 /// Removes a value in the key-value store as a result of an expiration. The
 /// master sends this message type to the clones in order to allow them to
@@ -133,6 +145,9 @@ bool inspect(Inspector& f, expire_command& x) {
     .fields(f.field("key", x.key), //
             f.field("publisher", x.publisher));
 }
+
+/// @relates expire_command
+void convert(const expire_command& x, std::string& str);
 
 /// Adds a value to the existing value.
 struct add_command {
@@ -157,6 +172,9 @@ bool inspect(Inspector& f, add_command& x) {
             f.field("publisher", x.publisher));
 }
 
+/// @relates add_command
+void convert(const add_command& x, std::string& str);
+
 /// Subtracts a value to the existing value.
 struct subtract_command {
   data key;
@@ -178,6 +196,9 @@ bool inspect(Inspector& f, subtract_command& x) {
             f.field("publisher", x.publisher));
 }
 
+/// @relates subtract_command
+void convert(const subtract_command& x, std::string& str);
+
 /// Drops all values.
 struct clear_command {
   entity_id publisher;
@@ -191,6 +212,9 @@ bool inspect(Inspector& f, clear_command& x) {
     .pretty_name("clear") //
     .fields(f.field("publisher", x.publisher));
 }
+
+/// @relates clear_command
+void convert(const clear_command& x, std::string& str);
 
 // -- unicast: one-to-one communication between clones and the master ----------
 
@@ -212,6 +236,9 @@ bool inspect(Inspector& f, attach_writer_command& x) {
             f.field("heartbeat_interval", x.heartbeat_interval));
 }
 
+/// @relates attach_writer_command
+void convert(const attach_writer_command& x, std::string& str);
+
 /// Confirms a clone and transfers the initial snapshot to a clone.
 struct ack_clone_command {
   sequence_number_type offset;
@@ -231,6 +258,9 @@ bool inspect(Inspector& f, ack_clone_command& x) {
             f.field("state", x.state));
 }
 
+/// @relates ack_clone_command
+void convert(const ack_clone_command& x, std::string& str);
+
 /// Informs the receiver that the sender successfully handled all messages up to
 /// a certain sequence number.
 struct cumulative_ack_command {
@@ -247,6 +277,9 @@ bool inspect(Inspector& f, cumulative_ack_command& x) {
     .fields(f.field("seq", x.seq));
 }
 
+/// @relates cumulative_ack_command
+void convert(const cumulative_ack_command& x, std::string& str);
+
 /// Informs the receiver that one or more commands failed to reach the sender.
 struct nack_command {
   std::vector<sequence_number_type> seqs;
@@ -261,6 +294,9 @@ bool inspect(Inspector& f, nack_command& x) {
     .pretty_name("nack")
     .fields(f.field("seqs", x.seqs));
 }
+
+/// @relates nack_command
+void convert(const nack_command& x, std::string& str);
 
 /// Informs all receivers that the sender is still alive.
 struct keepalive_command {
@@ -277,6 +313,9 @@ bool inspect(Inspector& f, keepalive_command& x) {
     .fields(f.field("seq", x.seq));
 }
 
+/// @relates keepalive_command
+void convert(const keepalive_command& x, std::string& str);
+
 /// Notifies the receiver that the sender can no longer retransmit a command.
 struct retransmit_failed_command {
   sequence_number_type seq;
@@ -291,6 +330,9 @@ bool inspect(Inspector& f, retransmit_failed_command& x) {
     .pretty_name("retransmit_failed")
     .fields(f.field("seq", x.seq));
 }
+
+/// @relates retransmit_failed_command
+void convert(const retransmit_failed_command& x, std::string& str);
 
 // -- variant setup ------------------------------------------------------------
 
@@ -341,6 +383,8 @@ bool inspect(Inspector& f, internal_command& x) {
                             f.field("receiver", x.receiver),
                             f.field("content", x.content));
 }
+
+void convert(const internal_command& x, std::string& str);
 
 } // namespace broker
 
