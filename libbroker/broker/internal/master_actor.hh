@@ -45,7 +45,7 @@ public:
 
   template <class T>
   void broadcast(T&& cmd) {
-    BROKER_TRACE(BROKER_ARG(cmd));
+    log::master_store::debug("broadcast", "broadcasting command: {}", cmd);
     // Suppress message if no one is listening.
     if (output.paths().empty())
       return;
@@ -55,6 +55,10 @@ public:
                                                      std::forward<T>(cmd)});
     output.produce(std::move(msg));
   }
+
+  // -- customization point for logging ----------------------------------------
+
+  event::component_type component() const noexcept override;
 
   // -- initialization ---------------------------------------------------------
 
@@ -94,7 +98,8 @@ public:
 
   template <class T>
   void consume(T& cmd) {
-    BROKER_ERROR("master got unexpected command:" << cmd);
+    log::master_store::debug("unexpected-command",
+                             "master got unexpected command: {}", cmd);
   }
 
   error consume_nil(consumer_type* src);
