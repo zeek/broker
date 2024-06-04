@@ -943,7 +943,6 @@ void endpoint::deinit_system() {
 }
 
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   bool result = false;
   caf::scoped_actor self{ctx_->sys};
   self->request(native(core()), timeout, atom::await_v, whom)
@@ -960,7 +959,6 @@ bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
 
 void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
                           timespan timeout) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(timeout));
   if (!callback) {
     BROKER_ERROR("invalid callback received for await_peer");
     return;
@@ -980,7 +978,6 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
 
 bool endpoint::await_filter_entry(const topic& what, timespan timeout) {
   using namespace std::literals;
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(timeout));
   auto abs_timeout = broker::now() + timeout;
   for (;;) {
     auto xs = filter();
