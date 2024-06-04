@@ -25,12 +25,14 @@
 #define CHECK_INITIALIZED_VOID()                                               \
   do {                                                                         \
     if (!initialized()) {                                                      \
-      BROKER_ERROR(__func__ << "called on an uninitialized store");            \
+      log::store::error("uninitialized-store-state",                           \
+                        "{} called on an uninitialized store", __func__);      \
       return;                                                                  \
     }                                                                          \
   } while (false)
 
 namespace atom = broker::internal::atom;
+namespace log = broker::internal::log;
 
 using broker::internal::facade;
 using broker::internal::native;
@@ -52,11 +54,13 @@ public:
       name(std::move(name)),
       frontend(std::move(frontend_hdl)),
       self(frontend->home_system()) {
-    BROKER_DEBUG("created state for store" << this->name);
+    log::store::debug("new-store-state", "created state for store {}",
+                      this->name);
   }
 
   ~state_impl() override {
-    BROKER_DEBUG("destroyed state for store" << name);
+    log::store::debug("destroy-store-state", "destroyed state for store {}",
+                      name);
   }
 
   template <class T, class... Ts>
@@ -77,7 +81,8 @@ public:
           if (res_tag == tag) {
             res = std::move(x);
           } else {
-            BROKER_ERROR("frontend responded with unexpected tag");
+            log::store::error("unexpected-frontend-response",
+                              "frontend responded with unexpected tag");
             res = make_error(ec::invalid_tag,
                              "frontend responded with unexpected tag");
           }
@@ -178,11 +183,13 @@ store::store(const store& other) : state_(other.state_) {
 
 store::store(endpoint_id this_peer, worker frontend, std::string name) {
   if (!frontend) {
-    BROKER_ERROR("store::store called with frontend == nullptr");
+    log::store::error("store-obj-ctor",
+                      "store called with frontend == nullptr");
     return;
   }
   if (name.empty()) {
-    BROKER_ERROR("store::store called with empty name");
+    log::store::error("store-obj-ctor",
+                      "store called with empty name for store");
     return;
   }
   auto hdl = native(frontend);
@@ -255,9 +262,6 @@ request_id store::proxy::put_unique(data key, data val,
                                     std::optional<timespan> expiry) {
   if (frontend_) {
     auto req_id = ++id_;
-    BROKER_DEBUG("proxy" << native(proxy_).id()
-                         << "sends a put_unique with request ID" << req_id
-                         << "to" << frontend_id());
     send_as(native(proxy_), native(frontend_), atom::local_v,
             internal_command_variant{
               put_unique_command{std::move(key), std::move(val), expiry,
@@ -311,8 +315,9 @@ store::response store::proxy::receive() {
       fa->extinguish_one();
     },
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
-      BROKER_ERROR("proxy" << native(proxy_).id()
-                           << "received an unexpected message:" << x);
+      log::store::error("store-obj-unexpected-response",
+                        "proxy {} received an unexpected message: {}",
+                        native(proxy_).id(), x);
       // We *must* make sure to consume any and all messages, because the flare
       // actor messes with the mailbox signaling. The flare fires on each
       // enqueued message and the flare actor reports data available as long as
@@ -327,9 +332,9 @@ store::response store::proxy::receive() {
       resp.answer = facade(err);
       return err;
     });
-  BROKER_DEBUG("proxy" << native(proxy_).id() << "received a response for ID"
-                       << resp.id << "from" << frontend_id() << "->"
-                       << resp.answer);
+  log::store::debug("store-obj-response",
+                    "proxy {} received a response for ID {} from {} -> {}",
+                    native(proxy_).id(), resp.id, frontend_id(), resp.answer);
   return resp;
 }
 
@@ -438,7 +443,8 @@ bool store::await_idle(timespan timeout) {
     st.self->request(st.frontend, timeout, atom::await_v, atom::idle_v)
       .receive([&result](atom::ok) { result = true; },
                []([[maybe_unused]] const caf::error& err) {
-                 BROKER_ERROR("await_idle failed: " << err);
+                 log::store::error("store-obj-await-idle",
+                                   "await_idle failed: {}", err);
                });
   });
   return result;
@@ -446,7 +452,8 @@ bool store::await_idle(timespan timeout) {
 
 void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
   if (!callback) {
-    BROKER_ERROR("invalid callback received for await_idle");
+    log::store::error("store-obj-await-idle-cb",
+                      "invalid callback received for await_idle");
     return;
   }
   with_state_or(
