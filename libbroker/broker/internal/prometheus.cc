@@ -136,7 +136,6 @@ caf::behavior prometheus_actor::make_behavior() {
         quit();
     },
     [this](const data_message& msg) {
-      BROKER_TRACE(BROKER_ARG(msg));
       collector_.insert_or_update(get_data(msg).to_data());
     },
     [this](atom::join, const filter_type& filter) {

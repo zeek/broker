@@ -260,8 +260,6 @@ struct sqlite_backend::impl {
   }
 
   bool open(const std::string& path) {
-    BROKER_TRACE(BROKER_ARG(path));
-
     auto dir = detail::dirname(path);
     if (!dir.empty()) {
       if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
