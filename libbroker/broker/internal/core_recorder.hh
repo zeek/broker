@@ -44,7 +44,8 @@ public:
       return false;
     }
     if (--remaining_records_ == 0) {
-      BROKER_DEBUG("reached recording cap, close file");
+      log::core::debug("reached-recording-cap",
+                       "reached recording cap, close file");
       writer_ = nullptr;
     }
     return true;
