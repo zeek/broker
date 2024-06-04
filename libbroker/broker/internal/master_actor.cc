@@ -438,7 +438,8 @@ void master_state::close(consumer_type* src, const error& reason) {
 
 void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
   auto dst = ptr->producer();
-  BROKER_DEBUG(BROKER_ARG(ack) << BROKER_ARG(dst));
+  log::store::debug("send-cumulative-ack",
+                    "send cumulative ack with seq {} to {}", ack.seq, dst);
   auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, cumulative_ack_command{ack.seq}});
@@ -447,7 +448,7 @@ void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
 
 void master_state::send(consumer_type* ptr, channel_type::nack nack) {
   auto dst = ptr->producer();
-  BROKER_DEBUG(BROKER_ARG(nack) << BROKER_ARG(dst));
+  log::store::debug("send-nack", "send nack to {}", dst);
   auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, nack_command{std::move(nack.seqs)}});
@@ -458,9 +459,9 @@ void master_state::send(consumer_type* ptr, channel_type::nack nack) {
 
 void master_state::send(producer_type*, const entity_id& whom,
                         const channel_type::event& what) {
-  BROKER_DEBUG("send event with seq"
-               << get_command(what.content).seq << "and type"
-               << get_command(what.content).content.index() << "to" << whom);
+  log::store::debug("send-event", "send event with seq {} and type {} to {}",
+                    get_command(what.content).seq,
+                    get_command(what.content).content.index(), whom);
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
   self->send(core, atom::publish_v, what.content, whom.endpoint);
 }
@@ -479,8 +480,8 @@ void master_state::send(producer_type*, const entity_id& whom,
                                          std::move(*ss)}});
     i = open_handshakes.emplace(whom, std::move(cmd)).first;
   }
-  BROKER_DEBUG("send producer handshake with offset" << msg.offset << "to"
-                                                     << whom);
+  log::store::debug("send-handshake", "send handshake with offset {} to {}",
+                    msg.offset, whom);
   self->send(core, atom::publish_v, i->second, whom.endpoint);
 }
 
@@ -489,12 +490,14 @@ void master_state::send(producer_type*, const entity_id& whom,
   auto cmd = make_command_message(
     clones_topic,
     internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
-  BROKER_DEBUG("send retransmit_failed with seq" << msg.seq << "to" << whom);
+  log::store::debug("send-retransmit-failed",
+                    "send retransmit_failed with seq {} to {}", msg.seq, whom);
   self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
 }
 
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
-  BROKER_DEBUG("broadcast keepalive_command with seq" << msg.seq);
+  log::store::debug("broadcast-heartbeat", "broadcast heartbeat with seq {}",
+                    msg.seq);
   auto cmd = make_command_message(clones_topic,
                                   internal_command{0, id, entity_id::nil(),
                                                    keepalive_command{msg.seq}});
@@ -503,21 +506,23 @@ void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
 
 void master_state::broadcast(producer_type*, const channel_type::event& what) {
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
-  BROKER_DEBUG("broadcast event with seq"
-               << get_command(what.content).seq << "and type"
-               << get_command(what.content).content.index());
+  log::store::debug("broadcast-event",
+                    "broadcast event with seq {} and type {}",
+                    get_command(what.content).seq,
+                    get_command(what.content).content.index());
   self->send(core, atom::publish_v, what.content);
 }
 
 void master_state::drop(producer_type*, const entity_id& clone,
                         [[maybe_unused]] ec reason) {
-  BROKER_INFO("drop" << clone);
+  log::core::info("drop-clone", "drop clone {}", clone);
   open_handshakes.erase(clone);
   inputs.erase(clone);
 }
 
 void master_state::handshake_completed(producer_type*, const entity_id& clone) {
-  BROKER_INFO("producer handshake completed for" << clone);
+  log::store::info("handshake-completed", "producer handshake completed for {}",
+                   clone);
   open_handshakes.erase(clone);
 }
 
@@ -563,7 +568,8 @@ caf::behavior master_state::make_behavior() {
         }
         std::visit([this](auto& x) { consume(x); }, content);
       } else {
-        BROKER_ERROR("received unexpected command locally:" << content);
+        log::store::error("unexpected-command",
+                          "received unexpected command locally");
       }
     },
     [this](atom::tick) {
@@ -580,12 +586,10 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, atom::keys) -> caf::result<data> {
       auto x = backend->keys();
-      BROKER_INFO("KEYS ->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, atom::keys, request_id id) {
       auto x = backend->keys();
-      BROKER_INFO("KEYS" << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else
@@ -593,28 +597,23 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::exists, const data& key) -> caf::result<data> {
       auto x = backend->exists(key);
-      BROKER_INFO("EXISTS" << key << "->" << x);
       return {data{*x}};
     },
     [this](atom::exists, const data& key, request_id id) {
       auto x = backend->exists(key);
-      BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
       return caf::make_message(data{*x}, id);
     },
     [this](atom::get, const data& key) -> caf::result<data> {
       auto x = backend->get(key);
-      BROKER_INFO("GET" << key << "->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, const data& key,
            const data& aspect) -> caf::result<data> {
       auto x = backend->get(key, aspect);
-      BROKER_INFO("GET" << key << aspect << "->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, const data& key, request_id id) {
       auto x = backend->get(key);
-      BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else
@@ -622,8 +621,6 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, const data& key, const data& value, request_id id) {
       auto x = backend->get(key, value);
-      BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->"
-                        << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else

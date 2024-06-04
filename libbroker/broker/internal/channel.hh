@@ -227,7 +227,7 @@ public:
     error add(const Handle& hdl) {
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
-      BROKER_DEBUG("add" << hdl << "to the channel");
+      log::store::debug("producer-add", "add consumer {} to channel", hdl);
       metrics_.inc_output_channels();
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
@@ -325,7 +325,8 @@ public:
       size_t erased_paths = 0;
       for (auto i = paths_.begin(); i != paths_.end();) {
         if (tick_.value - i->last_seen.value >= timeout) {
-          BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
+          log::store::debug("producer-remove",
+                            "remove {} from channel: consumer timeout", i->hdl);
           metrics_.dec_output_channels();
           backend_->drop(this, i->hdl, ec::connection_timeout);
           i = paths_.erase(i);
@@ -682,7 +683,9 @@ public:
       // Ask for repeated handshake each heartbeat interval when not fully
       // initialized yet.
       if (!initialized()) {
-        BROKER_DEBUG("not fully initialized: waiting for producer handshake");
+        log::store::debug(
+          "consumer-tick",
+          "not fully initialized: waiting for producer handshake");
         ++idle_ticks_;
         if (idle_ticks_ >= nack_timeout_) {
           idle_ticks_ = 0;
@@ -694,7 +697,7 @@ public:
       bool progressed = next_seq_ > last_tick_seq_;
       last_tick_seq_ = next_seq_;
       if (progressed) {
-        BROKER_DEBUG("made progress since last tick");
+        log::store::debug("consumer-tick", "made progress since last tick");
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
         if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
@@ -702,7 +705,8 @@ public:
         return;
       }
       ++idle_ticks_;
-      BROKER_DEBUG("made no progress for" << idle_ticks_ << "ticks");
+      log::store::debug("consumer-tick", "made no progress for {} ticks",
+                        idle_ticks_);
       if (next_seq_ < last_seq_ && idle_ticks_ >= nack_timeout_) {
         idle_ticks_ = 0;
         auto first = next_seq_;
