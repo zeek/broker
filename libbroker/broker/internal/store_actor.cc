@@ -143,8 +143,7 @@ void store_actor_state::emit_expire_event(const data& key,
 void store_actor_state::on_down_msg(const caf::actor_addr& source,
                                     const caf::error& reason) {
   if (source == core) {
-    do_log(event::severity_level::info, component(), "core-down",
-           "core is down, quit");
+    log::store::info("core-down", "core is down, quit");
     self->quit(reason);
     return;
   }

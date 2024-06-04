@@ -51,12 +51,6 @@ master_state::metrics_t::metrics_t(prometheus::Registry& reg,
   entries = factory.store.entries_instance(name);
 }
 
-// -- customization point for logging ------------------------------------------
-
-event::component_type master_state::component() const noexcept {
-  return event::component_type::master_store;
-}
-
 // -- initialization -----------------------------------------------------------
 
 master_state::master_state(
@@ -84,12 +78,11 @@ master_state::master_state(
   if (auto entries = backend->size(); entries && *entries > 0) {
     metrics.entries->Set(*entries);
   }
-  log::master_store::info("attached", "attached master {} to {}", id,
-                          store_name);
+  log::store::info("attached", "attached master {} to {}", id, store_name);
 }
 
 void master_state::dispatch(const command_message& msg) {
-  log::master_store::debug("dispatch", "received command {}", msg);
+  log::store::debug("dispatch", "received command {}", msg);
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or clone.
   // Clones can only send control messages (they are always consumers). Writers
@@ -104,9 +97,9 @@ void master_state::dispatch(const command_message& msg) {
       if (auto i = inputs.find(cmd.sender); i != inputs.end())
         i->second.handle_event(seq, msg);
       else
-        log::master_store::debug(
-          "unknown-sender-action",
-          "master received action from unknown sender {}", cmd.sender);
+        log::store::debug("unknown-sender-action",
+                          "master received action from unknown sender {}",
+                          cmd.sender);
       break;
     }
     case command_tag::producer_control: {
@@ -114,9 +107,9 @@ void master_state::dispatch(const command_message& msg) {
       if (auto i = inputs.find(cmd.sender); i != inputs.end()) {
         switch (type) {
           case internal_command::type::attach_writer_command: {
-            log::master_store::debug(
-              "repeated-attach-writer",
-              "master ignores repeated handshake from {}", cmd.sender);
+            log::store::debug("repeated-attach-writer",
+                              "master ignores repeated handshake from {}",
+                              cmd.sender);
             break;
           }
           case internal_command::type::keepalive_command: {
@@ -130,27 +123,27 @@ void master_state::dispatch(const command_message& msg) {
             break;
           }
           default: {
-            log::master_store::error(
+            log::store::error(
               "bogus-producer-control",
               "master received bogus producer control message {}", cmd);
           }
         }
       } else if (type == internal_command::type::attach_writer_command) {
-        log::master_store::debug("attach-writer",
-                                 "master attaches new writer: {}", cmd.sender);
+        log::store::debug("attach-writer", "master attaches new writer: {}",
+                          cmd.sender);
         auto& inner = get<attach_writer_command>(cmd.content);
         i = inputs.emplace(cmd.sender, this).first;
         super::init(i->second);
         i->second.producer(cmd.sender);
         if (!i->second.handle_handshake(inner.offset,
                                         inner.heartbeat_interval)) {
-          log::master_store::error(
+          log::store::error(
             "store-handshake-error",
             "master aborts connection: handle_handshake returned false");
           inputs.erase(i);
         }
       } else {
-        log::master_store::debug(
+        log::store::debug(
           "unknown-sender-producer-control",
           "master received producer control message from unknown sender {}",
           cmd.sender);
@@ -172,7 +165,7 @@ void master_state::dispatch(const command_message& msg) {
           break;
         }
         default: {
-          log::master_store::debug(
+          log::store::debug(
             "unknown-sender-consumer-control",
             "master received consumer control message from unknown sender {}",
             cmd.sender);
@@ -206,14 +199,14 @@ void master_state::tick() {
     if (t > i->second) {
       const auto& key = i->first;
       if (auto result = backend->expire(key, t); !result) {
-        log::master_store::error("expire-error", "failed to expire key {}: {}",
-                                 key, result.error());
+        log::store::error("expire-error", "failed to expire key {}: {}", key,
+                          result.error());
 
       } else if (!*result) {
-        log::master_store::warning("expire-stale-key",
-                                   "tried to expire stale key {}", key);
+        log::store::warning("expire-stale-key", "tried to expire stale key {}",
+                            key);
       } else {
-        log::master_store::info("expire", "expired key {}", key);
+        log::store::info("expire", "expired key {}", key);
         expire_command cmd{key, id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
@@ -243,16 +236,15 @@ void master_state::consume(consumer_type*, command_message& msg) {
 }
 
 void master_state::consume(put_command& x) {
-  log::master_store::debug("put-command",
-                           "master received put command (expiry {}): {} -> {}",
-                           expiry_formatter{x.expiry}, x.key, x.value);
+  log::store::debug("put-command",
+                    "master received put command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
   auto result = backend->put(x.key, x.value, et);
   if (!result) {
-    log::master_store::error("put-command-failed",
-                             "failed to write to key {}: {}", x.key,
-                             result.error());
+    log::store::error("put-command-failed", "failed to write to key {}: {}",
+                      x.key, result.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   set_expire_time(x.key, x.expiry);
@@ -266,10 +258,9 @@ void master_state::consume(put_command& x) {
 }
 
 void master_state::consume(put_unique_command& x) {
-  log::master_store::debug(
-    "put-unique-command",
-    "master received put unique command (expiry {}): {} -> {}",
-    expiry_formatter{x.expiry}, x.key, x.value);
+  log::store::debug("put-unique-command",
+                    "master received put unique command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto broadcast_result = [this, &x](bool inserted) {
     broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
     if (x.who) {
@@ -286,9 +277,8 @@ void master_state::consume(put_unique_command& x) {
   }
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->put(x.key, x.value, et); !res) {
-    log::master_store::error("put-unique-command-failed",
-                             "failed to write to key {}: {}", x.key,
-                             res.error());
+    log::store::error("put-unique-command-failed",
+                      "failed to write to key {}: {}", x.key, res.error());
     broadcast_result(false);
     return;
   }
@@ -303,18 +293,16 @@ void master_state::consume(put_unique_command& x) {
 }
 
 void master_state::consume(erase_command& x) {
-  log::master_store::debug("erase-command",
-                           "master received erase command for key {}", x.key);
+  log::store::debug("erase-command", "master received erase command for key {}",
+                    x.key);
   if (!exists(x.key)) {
-    log::master_store::debug("erase-command-no-such-key",
-                             "master failed to erase key {}: no such key",
-                             x.key);
+    log::store::debug("erase-command-no-such-key",
+                      "master failed to erase key {}: no such key", x.key);
     return;
   }
   if (auto res = backend->erase(x.key); !res) {
-    log::master_store::error("erase-command-failed",
-                             "master failed to erase key {}: {}", x.key,
-                             res.error());
+    log::store::error("erase-command-failed",
+                      "master failed to erase key {}: {}", x.key, res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   emit_erase_event(x.key, x.publisher);
@@ -323,21 +311,21 @@ void master_state::consume(erase_command& x) {
 }
 
 void master_state::consume(add_command& x) {
-  log::master_store::debug("add-command",
-                           "master received add command (expiry {}): {} -> {}",
-                           expiry_formatter{x.expiry}, x.key, x.value);
+  log::store::debug("add-command",
+                    "master received add command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto old_value = backend->get(x.key);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->add(x.key, x.value, x.init_type, et); !res) {
-    log::master_store::error("add-command-failed",
-                             "master failed to add {} to key {}: {}", x.value,
-                             x.key, res.error());
+    log::store::error("add-command-failed",
+                      "master failed to add {} to key {}: {}", x.value, x.key,
+                      res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto val = backend->get(x.key); !val) {
-    log::master_store::error("add-then-read-failed",
-                             "master failed to read new value for key {}: {}",
-                             x.key, val.error());
+    log::store::error("add-then-read-failed",
+                      "master failed to read new value for key {}: {}", x.key,
+                      val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     set_expire_time(x.key, x.expiry);
@@ -356,30 +344,28 @@ void master_state::consume(add_command& x) {
 }
 
 void master_state::consume(subtract_command& x) {
-  log::master_store::debug(
-    "subtract-command",
-    "master received subtract command (expiry {}): {} -> {}",
-    expiry_formatter{x.expiry}, x.key, x.value);
+  log::store::debug("subtract-command",
+                    "master received subtract command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
   if (!old_value) {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
-    log::master_store::warning(
-      "subtract-command-invalid-key",
-      "master failed to subtract {} from key {}: no such key", x.value, x.key,
-      old_value.error());
+    log::store::warning("subtract-command-invalid-key",
+                        "master failed to subtract {} from key {}: no such key",
+                        x.value, x.key, old_value.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto res = backend->subtract(x.key, x.value, et); !res) {
-    log::master_store::error("subtract-command-failed",
-                             "master failed to subtract {} from key {}: {}",
-                             x.value, x.key, res.error());
+    log::store::error("subtract-command-failed",
+                      "master failed to subtract {} from key {}: {}", x.value,
+                      x.key, res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto val = backend->get(x.key); !val) {
-    log::master_store::error("subtract-then-read-failed",
-                             "master failed to read new value for key {}: {}",
-                             x.key, val.error());
+    log::store::error("subtract-then-read-failed",
+                      "master failed to read new value for key {}: {}", x.key,
+                      val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     set_expire_time(x.key, x.expiry);
@@ -393,11 +379,11 @@ void master_state::consume(subtract_command& x) {
 }
 
 void master_state::consume(clear_command& x) {
-  log::master_store::info("clear-command", "master received clear command");
+  log::store::info("clear-command", "master received clear command");
   if (auto keys_res = backend->keys(); !keys_res) {
-    log::master_store::error(
-      "clear-command-no-key-res",
-      "master failed to retrieve keys for clear command: {}", keys_res.error());
+    log::store::error("clear-command-no-key-res",
+                      "master failed to retrieve keys for clear command: {}",
+                      keys_res.error());
     return;
   } else {
     if (auto keys = get_if<vector>(*keys_res)) {
@@ -409,15 +395,14 @@ void master_state::consume(clear_command& x) {
         emit_erase_event(key, x.publisher);
       metrics.entries->Set(0);
     } else if (!is<none>(*keys_res)) {
-      log::master_store::error("clear-command-invalid-keys",
-                               "master failed to retrieve keys for clear "
-                               "command: unexpected result type");
+      log::store::error("clear-command-invalid-keys",
+                        "master failed to retrieve keys for clear "
+                        "command: unexpected result type");
     }
   }
   if (auto res = backend->clear(); !res) {
-    log::master_store::critical("clear-command-failed",
-                                "master failed to clear the table: {}",
-                                res.error());
+    log::store::critical("clear-command-failed",
+                         "master failed to clear the table: {}", res.error());
     detail::die("failed to clear master");
   }
   broadcast(x);
@@ -428,27 +413,27 @@ error master_state::consume_nil(consumer_type* src) {
   // information before it made it into the backend. However, it is not a fatal
   // error in the sense that we must abort processing. Hence, we return `none`
   // here to keep processing messages from the writer.
-  log::master_store::error("lost-consumer-message", "lost a message from {}",
-                           src->producer());
+  log::store::error("lost-consumer-message", "lost a message from {}",
+                    src->producer());
   return {};
 }
 
 void master_state::close(consumer_type* src, const error& reason) {
   if (auto i = inputs.find(src->producer()); i != inputs.end()) {
     if (reason)
-      log::master_store::info("close-consumer-with-error",
-                              "removed producer {} due to an error: {}",
-                              src->producer(), reason);
+      log::store::info("close-consumer-with-error",
+                       "removed producer {} due to an error: {}",
+                       src->producer(), reason);
     else
-      log::master_store::info("close-consumer",
-                              "removed producer {} after graceful shutdown",
-                              src->producer());
+      log::store::info("close-consumer",
+                       "removed producer {} after graceful shutdown",
+                       src->producer());
     inputs.erase(i);
     return;
   }
-  log::master_store::error("close-consumer-unknown",
-                           "received close request from unknown producer {}",
-                           src->producer());
+  log::store::error("close-consumer-unknown",
+                    "received close request from unknown producer {}",
+                    src->producer());
 }
 
 void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
@@ -600,8 +585,7 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, atom::keys, request_id id) {
       auto x = backend->keys();
-      BROKER_INFO("KEYS"
-                  << "with id:" << id << "->" << x);
+      BROKER_INFO("KEYS" << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else
