@@ -311,7 +311,6 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
-      BROKER_TRACE("");
       // Increase local time and send heartbeats.
       ++tick_;
       if (heartbeat_interval_ == 0)
@@ -581,8 +580,6 @@ public:
     ///          handshake that got dropped by the consumer.
     bool handle_handshake(Handle producer_hdl, sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(producer_hdl)
-                   << BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       if (initialized())
         return false;
       producer_ = std::move(producer_hdl);
@@ -592,7 +589,6 @@ public:
     /// @copydoc handle_handshake
     bool handle_handshake(sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       if (initialized())
         return false;
       return handle_handshake_impl(offset, heartbeat_interval);
@@ -600,7 +596,6 @@ public:
 
     bool handle_handshake_impl(sequence_number_type offset,
                                tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       // Initialize state.
       next_seq_ = offset + 1;
       last_seq_ = next_seq_;
@@ -633,7 +628,6 @@ public:
     }
 
     void handle_event(sequence_number_type seq, Payload payload) {
-      BROKER_TRACE(BROKER_ARG(seq) << BROKER_ARG(payload));
       if (next_seq_ == seq) {
         // Process immediately.
         backend_->consume(this, payload);
@@ -684,9 +678,6 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
-      BROKER_TRACE(BROKER_ARG2("next_seq", next_seq_)
-                   << BROKER_ARG2("last_seq", last_seq_)
-                   << BROKER_ARG2("buf.size", buf().size()));
       ++tick_;
       // Ask for repeated handshake each heartbeat interval when not fully
       // initialized yet.
