@@ -70,10 +70,6 @@ public:
 
   virtual ~store_actor_state();
 
-  // -- customization point for logging ----------------------------------------
-
-  virtual event::component_type component() const noexcept = 0;
-
   // -- initialization ---------------------------------------------------------
 
   /// Initializes the state.
@@ -108,10 +104,10 @@ public:
                                      defaults::store::connection_timeout);
     auto nack_timeout = get_or(cfg, "broker.store.nack-timeout",
                                defaults::store::nack_timeout);
-    do_log(event::severity_level::debug, component(), "store-consumer-init",
-           "initialize new consumer: heartbeat_interval = {}, "
-           "connection_timeout = {}, nack_timeout = {}",
-           heartbeat_interval, connection_timeout, nack_timeout);
+    log::store::debug("store-consumer-init",
+                      "initialize new consumer: heartbeat_interval = {}, "
+                      "connection_timeout = {}, nack_timeout = {}",
+                      heartbeat_interval, connection_timeout, nack_timeout);
     in.heartbeat_interval(heartbeat_interval);
     in.connection_timeout_factor(connection_timeout);
     in.nack_timeout(nack_timeout);

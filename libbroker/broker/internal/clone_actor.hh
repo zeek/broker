@@ -33,10 +33,6 @@ public:
   /// Callback for set_store;
   using on_set_store = std::function<void()>;
 
-  // -- customization point for logging ----------------------------------------
-
-  event::component_type component() const noexcept override;
-
   // -- initialization ---------------------------------------------------------
 
   clone_state(caf::event_based_actor* ptr, prometheus_registry_ptr reg,
@@ -75,8 +71,8 @@ public:
 
   template <class T>
   void consume(T& cmd) {
-    log::master_store::debug("unexpected-command",
-                             "clone got unexpected command: {}", cmd);
+    log::store::debug("unexpected-command", "clone got unexpected command: {}",
+                      cmd);
   }
 
   error consume_nil(consumer_type* src);
