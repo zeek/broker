@@ -177,8 +177,6 @@ store::store(const store& other) : state_(other.state_) {
 }
 
 store::store(endpoint_id this_peer, worker frontend, std::string name) {
-  BROKER_TRACE(BROKER_ARG(this_peer)
-               << BROKER_ARG(frontend) << BROKER_ARG(name));
   if (!frontend) {
     BROKER_ERROR("store::store called with frontend == nullptr");
     return;
@@ -255,8 +253,6 @@ request_id store::proxy::get(data key) {
 
 request_id store::proxy::put_unique(data key, data val,
                                     std::optional<timespan> expiry) {
-  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry)
-                               << BROKER_ARG(this_peer_));
   if (frontend_) {
     auto req_id = ++id_;
     BROKER_DEBUG("proxy" << native(proxy_).id()
@@ -303,7 +299,6 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
-  BROKER_TRACE("");
   auto resp = response{error{}, 0};
   auto fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
   fa->receive(
@@ -344,7 +339,6 @@ entity_id store::proxy::frontend_id() const noexcept {
 }
 
 std::vector<store::response> store::proxy::receive(size_t n) {
-  BROKER_TRACE(BROKER_ARG(n));
   std::vector<store::response> rval;
   rval.reserve(n);
   for (size_t i = 0; i < n; ++i)
@@ -360,18 +354,15 @@ std::string store::name() const {
 }
 
 expected<data> store::exists(data key) const {
-  BROKER_TRACE(BROKER_ARG(key));
   return fetch(atom::exists_v, std::move(key));
 }
 
 expected<data> store::get(data key) const {
-  BROKER_TRACE(BROKER_ARG(key));
   return fetch(atom::get_v, std::move(key));
 }
 
 expected<data> store::put_unique(data key, data val,
                                  std::optional<timespan> expiry) {
-  BROKER_TRACE(BROKER_ARG(key) << BROKER_ARG(val) << BROKER_ARG(expiry));
   return with_state_or(
     [&, this](state_impl& st) {
       auto tag = st.req_id++;
@@ -442,7 +433,6 @@ void store::clear() {
 }
 
 bool store::await_idle(timespan timeout) {
-  BROKER_TRACE(BROKER_ARG(timeout));
   bool result = false;
   with_state([&](state_impl& st) {
     st.self->request(st.frontend, timeout, atom::await_v, atom::idle_v)
@@ -455,7 +445,6 @@ bool store::await_idle(timespan timeout) {
 }
 
 void store::await_idle(std::function<void(bool)> callback, timespan timeout) {
-  BROKER_TRACE(BROKER_ARG(timeout));
   if (!callback) {
     BROKER_ERROR("invalid callback received for await_idle");
     return;

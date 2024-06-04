@@ -501,7 +501,6 @@ void master_state::send(producer_type*, const entity_id& whom,
 
 void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::retransmit_failed msg) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
   auto cmd = make_command_message(
     clones_topic,
     internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
@@ -510,7 +509,6 @@ void master_state::send(producer_type*, const entity_id& whom,
 }
 
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
   BROKER_DEBUG("broadcast keepalive_command with seq" << msg.seq);
   auto cmd = make_command_message(clones_topic,
                                   internal_command{0, id, entity_id::nil(),
@@ -528,14 +526,12 @@ void master_state::broadcast(producer_type*, const channel_type::event& what) {
 
 void master_state::drop(producer_type*, const entity_id& clone,
                         [[maybe_unused]] ec reason) {
-  BROKER_TRACE(BROKER_ARG(clone) << BROKER_ARG(reason));
   BROKER_INFO("drop" << clone);
   open_handshakes.erase(clone);
   inputs.erase(clone);
 }
 
 void master_state::handshake_completed(producer_type*, const entity_id& clone) {
-  BROKER_TRACE(BROKER_ARG(clone));
   BROKER_INFO("producer handshake completed for" << clone);
   open_handshakes.erase(clone);
 }
@@ -557,7 +553,6 @@ bool master_state::idle() const noexcept {
 // -- initial behavior ---------------------------------------------------------
 
 caf::behavior master_state::make_behavior() {
-  BROKER_TRACE(BROKER_ARG(id) << BROKER_ARG(core) << BROKER_ARG(store_name));
   // Setup.
   self->monitor(core);
   self->set_down_handler([this](const caf::down_msg& msg) { //
@@ -568,7 +563,6 @@ caf::behavior master_state::make_behavior() {
   return super::make_behavior(
     // --- local communication -------------------------------------------------
     [this](atom::local, internal_command_variant& content) {
-      BROKER_TRACE(BROKER_ARG(content));
       // Locally received message are already ordered and reliable. Hence, we
       // can process them immediately.
       auto tag = detail::tag_of(content);
