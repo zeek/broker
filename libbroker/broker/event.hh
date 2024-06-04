@@ -38,15 +38,10 @@ public:
     core,
     /// The endpoint has emitted the event.
     endpoint,
-    /// A Broker data store running in master mode has emitted the event.
-    master_store,
-    /// A Broker data store running in clone mode has emitted the event.
-    clone_store,
+    /// A Broker data store has emitted the event.
+    store,
     /// The Broker network layer has emitted the event.
     network,
-    /// A Broker backend has emitted the event. This could be a SQLite database
-    /// or an in-memory store.
-    store_backend,
   };
 
   /// The time when the event has been emitted.
