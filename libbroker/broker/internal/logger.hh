@@ -27,12 +27,27 @@
 #include "broker/event.hh"
 #include "broker/event_observer.hh"
 #include "broker/logger.hh"
+#include "broker/time.hh"
 
 #include <type_traits>
 
 namespace broker::internal {
 
 // -- poor man's std::format replacement; remove once we can use C++20 ---------
+
+template <class T>
+class has_to_string {
+private:
+  template <class U>
+  static auto sfinae(const U& x) -> decltype(to_string(x));
+
+  static void sfinae(...);
+
+  using result = decltype(sfinae(std::declval<const T&>()));
+
+public:
+  static constexpr bool value = std::is_same_v<result, std::string>;
+};
 
 template <class OutputIterator>
 OutputIterator fmt_to(OutputIterator out, std::string_view fmt) {
@@ -79,8 +94,8 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
             auto str = std::string{};
             convert(arg, str);
             out = std::copy(str.begin(), str.end(), out);
-          } else if constexpr (std::is_same_v<T, caf::error>) {
-            auto str = caf::to_string(arg);
+          } else if constexpr (has_to_string<T>::value) {
+            auto str = to_string(arg);
             out = std::copy(str.begin(), str.end(), out);
           } else {
             static_assert(std::is_convertible_v<T, const char*>);
@@ -170,5 +185,7 @@ BROKER_DECLARE_LOG_COMPONENT(endpoint)
 BROKER_DECLARE_LOG_COMPONENT(master_store)
 
 BROKER_DECLARE_LOG_COMPONENT(clone_store)
+
+BROKER_DECLARE_LOG_COMPONENT(network)
 
 #undef BROKER_DECLARE_LOG_COMPONENT
