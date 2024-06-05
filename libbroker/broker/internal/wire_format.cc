@@ -3,8 +3,8 @@
 #include "broker/envelope.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
+#include "broker/logger.hh"
 
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
