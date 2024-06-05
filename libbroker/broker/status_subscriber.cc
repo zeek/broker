@@ -6,9 +6,7 @@
 #include <caf/send.hpp>
 
 #include "broker/endpoint.hh"
-#include "broker/internal/logger.hh"
-
-namespace log = broker::internal::log;
+#include "broker/logger.hh"
 
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
   const auto& t = get_topic(msg);                                              \

@@ -13,12 +13,10 @@
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
-
-namespace log = broker::internal::log;
 
 namespace broker::detail {
 

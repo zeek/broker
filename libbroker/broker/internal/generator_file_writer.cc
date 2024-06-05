@@ -6,11 +6,11 @@
 #include "broker/detail/meta_data_writer.hh"
 #include "broker/detail/write_value.hh"
 #include "broker/error.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/meta_command_writer.hh"
 #include "broker/internal/meta_data_writer.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/write_value.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 namespace broker::internal {

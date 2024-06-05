@@ -12,9 +12,9 @@
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/entity_id.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/store_actor.hh"
 #include "broker/internal_command.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
