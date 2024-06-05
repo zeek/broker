@@ -9,6 +9,7 @@
 #include <caf/binary_deserializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
+#include <caf/deep_to_string.hpp>
 #include <caf/detail/append_hex.hpp>
 
 using namespace std::literals;
@@ -34,14 +35,16 @@ namespace broker::internal::wire_format {
 
 std::pair<ec, std::string_view> check(const hello_msg& x) {
   if (x.magic != magic_number) {
-    BROKER_DEBUG("received hello_msg from" << x.sender_id
-                                           << "with wrong magic number");
+    log::network::debug("invalid-magic",
+                        "received hello from {} with wrong magic number",
+                        x.sender_id);
     return {ec::wrong_magic_number, "wrong magic number"};
   }
   if (x.min_version > protocol_version || x.max_version < protocol_version) {
-    BROKER_DEBUG("received hello_msg from"
-                 << x.sender_id << "with unsupported versions;"
-                 << BROKER_ARG(x.min_version) << BROKER_ARG(x.max_version));
+    log::network::debug("incompatible-versions",
+                        "received hello from {} "
+                        "with unsupported versions range {}-{}",
+                        x.sender_id, x.min_version, x.max_version);
     return {ec::peer_incompatible, "unsupported versions offered"};
   }
   return {ec::none, {}};
@@ -49,7 +52,8 @@ std::pair<ec, std::string_view> check(const hello_msg& x) {
 
 std::pair<ec, std::string_view> check(const probe_msg& x) {
   if (x.magic != magic_number) {
-    BROKER_DEBUG("received probe_msg with wrong magic number");
+    log::network::debug("invalid-magic",
+                        "received probe with wrong magic number");
     return {ec::wrong_magic_number, "wrong magic number"};
   }
   return {ec::none, {}};
@@ -57,14 +61,17 @@ std::pair<ec, std::string_view> check(const probe_msg& x) {
 
 std::pair<ec, std::string_view> check(const version_select_msg& x) {
   if (x.magic != magic_number) {
-    BROKER_DEBUG("received version_select_msg from"
-                 << x.sender_id << "with wrong magic number");
+    log::network::debug("invalid-magic",
+                        "received version-select from {} "
+                        "with wrong magic number",
+                        x.sender_id);
     return {ec::wrong_magic_number, "wrong magic number"};
   }
   if (x.selected_version != protocol_version) {
-    BROKER_DEBUG("received version_select_msg from"
-                 << x.sender_id
-                 << "with unsupported version:" << x.selected_version);
+    log::network::debug("incompatible-versions",
+                        "received version-select from {} "
+                        "with unsupported version {}",
+                        x.sender_id, x.selected_version);
     return {ec::peer_incompatible, "unsupported version selected"};
   }
   return {ec::none, {}};
@@ -72,13 +79,17 @@ std::pair<ec, std::string_view> check(const version_select_msg& x) {
 
 std::pair<ec, std::string_view> check(const drop_conn_msg& x) {
   if (x.magic != magic_number) {
-    BROKER_DEBUG("received drop_conn_msg from" << x.sender_id
-                                               << "with wrong magic number");
+    log::network::debug("invalid-magic",
+                        "received drop-conn from {} "
+                        "with wrong magic number",
+                        x.sender_id);
     return {ec::wrong_magic_number, "wrong magic number"};
   }
   if (!convertible_to_ec(x.code)) {
-    BROKER_DEBUG("received drop_conn_msg with unrecognized error code"
-                 << x.code);
+    log::network::debug("invalid-error-code",
+                        "received drop-conn from {} "
+                        "with unrecognized error code {}",
+                        x.sender_id, x.code);
     return {ec::unspecified, x.description};
   }
   return {ec::none, {}};
@@ -88,22 +99,24 @@ namespace v1 {
 
 bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
   if (!msg) {
-    BROKER_ERROR("cannot serialize a null envelope");
+    log::network::error("null-envelope", "cannot serialize a null envelope");
     return false;
   }
-  BROKER_DEBUG("serialize envelope:" << *msg);
+  log::network::debug("serialize-envelope", "serialize envelope: {}", *msg);
   format::bin::v1::encoder sink{std::back_inserter(buf)};
   auto write_topic = [&msg, &sink, this] {
     auto str = msg->topic();
     if (str.size() > 0xFFFF) {
-      BROKER_ERROR("topic exceeds maximum size of 65,535 characters");
+      log::network::error("topic-too-long",
+                          "topic exceeds maximum size of 65,535 characters");
       last_error_ =
         make_error(caf::sec::invalid_argument,
                    "topic exceeds maximum size of 65,535 characters");
       return false;
     }
     if (!sink.apply(static_cast<uint16_t>(str.size()))) {
-      BROKER_ERROR("failed to write topic size");
+      log::network::error("failed-to-write-topic-size",
+                          "failed to write topic size");
       return false;
     }
     auto first = reinterpret_cast<const caf::byte*>(str.data());
@@ -130,16 +143,18 @@ bool trait::convert(caf::const_byte_span bytes, envelope_ptr& msg) {
   if (!res) {
     std::string hex;
     caf::detail::append_hex(hex, bytes.data(), bytes.size());
-    BROKER_ERROR("failed to deserialize envelope from" << hex << ":"
-                                                       << res.error());
+    log::network::error("failed-to-deserialize-envelope",
+                        "failed to deserialize envelope from {}: {}", hex,
+                        res.error());
     last_error_ = std::move(native(res.error()));
     return false;
   }
   msg = std::move(*res);
   if (msg)
-    BROKER_DEBUG("deserialized envelope:" << *msg);
+    log::network::debug("deserialize-envelope", "deserialized envelope: {}",
+                        *msg);
   else
-    BROKER_DEBUG("deserialized envelope: null");
+    log::network::debug("deserialize-envelope", "deserialized envelope: null");
   return true;
 }
 
@@ -157,8 +172,8 @@ std::string stringify(const var_msg& msg) {
   case type::tag: {                                                            \
     type tmp;                                                                  \
     if (!src.apply(tmp)) {                                                     \
-      BROKER_ERROR("decode: failed to read a" << #type << ":"                  \
-                                              << src.get_error());             \
+      log::network::error("decode-failed", "decode: failed to read a {}: {}",  \
+                          #type, src.get_error());                             \
       return make_var_msg_error(ec::invalid_message,                           \
                                 "failed to parse " #type ":"                   \
                                   + to_string(src.get_error()));               \
@@ -173,7 +188,9 @@ var_msg decode(caf::const_byte_span bytes) {
   caf::binary_deserializer src{nullptr, bytes};
   auto msg_type = p2p_message_type{0};
   if (!src.apply(msg_type)) {
-    BROKER_ERROR("decode: failed to read the type tag:" << src.get_error());
+    log::network::error("decode-failed",
+                        "decode: failed to read the type tag: {}",
+                        src.get_error());
     return make_var_msg_error(ec::invalid_message, "invalid message type tag"s);
   }
   switch (msg_type) {
@@ -187,8 +204,8 @@ var_msg decode(caf::const_byte_span bytes) {
     default:
       break;
   }
-  BROKER_ERROR("decode: found illegal message type"
-               << static_cast<int>(msg_type));
+  log::network::error("decode-failed", "decode: found illegal message type {}",
+                      static_cast<int>(msg_type));
   return make_var_msg_error(ec::invalid_message, "invalid message type tag"s);
 }
 

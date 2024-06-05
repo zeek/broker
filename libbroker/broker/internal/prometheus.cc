@@ -72,18 +72,22 @@ const char* prometheus_actor::name() const {
 
 caf::behavior prometheus_actor::make_behavior() {
   if (!core_) {
-    BROKER_ERROR("started a Prometheus actor with an invalid core handle");
+    log::network::error(
+      "prometheus-start-failed",
+      "started a Prometheus actor with an invalid core handle");
     return {};
   }
   monitor(core_);
   set_down_handler([this](const caf::down_msg& msg) {
     if (msg.source == core_) {
-      BROKER_INFO("the core terminated:" << msg.reason);
+      log::network::info("prometheus-core-down", "the core terminated: {}",
+                         msg.reason);
       quit(msg.reason);
     }
   });
   if (!filter_.empty()) {
-    BROKER_INFO("collect remote metrics from topics" << filter_);
+    log::network::info("prometheus-start",
+                       "collect remote metrics from topics: {}", filter_);
     send(core_, atom::join_v, filter_);
   }
   auto bhvr = caf::message_handler{
@@ -106,17 +110,20 @@ caf::behavior prometheus_actor::make_behavior() {
         return;
       // Dispatch to a handler or send an error if nothing matches.
       if (caf::starts_with(req_str, prom_request_start)) {
-        BROKER_DEBUG("serve HTTP request for /metrics");
+        log::network::debug("prometheus-http-request",
+                            "serve HTTP request for /metrics");
         on_metrics_request(msg.handle);
         return;
       }
       if (caf::starts_with(req_str, status_request_start)) {
-        BROKER_DEBUG("serve HTTP request for /v1/status/json");
+        log::network::debug("prometheus-http-request",
+                            "serve HTTP request for /v1/status/json");
         on_status_request(msg.handle);
         return;
       }
-      BROKER_DEBUG("reject unsupported HTTP request: "
-                   << std::string{req_str.substr(0, req_str.find("\r\n"sv))});
+      log::network::debug("prometheus-reject",
+                          "reject unsupported HTTP request: {}",
+                          req_str.substr(0, req_str.find("\r\n"sv)));
       write(msg.handle, caf::as_bytes(caf::make_span(request_not_supported)));
       flush_and_close(msg.handle);
     },
@@ -131,7 +138,8 @@ caf::behavior prometheus_actor::make_behavior() {
         quit();
     },
     [this](const caf::io::acceptor_closed_msg&) {
-      BROKER_ERROR("Prometheus actor lost its acceptor!");
+      log::network::error("prometheus-acceptor-closed",
+                          "Prometheus actor lost its acceptor");
       if (num_connections() + num_doormen() == 0)
         quit();
     },
@@ -140,7 +148,8 @@ caf::behavior prometheus_actor::make_behavior() {
     },
     [this](atom::join, const filter_type& filter) {
       filter_ = filter;
-      BROKER_INFO("collect remote metrics from topics" << filter_);
+      log::network::info("prometheus-join",
+                         "collect remote metrics from topics: {}", filter_);
       send(core_, atom::join_v, filter_);
     },
   };
