@@ -10,7 +10,7 @@
 #include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/next_tick.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 namespace ct = caf::telemetry;

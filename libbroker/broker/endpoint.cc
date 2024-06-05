@@ -9,11 +9,11 @@
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/json_client.hh"
 #include "broker/internal/json_type_mapper.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
+#include "broker/logger.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
@@ -48,7 +48,6 @@
 #include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/core_actor.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
 #include "broker/internal/prometheus.hh"
 #include "broker/publisher.hh"
@@ -65,8 +64,6 @@
 #endif
 
 using namespace std::literals;
-
-namespace log = broker::internal::log;
 
 namespace atom = broker::internal::atom;
 

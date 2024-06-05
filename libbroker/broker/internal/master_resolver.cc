@@ -10,8 +10,8 @@
 #include <caf/stateful_actor.hpp>
 
 #include "broker/error.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 
 namespace broker::internal {
 

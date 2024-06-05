@@ -1,8 +1,7 @@
 #include <memory>
 
 #include "broker/internal/metric_collector.hh"
-
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 namespace ct = caf::telemetry;
 

@@ -13,9 +13,9 @@
 
 #include "broker/detail/next_tick.hh"
 #include "broker/filter_type.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_scraper.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 

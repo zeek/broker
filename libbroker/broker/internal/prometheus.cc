@@ -6,8 +6,8 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/string_algorithms.hpp>
 
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_exporter.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 using namespace std::literals;
