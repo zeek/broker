@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace broker {
 
@@ -36,18 +37,25 @@ public:
   };
 
   /// Encodes the component that has emitted the event.
-  enum class component_type {
+  enum class component_type : uint32_t {
     /// The Broker core has emitted the event.
-    core,
+    core = 0b000'0001,
     /// The Broker endpoint has emitted the event.
-    endpoint,
+    endpoint = 0b000'0010,
     /// A Broker data store has emitted the event.
-    store,
+    store = 0b000'0100,
     /// The Broker network layer has emitted the event.
-    network,
+    network = 0b000'1000,
     /// A user-defined component has emitted the event.
-    app,
+    app = 0b001'0000,
   };
+
+  enum class component_mask : uint32_t {};
+
+  static constexpr auto nil_component_mask = static_cast<component_mask>(0);
+
+  static constexpr auto default_component_mask =
+    static_cast<component_mask>(0xFFFFFFFF);
 
   /// The time when the event has been emitted.
   broker::timestamp timestamp;
@@ -72,6 +80,29 @@ public:
       identifier(identifier),
       description(std::move(description)) {}
 };
+
+constexpr event::component_mask operator|(event::component_type lhs,
+                                          event::component_type rhs) noexcept {
+  auto res = static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs);
+  return static_cast<event::component_mask>(res);
+}
+
+constexpr event::component_mask operator|(event::component_mask lhs,
+                                          event::component_type rhs) noexcept {
+  auto res = static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs);
+  return static_cast<event::component_mask>(res);
+}
+
+constexpr event::component_mask operator|(event::component_type lhs,
+                                          event::component_mask rhs) noexcept {
+  auto res = static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs);
+  return static_cast<event::component_mask>(res);
+}
+
+constexpr bool has_component(event::component_mask mask,
+                             event::component_type component) noexcept {
+  return (static_cast<uint32_t>(mask) & static_cast<uint32_t>(component)) != 0;
+}
 
 /// A smart pointer holding an immutable ::event.
 using event_ptr = std::shared_ptr<const event>;
