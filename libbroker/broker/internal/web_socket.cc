@@ -2,8 +2,8 @@
 
 #include "broker/expected.hh"
 #include "broker/internal/connector.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
+#include "broker/logger.hh"
 
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/config_value.hpp>

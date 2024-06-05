@@ -7,7 +7,7 @@
 
 #include "broker/defaults.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 namespace broker::internal {
 

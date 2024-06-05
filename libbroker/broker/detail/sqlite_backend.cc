@@ -1,5 +1,3 @@
-#include "broker/internal/logger.hh"
-
 #include <cstdint>
 #include <cstdio> // std::snprintf
 #include <optional>
@@ -19,13 +17,11 @@
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/version.hh"
 
 #include "sqlite3.h"
-
-namespace log = broker::internal::log;
 
 namespace broker::detail {
 

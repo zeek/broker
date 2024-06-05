@@ -15,10 +15,10 @@
 
 #include "broker/expected.hh"
 #include "broker/internal/flare_actor.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
+#include "broker/logger.hh"
 
 /// Checks whether the store has been initialized and logs an error message
 /// otherwise before "returning" void.
@@ -32,7 +32,6 @@
   } while (false)
 
 namespace atom = broker::internal::atom;
-namespace log = broker::internal::log;
 
 using broker::internal::facade;
 using broker::internal::native;
