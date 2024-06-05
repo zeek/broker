@@ -8,16 +8,20 @@
 #include "broker/endpoint.hh"
 #include "broker/internal/logger.hh"
 
+namespace log = broker::internal::log;
+
 #define BROKER_RETURN_CONVERTED_MSG()                                          \
   const auto& t = get_topic(msg);                                              \
   if (t == topic::errors_str) {                                                \
     if (auto value = to<error>(get_data(msg)))                                 \
       return value_type{std::move(*value)};                                    \
-    BROKER_WARNING("received malformed error");                                \
+    log::endpoint::warning("subscriber-received-malformed-error",              \
+                           "received malformed error");                        \
   } else {                                                                     \
     if (auto value = to<status>(get_data(msg)))                                \
       return value_type{std::move(*value)};                                    \
-    BROKER_WARNING("received malformed status");                               \
+    log::endpoint::warning("subscriber-received-malformed-status",             \
+                           "received malformed status");                       \
   }
 
 #define BROKER_APPEND_CONVERTED_MSG()                                          \
@@ -26,15 +30,15 @@
     if (auto value = to<error>(get_data(msg)))                                 \
       result.emplace_back(std::move(*value));                                  \
     else                                                                       \
-      BROKER_WARNING("received malformed error");                              \
+      log::endpoint::warning("subscriber-received-malformed-error",            \
+                             "received malformed error");                      \
   } else {                                                                     \
     if (auto value = to<status>(get_data(msg)))                                \
       result.emplace_back(std::move(*value));                                  \
     else                                                                       \
-      BROKER_WARNING("received malformed status");                             \
+      log::endpoint::warning("subscriber-received-malformed-status",           \
+                             "received malformed status");                     \
   }
-
-using namespace caf;
 
 namespace broker {
 
