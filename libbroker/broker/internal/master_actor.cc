@@ -1,5 +1,3 @@
-#include "broker/internal/logger.hh" // Needs to come before CAF includes.
-
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
@@ -18,6 +16,7 @@
 #include "broker/internal/checked.hh"
 #include "broker/internal/master_actor.hh"
 #include "broker/internal/metric_factory.hh"
+#include "broker/logger.hh"
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"

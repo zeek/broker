@@ -6,10 +6,10 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/format/bin.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 #include <caf/async/spsc_buffer.hpp>

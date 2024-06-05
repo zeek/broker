@@ -12,7 +12,7 @@
 
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 #ifdef BROKER_WINDOWS
 
@@ -46,8 +46,6 @@ bool try_again_later() {
 #  define PIPE_WRITE ::write
 
 #  define PIPE_READ ::read
-
-namespace log = broker::internal::log;
 
 namespace {
 

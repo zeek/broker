@@ -7,10 +7,10 @@
 #include <caf/binary_serializer.hpp>
 #include <caf/sec.hpp>
 
-#include "broker/internal/logger.hh"
 #include "broker/internal/meta_data_writer.hh"
 #include "broker/internal/read_value.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 
 using std::string;
 
