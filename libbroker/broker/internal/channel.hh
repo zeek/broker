@@ -11,9 +11,9 @@
 #include <caf/send.hpp>
 
 #include "broker/error.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_factory.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/logger.hh"
 #include "broker/none.hh"
 
 #include <prometheus/gauge.h>

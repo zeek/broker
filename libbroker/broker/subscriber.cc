@@ -19,11 +19,9 @@
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
-
-namespace log = broker::internal::log;
+#include "broker/logger.hh"
 
 using broker::internal::native;
 

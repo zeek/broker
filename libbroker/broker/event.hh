@@ -27,6 +27,9 @@ public:
     /// Signals a noteworthy event during normal system operation such as a new
     /// peering connection.
     info,
+    /// The event carries information that might be relevant for a user to
+    /// understand the system behavior.
+    verbose,
     /// The event carries information relevant only for troubleshooting and
     /// debugging purposes.
     debug
@@ -36,12 +39,14 @@ public:
   enum class component_type {
     /// The Broker core has emitted the event.
     core,
-    /// The endpoint has emitted the event.
+    /// The Broker endpoint has emitted the event.
     endpoint,
     /// A Broker data store has emitted the event.
     store,
     /// The Broker network layer has emitted the event.
     network,
+    /// A user-defined component has emitted the event.
+    app,
   };
 
   /// The time when the event has been emitted.
