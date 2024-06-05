@@ -1,23 +1,5 @@
 #pragma once
 
-#include <caf/logger.hpp>
-
-#define BROKER_LOG(level, ...) CAF_LOG_IMPL("broker", level, __VA_ARGS__)
-
-#define BROKER_DEBUG(...) BROKER_LOG(CAF_LOG_LEVEL_DEBUG, __VA_ARGS__)
-
-#define BROKER_INFO(...) BROKER_LOG(CAF_LOG_LEVEL_INFO, __VA_ARGS__)
-
-#define BROKER_WARNING(...) BROKER_LOG(CAF_LOG_LEVEL_WARNING, __VA_ARGS__)
-
-#define BROKER_ERROR(...) BROKER_LOG(CAF_LOG_LEVEL_ERROR, __VA_ARGS__)
-
-#define BROKER_ARG CAF_ARG
-
-#define BROKER_ARG2 CAF_ARG2
-
-#define BROKER_ARG3 CAF_ARG3
-
 #include "broker/convert.hh"
 #include "broker/event.hh"
 #include "broker/event_observer.hh"
@@ -70,7 +52,7 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
       lookahead = '\0';
   };
   while (index < fmt.size()) {
-    switch (ch){
+    switch (ch) {
       // Must be "{}" (placeholder) or "{{" (escaped '{').
       case '{':
         if (lookahead == '{') {

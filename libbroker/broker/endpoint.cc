@@ -960,7 +960,8 @@ bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
 void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
                           timespan timeout) {
   if (!callback) {
-    BROKER_ERROR("invalid callback received for await_peer");
+    log::endpoint::error("invalid-callback",
+                         "invalid callback received for await_peer");
     return;
   }
   auto f = [whom, cb{std::move(callback)}](caf::event_based_actor* self,
