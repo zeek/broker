@@ -17,22 +17,30 @@ event_observer* logger() noexcept;
 void logger(event_observer_ptr ptr) noexcept;
 
 /// Creates a new logger that prints to the console.
-event_observer_ptr make_console_logger(event::severity_level severity);
+event_observer_ptr
+make_console_logger(event::severity_level severity,
+                    event::component_mask mask = event::default_component_mask);
 
 /// Creates a new logger that prints to the console.
 /// @param severity The minimum severity level to log as string. One of:
 ///                 "critical", "error", "warning", "info", or "debug".
 /// @throws std::invalid_argument if `severity` is not a valid severity level.
-event_observer_ptr make_console_logger(std::string_view severity);
+event_observer_ptr
+make_console_logger(std::string_view severity,
+                    event::component_mask mask = event::default_component_mask);
 
 /// Convenience function for setting a console logger.
-inline void set_console_logger(event::severity_level severity) {
-  logger(make_console_logger(severity));
+inline void
+set_console_logger(event::severity_level severity,
+                   event::component_mask mask = event::default_component_mask) {
+  logger(make_console_logger(severity, mask));
 }
 
 /// Convenience function for setting a console logger.
-inline void set_console_logger(std::string_view severity) {
-  logger(make_console_logger(severity));
+inline void
+set_console_logger(std::string_view severity,
+                   event::component_mask mask = event::default_component_mask) {
+  logger(make_console_logger(severity,mask));
 }
 
 } // namespace broker
@@ -128,8 +136,9 @@ void do_log(event::severity_level level, event::component_type component,
   auto msg = std::string{};
   msg.reserve(fmt_str.size() + sizeof...(Ts) * 8);
   fmt_to(std::back_inserter(msg), fmt_str, std::forward<Ts>(args)...);
-  lptr->observe(std::make_shared<event>(event::severity_level::debug, component,
-                                        identifier, std::move(msg)));
+  auto ev = std::make_shared<event>(level, component, identifier,
+                                    std::move(msg));
+  lptr->observe(std::move(ev));
 }
 
 } // namespace broker::detail
@@ -183,5 +192,7 @@ BROKER_DECLARE_LOG_COMPONENT(endpoint)
 BROKER_DECLARE_LOG_COMPONENT(store)
 
 BROKER_DECLARE_LOG_COMPONENT(network)
+
+BROKER_DECLARE_LOG_COMPONENT(app)
 
 #undef BROKER_DECLARE_LOG_COMPONENT

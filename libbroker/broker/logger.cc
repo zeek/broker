@@ -15,7 +15,7 @@ namespace {
 
 event_observer_ptr global_observer;
 
-constexpr auto severity_color(event::severity_level level) {
+constexpr caf::term severity_color(event::severity_level level) {
   switch (level) {
     default: // critical and error
       return caf::term::red;
@@ -23,23 +23,44 @@ constexpr auto severity_color(event::severity_level level) {
       return caf::term::yellow;
     case event::severity_level::info:
       return caf::term::green;
-    case event::severity_level::debug:
+    case event::severity_level::verbose:
       return caf::term::blue;
+    case event::severity_level::debug:
+      return caf::term::cyan;
   };
 }
 
-constexpr auto severity_name(event::severity_level level) {
+constexpr const char* component_tag(event::component_type component) {
+  switch (component) {
+    default:
+      return "[???]";
+    case event::component_type::core:
+      return "[core]";
+    case event::component_type::endpoint:
+      return "[endpoint]";
+    case event::component_type::store:
+      return "[store]";
+    case event::component_type::network:
+      return "[network]";
+    case event::component_type::app:
+      return "[app]";
+  };
+}
+
+constexpr const char* severity_name(event::severity_level level) {
   switch (level) {
     default:
       return "?????";
     case event::severity_level::critical:
-      return "CRIT ";
+      return "CRITICAL";
     case event::severity_level::error:
       return "ERROR";
     case event::severity_level::warning:
-      return "WARN ";
+      return "WARNING";
     case event::severity_level::info:
-      return "INFO ";
+      return "INFO";
+    case event::severity_level::verbose:
+      return "VERBOSE";
     case event::severity_level::debug:
       return "DEBUG";
   };
@@ -47,8 +68,8 @@ constexpr auto severity_name(event::severity_level level) {
 
 class console_logger : public event_observer {
 public:
-  explicit console_logger(event::severity_level severity)
-    : severity_(severity) {
+  console_logger(event::severity_level severity, event::component_mask mask)
+    : severity_(severity), mask_(mask) {
     // nop
   }
 
@@ -70,17 +91,19 @@ public:
     std::cout << severity_color(what->severity)
               << std::put_time(std::localtime(&secs), "%F %T") << '.'
               << msecs_str << ' ' << severity_name(what->severity) << ' '
-              << what->description << caf::term::reset << std::endl;
+              << component_tag(what->component) << ' ' << what->description
+              << caf::term::reset << std::endl;
   }
 
   bool accepts(event::severity_level severity,
-               event::component_type) const override {
-    return severity >= severity_;
+               event::component_type component) const override {
+    return severity <= severity_ && has_component(mask_, component);
   }
 
 private:
   std::mutex mtx_;
   event::severity_level severity_;
+  event::component_mask mask_;
 };
 
 } // namespace
@@ -93,25 +116,27 @@ void logger(event_observer_ptr ptr) noexcept {
   global_observer = std::move(ptr);
 }
 
-event_observer_ptr make_console_logger(event::severity_level severity) {
-  return std::make_shared<console_logger>(severity);
+event_observer_ptr make_console_logger(event::severity_level severity,
+                                       event::component_mask mask) {
+  return std::make_shared<console_logger>(severity, mask);
 }
 
-event_observer_ptr make_console_logger(std::string_view severity) {
+event_observer_ptr make_console_logger(std::string_view severity,
+                                       event::component_mask mask) {
   if (severity == "critical") {
-    return make_console_logger(event::severity_level::critical);
+    return make_console_logger(event::severity_level::critical, mask);
   }
   if (severity == "error") {
-    return make_console_logger(event::severity_level::error);
+    return make_console_logger(event::severity_level::error, mask);
   }
   if (severity == "warning") {
-    return make_console_logger(event::severity_level::warning);
+    return make_console_logger(event::severity_level::warning, mask);
   }
   if (severity == "info") {
-    return make_console_logger(event::severity_level::info);
+    return make_console_logger(event::severity_level::info, mask);
   }
   if (severity == "debug") {
-    return make_console_logger(event::severity_level::debug);
+    return make_console_logger(event::severity_level::debug, mask);
   }
   throw std::invalid_argument("invalid severity level");
 }
