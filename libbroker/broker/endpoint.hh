@@ -256,7 +256,7 @@ public:
   /// Publishes a message.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(topic t, data d);
+  void publish(topic t, const data& d);
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -286,7 +286,7 @@ public:
   /// @param dst The destination endpoint.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(const endpoint_info& dst, topic t, data d);
+  void publish(const endpoint_info& dst, topic t, const data& d);
 
   /// Publishes a message to a specific peer endpoint only.
   /// @param dst The destination endpoint.

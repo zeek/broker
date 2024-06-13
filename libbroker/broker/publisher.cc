@@ -226,7 +226,7 @@ void publisher::publish(const data& x) {
   dptr(queue_)->push(caf::make_span(&msg, 1));
 }
 
-void publisher::publish(std::vector<data> xs) {
+void publisher::publish(const std::vector<data>& xs) {
   std::vector<data_message> msgs;
   msgs.reserve(xs.size());
   for (auto& x : xs)
