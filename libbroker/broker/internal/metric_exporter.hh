@@ -13,9 +13,9 @@
 
 #include "broker/detail/next_tick.hh"
 #include "broker/filter_type.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_scraper.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
@@ -65,8 +65,9 @@ public:
     self->monitor(core);
     self->set_down_handler([this](const caf::down_msg& down) {
       if (down.source == core) {
-        BROKER_INFO(self->name()
-                    << "received a down message from the core: bye");
+        log::network::info("metric-exporter-core-down",
+                           "{} received a down message from the core: bye",
+                           self->name());
         self->quit(down.reason);
       }
     });
@@ -114,7 +115,8 @@ public:
   /// preconditions are met.
   void cold_boot() {
     if (!running_ && has_valid_config()) {
-      BROKER_INFO("start publishing metrics to topic" << target);
+      log::network::info("metric-exporter-cold-boot",
+                         "start publishing metrics to topic {}", target);
       impl.scrape(self->system().metrics());
       tick_init = self->clock().now();
       self->scheduled_send(self, tick_init + interval, caf::tick_atom_v);
@@ -134,7 +136,8 @@ public:
 
   void set_target(topic new_target) {
     if (!new_target.empty()) {
-      BROKER_INFO("publish metrics to topic" << new_target);
+      log::network::info("metric-exporter-set-target",
+                         "publish metrics to topic {}", new_target);
       target = std::move(new_target);
       if (impl.id().empty())
         impl.id(std::string{target.suffix()});

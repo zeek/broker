@@ -45,7 +45,7 @@ public:
 
   template <class T>
   void broadcast(T&& cmd) {
-    BROKER_TRACE(BROKER_ARG(cmd));
+    log::store::debug("broadcast", "broadcasting command: {}", cmd);
     // Suppress message if no one is listening.
     if (output.paths().empty())
       return;
@@ -94,7 +94,8 @@ public:
 
   template <class T>
   void consume(T& cmd) {
-    BROKER_ERROR("master got unexpected command:" << cmd);
+    log::store::debug("unexpected-command", "master got unexpected command: {}",
+                      cmd);
   }
 
   error consume_nil(consumer_type* src);

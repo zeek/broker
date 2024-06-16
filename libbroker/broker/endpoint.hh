@@ -256,7 +256,7 @@ public:
   /// Publishes a message.
   /// @param t The topic of the message.
   /// @param d The message data.
-  void publish(topic t, data d);
+  void publish(topic t, const data& d);
 
   /// Publishes a message.
   /// @param t The topic of the message.
@@ -306,11 +306,14 @@ public:
   /// @param xs The contents of the messages.
   void publish(topic t, std::initializer_list<data> xs);
 
-  // Publishes the messages `x`.
+  /// Publishes the messages `x`.
   void publish(data_message x);
 
-  // Publishes all messages in `xs`.
+  /// Publishes all messages in `xs`.
   void publish(std::vector<data_message> xs);
+
+  /// Publishes a message to a specific peer endpoint only.
+  void publish(const endpoint_info& dst, data_message x);
 
   publisher make_publisher(topic ts);
 

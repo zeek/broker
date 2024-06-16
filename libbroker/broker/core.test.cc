@@ -8,7 +8,7 @@
 
 #include "broker/configuration.hh"
 #include "broker/endpoint.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 using broker::internal::core_actor_type;
 using broker::internal::facade;

@@ -1,8 +1,7 @@
 #include <memory>
 
 #include "broker/internal/metric_collector.hh"
-
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 namespace ct = caf::telemetry;
 
@@ -25,7 +24,8 @@ public:
     if (mv.type() == type_tag) {
       value_ = get<T>(mv.value());
     } else {
-      BROKER_ERROR("conflicting remote metric update received!");
+      log::network::error("remote-metric-conflict",
+                          "conflicting remote metric update received!");
     }
   }
 
@@ -52,7 +52,8 @@ public:
     if (mv.type() == type_tag) {
       value_ = get<T>(mv.value());
     } else {
-      BROKER_ERROR("conflicting remote metric update received!");
+      log::network::error("remote-metric-conflict",
+                          "conflicting remote metric update received!");
     }
   }
 
@@ -88,7 +89,8 @@ public:
       });
       sum_ = get<T>(vals.back());
     } else {
-      BROKER_ERROR("conflicting remote metric update received!");
+      log::network::error("remote-metric-conflict",
+                          "conflicting remote metric update received!");
     }
   }
 

@@ -36,4 +36,7 @@ public:
 /// @relates command_envelope
 using command_envelope_ptr = intrusive_ptr<const command_envelope>;
 
+/// @relates command_envelope
+void convert(const command_envelope_ptr& cmd, std::string& str);
+
 } // namespace broker

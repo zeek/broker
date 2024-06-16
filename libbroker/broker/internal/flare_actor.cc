@@ -6,7 +6,6 @@
 #include <caf/mailbox_element.hpp>
 
 #include "broker/detail/assert.hh"
-#include "broker/internal/logger.hh"
 
 namespace broker::internal {
 
@@ -23,7 +22,6 @@ void flare_actor::act() {
 }
 
 void flare_actor::await_data() {
-  BROKER_DEBUG("awaiting data");
   std::unique_lock<std::mutex> lock{flare_mtx_};
   if (flare_count_ > 0)
     return;
@@ -32,7 +30,6 @@ void flare_actor::await_data() {
 }
 
 bool flare_actor::await_data(timeout_type timeout) {
-  BROKER_DEBUG("awaiting data with timeout");
   std::unique_lock<std::mutex> lock{flare_mtx_};
   if (flare_count_ > 0)
     return true;
@@ -47,7 +44,6 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   std::unique_lock<std::mutex> lock{flare_mtx_};
   switch (mailbox().enqueue(ptr.release())) {
     case caf::intrusive::inbox_result::unblocked_reader: {
-      BROKER_DEBUG("firing flare");
       flare_.fire();
       ++flare_count_;
       return true;

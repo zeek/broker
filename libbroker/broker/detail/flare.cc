@@ -12,7 +12,7 @@
 
 #include "broker/config.hh"
 #include "broker/detail/assert.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 #ifdef BROKER_WINDOWS
 
@@ -79,18 +79,22 @@ struct stack_buffer {
 flare::flare() {
   auto maybe_fds = caf::net::make_pipe();
   if (!maybe_fds) {
-    BROKER_ERROR("failed to create pipe: " << maybe_fds.error());
+    log::core::critical("cannot-create-pipe", "failed to create pipe: {}",
+                        maybe_fds.error());
     abort();
   }
   auto [first, second] = *maybe_fds;
   fds_[0] = first.id;
   fds_[1] = second.id;
   if (auto err = caf::net::child_process_inherit(first, false))
-    BROKER_ERROR("failed to set flare fd 0 CLOEXEC: " << err);
+    log::core::error("cannot-set-cloexec",
+                     "failed to set flare fd 0 CLOEXEC: {}", err);
   if (auto err = caf::net::child_process_inherit(second, false))
-    BROKER_ERROR("failed to set flare fd 1 CLOEXEC: " << err);
+    log::core::error("cannot-set-cloexec",
+                     "failed to set flare fd 1 CLOEXEC: {}", err);
   if (auto err = caf::net::nonblocking(first, true)) {
-    BROKER_ERROR("failed to set flare fd 0 NONBLOCK: " << err);
+    log::core::critical("cannot-set-nonblock",
+                        "failed to set flare fd 0 NONBLOCK: {}", err);
     std::terminate();
   }
   // Do not set the write handle to nonblock, because we want the producer to
@@ -114,7 +118,8 @@ void flare::fire(size_t num) {
     int len = static_cast<int>(std::min(remaining, stack_buffer_size));
     auto n = PIPE_WRITE(fds_[1], tmp.data, len);
     if (n <= 0) {
-      BROKER_ERROR("unable to write flare pipe!");
+      log::core::error("cannot-write-flare-pipe",
+                       "failed to write to flare pipe: {}", n);
       std::terminate();
     }
     remaining -= static_cast<size_t>(n);
@@ -145,10 +150,8 @@ bool flare::extinguish_one() {
 }
 
 void flare::await_one() {
-  BROKER_TRACE("");
   pollfd p = {fds_[0], POLLIN, 0};
   for (;;) {
-    BROKER_DEBUG("polling");
     auto n = ::poll(&p, 1, -1);
     if (n < 0 && !try_again_later())
       std::terminate();
@@ -160,7 +163,6 @@ void flare::await_one() {
 }
 
 bool flare::await_one_impl(int ms_timeout) {
-  BROKER_TRACE("");
   pollfd p = {fds_[0], POLLIN, 0};
   auto n = ::poll(&p, 1, ms_timeout);
   if (n < 0 && !try_again_later())
