@@ -281,8 +281,7 @@ struct sqlite_backend::impl {
     if (!dir.empty()) {
       if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
         log::store::error("sqlite-create-dir-failed",
-                          "failed to create directory for database: {}",
-                          dir.c_str());
+                          "failed to create directory for database: {}", dir);
         return false;
       }
     }
