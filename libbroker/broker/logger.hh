@@ -97,6 +97,9 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
           } else if constexpr (has_to_string<T>::value) {
             auto str = to_string(arg);
             out = std::copy(str.begin(), str.end(), out);
+          } else if constexpr (has_string_member_fn<T>::value) {
+            auto&& str = arg.string();
+            out = std::copy(str.begin(), str.end(), out);
           } else {
             static_assert(std::is_convertible_v<T, const char*>);
             for (auto cstr = arg; *cstr != '\0'; ++cstr)
