@@ -85,7 +85,7 @@ bool operator==(const string_list& xs, const pattern_list& ys) {
 }
 
 struct fixture : base_fixture {
-  string_list log;
+  string_list log_lines;
   worker logger;
 
   caf::timespan tick_interval = defaults::store::tick_interval;
@@ -100,11 +100,11 @@ struct fixture : base_fixture {
       [this](data_message msg) {
         auto content = get_data(msg).to_data();
         if (auto insert = store_event::insert::make(content))
-          log.emplace_back(to_string(insert));
+          log_lines.emplace_back(to_string(insert));
         else if (auto update = store_event::update::make(content))
-          log.emplace_back(to_string(update));
+          log_lines.emplace_back(to_string(update));
         else if (auto erase = store_event::erase::make(content))
-          log.emplace_back(to_string(erase));
+          log_lines.emplace_back(to_string(erase));
         else
           FAIL("unknown event: " << to_string(content));
       },
@@ -162,12 +162,13 @@ TEST(local_master) {
   CHECK_EQUAL(unbox(ds.put_unique("bar", "unicorn")), data{false});
   // check log
   run(tick_interval);
-  CHECK_EQUAL(log, pattern_list({
-                     "insert\\(foo, hello, world, (null|none), .+\\)",
-                     "update\\(foo, hello, world, universe, (null|none), .+\\)",
-                     "erase\\(foo, hello, .+\\)",
-                     "insert\\(foo, bar, baz, .+\\)",
-                   }));
+  CHECK_EQUAL(log_lines,
+              pattern_list({
+                "insert\\(foo, hello, world, (null|none), .+\\)",
+                "update\\(foo, hello, world, universe, (null|none), .+\\)",
+                "erase\\(foo, hello, .+\\)",
+                "insert\\(foo, bar, baz, .+\\)",
+              }));
   // done
   caf::anon_send_exit(core, caf::exit_reason::user_shutdown);
 }

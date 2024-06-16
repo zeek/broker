@@ -248,6 +248,21 @@ public:
   static constexpr bool value = std::is_same_v<result, std::string>;
 };
 
+// Trait that checks whether a type has a .string() member function.
+template <class T>
+class has_string_member_fn {
+private:
+  template <class U>
+  static auto sfinae(const U& x) -> decltype(x.string());
+
+  static void sfinae(...);
+
+  using result = std::decay_t<decltype(sfinae(std::declval<const T&>()))>;
+
+public:
+  static constexpr bool value = std::is_same_v<result, std::string>;
+};
+
 } // namespace broker::detail
 
 #define BROKER_DEF_HAS_ENCODE_IN_NS(ns_name)                                   \
