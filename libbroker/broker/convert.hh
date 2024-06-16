@@ -130,8 +130,9 @@ template <class T>
 std::enable_if_t<
   detail::has_convert_v<T, std::string> // must have a convert function
     && !std::is_arithmetic_v<T> // avoid ambiguitiy with default overloads
-    && !std::is_convertible_v<T, std::string>, // avoid ambiguity with
-                                               // conversion-to-string
+    && !std::is_convertible_v<T, std::string> // avoid ambiguity with
+                                              // conversion-to-string
+    && !std::is_same_v<T, std::string_view>,
   std::ostream&>
 operator<<(std::ostream& os, const T& x) {
   std::string str;
