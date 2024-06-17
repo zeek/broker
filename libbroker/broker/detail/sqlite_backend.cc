@@ -8,12 +8,12 @@
 #include <vector>
 
 #include <caf/binary_deserializer.hpp>
-#include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
 #include "broker/detail/appliers.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/detail/scope_guard.hh"
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -29,11 +29,11 @@ namespace broker::detail {
 namespace {
 
 auto make_statement_guard = [](sqlite3_stmt* stmt) {
-  return caf::detail::make_scope_guard([=] { sqlite3_reset(stmt); });
+  return scope_guard{[=] { sqlite3_reset(stmt); }};
 };
 
 auto to_blob(const data& x) {
-  std::vector<caf::byte> buf;
+  std::vector<std::byte> buf;
   buf.reserve(128); // Pre-allocate some space.
   format::bin::v1::encode(x, std::back_inserter(buf));
   return buf;

@@ -14,7 +14,7 @@ public:
   using super = caf::flow::op::cold<T>;
 
   killswitch(caf::flow::observable<T> decorated)
-    : super(decorated.ctx()), decorated_(std::move(decorated)) {
+    : super(decorated.parent()), decorated_(std::move(decorated)) {
     // nop
   }
 

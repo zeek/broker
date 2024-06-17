@@ -10,7 +10,7 @@ using namespace broker;
 namespace {
 
 // A data message that has one of everything.
-constexpr caf::string_view json = R"_({
+constexpr std::string_view json = R"_({
   "type": "data-message",
   "topic": "/test/cpp/internal/json-type-mapper",
   "@data-type": "vector",
@@ -156,7 +156,7 @@ TEST(a data message in JSON can be rewritten to the binary format) {
   CHECK(!err);
   auto maybe_msg = data_envelope::deserialize(
     endpoint_id::nil(), endpoint_id::nil(), defaults::ttl,
-    caf::to_string(obj.value("topic").to_string()), bin.data(), bin.size());
+    std::string{obj.value("topic").to_string()}, bin.data(), bin.size());
   REQUIRE(maybe_msg);
   CHECK_EQ((*maybe_msg)->value().to_data(), native()->value().to_data());
 }

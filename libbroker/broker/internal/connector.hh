@@ -9,15 +9,11 @@
 
 #include <caf/actor.hpp>
 #include <caf/error.hpp>
-#include <caf/net/openssl_transport.hpp>
 
 #include <condition_variable>
 #include <mutex>
 
 namespace broker::internal {
-
-// TODO: exposed for internal/web_socket.cc, drop when switching to CAF 0.19.
-caf::net::openssl::ctx_ptr ssl_context_from_cfg(const openssl_options_ptr& cfg);
 
 // "Strong typedef" akin to std::byte;
 enum class connector_event_id : uint64_t {};
@@ -89,7 +85,7 @@ public:
 private:
   void run_impl(listener* sub, shared_filter_type* filter);
 
-  void write_to_pipe(caf::span<const caf::byte> bytes,
+  void write_to_pipe(caf::span<const std::byte> bytes,
                      bool shutdown_after_write = false);
 
   std::mutex mtx_;

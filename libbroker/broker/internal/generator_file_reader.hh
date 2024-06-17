@@ -31,7 +31,7 @@ public:
 #endif
 
   using read_raw_callback =
-    std::function<bool(value_type*, caf::span<const caf::byte>)>;
+    std::function<bool(value_type*, caf::span<const std::byte>)>;
 
   generator_file_reader(file_handle_type fd, mapper_handle mapper,
                         mapped_pointer addr, size_t file_size);

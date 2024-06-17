@@ -6,6 +6,7 @@
 
 #include <caf/test/unit_test_impl.hpp>
 
+#include <caf/chunk.hpp>
 #include <caf/defaults.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/test/dsl.hpp>
@@ -137,6 +138,8 @@ base_fixture::base_fixture()
 }
 
 base_fixture::~base_fixture() {
+  if (ep.is_shutdown())
+    return;
   run();
   // Our core might do some messaging in its dtor, hence we need to make sure
   // messages are handled when enqueued to avoid blocking.
@@ -171,7 +174,7 @@ using bridge_actor = caf::stateful_actor<bridge_state>;
 } // namespace
 
 base_fixture::endpoint_state base_fixture::ep_state(caf::actor core) {
-  auto& st = deref<internal::core_actor>(core).state;
+  auto& st = deref<internal::core_actor>(core).state();
   return endpoint_state{st.id, st.filter->read(), core};
 }
 
@@ -182,13 +185,13 @@ caf::actor base_fixture::bridge(const endpoint_state& left,
   auto [self, launch] = sys.spawn_inactive<bridge_actor>();
   {
     CAF_PUSH_AID_FROM_PTR(self);
-    auto [con1, prod1] = make_spsc_buffer_resource<node_message>();
-    auto [con2, prod2] = make_spsc_buffer_resource<node_message>();
+    auto [con1, prod1] = make_spsc_buffer_resource<caf::chunk>();
+    auto [con2, prod2] = make_spsc_buffer_resource<caf::chunk>();
     caf::anon_send(left.hdl, atom::peer_v, right.id,
                    network_info{to_string(right.id), 42}, right.filter, con1,
                    prod2);
-    auto [con3, prod3] = make_spsc_buffer_resource<node_message>();
-    auto [con4, prod4] = make_spsc_buffer_resource<node_message>();
+    auto [con3, prod3] = make_spsc_buffer_resource<caf::chunk>();
+    auto [con4, prod4] = make_spsc_buffer_resource<caf::chunk>();
     caf::anon_send(right.hdl, atom::peer_v, left.id,
                    network_info{to_string(left.id), 42}, left.filter, con3,
                    prod4);

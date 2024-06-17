@@ -144,17 +144,8 @@ int main(int argc, char** argv) try {
     return EXIT_FAILURE;
   }
   // Open and parse the file.
-  // TODO: CAF 0.19 has `load_file` for this.
-  auto in_file = std::ifstream{*path};
-  if (!in_file) {
-    std::cerr << "*** failed to open file: " << *path << "\n";
-    return EXIT_FAILURE;
-  }
-  auto buffer = std::stringstream{};
-  buffer << in_file.rdbuf();
-  auto json = buffer.str();
   auto reader = caf::json_reader{};
-  if (!reader.load(json)) {
+  if (!reader.load_file(*path)) {
     std::cerr << "*** failed to load JSON file: "
               << to_string(reader.get_error()) << '\n';
     return EXIT_FAILURE;

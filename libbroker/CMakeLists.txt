@@ -57,7 +57,6 @@ set(BROKER_SRC
   broker/internal/json_client.cc
   broker/internal/json_type_mapper.cc
   broker/internal/master_actor.cc
-  broker/internal/master_resolver.cc
   broker/internal/metric_collector.cc
   broker/internal/metric_exporter.cc
   broker/internal/metric_factory.cc
@@ -123,6 +122,9 @@ if (ENABLE_SHARED)
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                              $<INSTALL_INTERFACE:include>)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(broker PRIVATE -Wno-deprecated-declarations)
+  endif()
 endif ()
 
 if (ENABLE_STATIC)
@@ -140,6 +142,9 @@ if (ENABLE_STATIC)
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                              $<INSTALL_INTERFACE:include>)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(broker_static PRIVATE -Wno-deprecated-declarations)
+  endif()
 endif ()
 
 if (ENABLE_SHARED)

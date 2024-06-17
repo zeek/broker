@@ -102,11 +102,11 @@ struct fixture : test_coordinator_fixture<config> {
   }
 
   auto& state(caf::actor hdl) {
-    return deref<internal::core_actor>(hdl).state;
+    return deref<internal::core_actor>(hdl).state();
   }
 
   auto& state(const endpoint_state& ep) {
-    return deref<internal::core_actor>(ep.hdl).state;
+    return deref<internal::core_actor>(ep.hdl).state();
   }
   auto peer_ids(const endpoint_state& ep) {
     auto result = state(ep).peer_ids();

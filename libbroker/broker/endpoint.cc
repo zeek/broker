@@ -10,7 +10,6 @@
 #include "broker/internal/json_client.hh"
 #include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/metric_exporter.hh"
-#include "broker/internal/prometheus.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
 #include "broker/logger.hh"
@@ -27,6 +26,7 @@
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
 #include <caf/error.hpp>
+#include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/io/network/default_multiplexer.hpp>
@@ -36,7 +36,6 @@
 #include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
@@ -49,13 +48,13 @@
 #include "broker/internal/connector.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/metric_exporter.hh"
-#include "broker/internal/prometheus.hh"
 #include "broker/publisher.hh"
 #include "broker/status_subscriber.hh"
 #include "broker/subscriber.hh"
 #include "broker/timeout.hh"
 
 #include <chrono>
+#include <fstream>
 #include <memory>
 #include <thread>
 
@@ -149,7 +148,7 @@ public:
     auto& sc = ctx_->sys.clock();
     auto t = sc.now() + after;
     auto me = caf::make_mailbox_element(nullptr, caf::make_message_id(),
-                                        caf::no_stages, std::move(msg));
+                                        std::move(msg));
     sc.schedule_message(t, caf::actor_cast<caf::strong_actor_ptr>(native(dest)),
                         std::move(me));
   }
@@ -213,7 +212,7 @@ public:
     // take too long.
     auto tout_mme = caf::make_mailbox_element(self->ctrl(),
                                               caf::make_message_id(),
-                                              caf::no_stages, atom::tick_v);
+                                              atom::tick_v);
     auto& caf_clock = self->clock();
     auto tout =
       caf_clock.schedule_message(caf_clock.now() + timeout::frontend,
@@ -270,89 +269,6 @@ private:
 endpoint::background_task::~background_task() {
   // nop
 }
-
-namespace {
-
-class prometheus_http_task : public endpoint::background_task {
-public:
-  prometheus_http_task(caf::actor_system& sys) : mpx_(&sys) {
-    // nop
-  }
-
-  template <class T>
-  bool has(caf::string_view name) {
-    auto res = caf::get_as<T>(mpx_.system().config(), name);
-    return static_cast<bool>(res);
-  }
-
-  expected<uint16_t> start(uint16_t port, caf::actor core,
-                           const char* in = nullptr, bool reuse = true) {
-    caf::io::doorman_ptr dptr;
-    if (auto maybe_dptr = mpx_.new_tcp_doorman(port, in, reuse)) {
-      dptr = std::move(*maybe_dptr);
-    } else {
-      return facade(maybe_dptr.error());
-    }
-    auto actual_port = dptr->port();
-    using impl = internal::prometheus_actor;
-    mpx_supervisor_ = mpx_.make_supervisor();
-    caf::actor_config cfg{&mpx_};
-    worker_ = mpx_.system().spawn_impl<impl, caf::hidden>(cfg, std::move(dptr),
-                                                          std::move(core));
-    struct { // TODO: replace with std::latch when available.
-      std::mutex mx;
-      std::condition_variable cv;
-      bool lit = false;
-      void ignite() {
-        std::unique_lock<std::mutex> guard{mx};
-        lit = true;
-        cv.notify_all();
-      }
-      void wait() {
-        std::unique_lock<std::mutex> guard{mx};
-        while (!lit)
-          cv.wait(guard);
-      }
-    } beacon;
-    auto run_mpx = [this, &beacon] {
-      log::endpoint::debug("prometheus-http-task", "start multiplexer");
-      mpx_.thread_id(std::this_thread::get_id());
-      beacon.ignite();
-      mpx_.run();
-    };
-    thread_ = mpx_.system().launch_thread("broker.prom", run_mpx);
-    beacon.wait();
-    return actual_port;
-  }
-
-  ~prometheus_http_task() override {
-    if (mpx_supervisor_) {
-      mpx_.dispatch([=] {
-        auto base_ptr = caf::actor_cast<caf::abstract_actor*>(worker_);
-        auto ptr = static_cast<caf::io::broker*>(base_ptr);
-        if (!ptr->getf(caf::abstract_actor::is_terminated_flag)) {
-          ptr->context(&mpx_);
-          ptr->quit();
-          ptr->finalize();
-        }
-      });
-      mpx_supervisor_.reset();
-      thread_.join();
-    }
-  }
-
-  caf::actor telemetry_exporter() {
-    return worker_;
-  }
-
-private:
-  caf::io::network::default_multiplexer mpx_;
-  caf::io::network::multiplexer::supervisor_ptr mpx_supervisor_;
-  caf::actor worker_;
-  std::thread thread_;
-};
-
-} // namespace
 
 // --- metrics_exporter_t::endpoint class --------------------------------------
 
@@ -499,7 +415,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
-  if (cfg.cli_helptext_printed)
+  if (cfg.helptext_printed())
     exit(0);
   // Make sure the OpenSSL config is consistent.
   if (ssl_cfg && ssl_cfg->authentication_enabled()) {
@@ -514,7 +430,7 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
   }
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(cfg, "broker.recording-directory",
-                         caf::string_view{defaults::recording_directory});
+                         std::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
     if (detail::is_directory(meta_dir))
       detail::remove_all(meta_dir);
@@ -572,27 +488,6 @@ endpoint::endpoint(configuration config, endpoint_id id) : id_(id) {
                                             &adaptation, std::move(conn_ptr));
   }
   core_ = facade(core);
-  // Spin up a Prometheus actor if configured or an exporter.
-  if (auto port = caf::get_as<broker::port>(cfg, "broker.metrics.port")) {
-    auto ptask = std::make_unique<prometheus_http_task>(sys);
-    auto addr = caf::get_or(cfg, "broker.metrics.address", std::string{});
-    if (auto actual_port =
-          ptask->start(port->number(), native(core_),
-                       addr.empty() ? nullptr : addr.c_str())) {
-      log::endpoint::info("metrics-exporter-started",
-                          "expose metrics on port {}", *actual_port);
-      telemetry_exporter_ = facade(ptask->telemetry_exporter());
-      background_tasks_.emplace_back(std::move(ptask));
-    } else {
-      log::endpoint::error("metrics-exporter-error",
-                           "failed to expose metrics: {}", actual_port.error());
-    }
-  } else {
-    using exporter_t = internal::metric_exporter_actor;
-    auto params = internal::metric_exporter_params::from(cfg);
-    auto hdl = sys.spawn<exporter_t>(native(core_), std::move(params));
-    telemetry_exporter_ = facade(hdl);
-  }
   // Spin up a WebSocket server when requested.
   if (auto port = caf::get_as<broker::port>(cfg, "broker.web-socket.port"))
     web_socket_listen(caf::get_or(cfg, "broker.web-socket.address", ""s),
@@ -618,15 +513,15 @@ void endpoint::shutdown() {
   {
     // TODO: there's got to be a better solution than calling the test
     //       coordinator manually here.
-    using caf::scheduler::test_coordinator;
     auto& sys = ctx_->sys;
-    auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
+    // TODO: include test/dsl.hpp or find a better way to
+    // auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
     caf::scoped_actor self{sys};
     log::endpoint::debug("signal-core-shutdown", "tell core actor to stop");
     self->monitor(native(core_));
     self->send(native(core_), atom::shutdown_v, shutdown_options_);
-    if (sched)
-      sched->run();
+    // if (sched)
+    //   sched->run();
     self->receive( // Give the core 5s time to shut down gracefully.
       [](const caf::down_msg&) {},
       caf::after(std::chrono::seconds(5)) >>
@@ -644,8 +539,8 @@ void endpoint::shutdown() {
         caf::anon_send_exit(native(hdl), caf::exit_reason::user_shutdown);
       log::endpoint::debug("wait-for-workers",
                            "wait until all background workers terminated");
-      if (sched)
-        sched->run();
+      // if (sched)
+      //   sched->run();
       for (auto& hdl : workers_)
         self->wait_for(native(hdl));
       workers_.clear();
@@ -654,8 +549,8 @@ void endpoint::shutdown() {
                          "stop the telemetry exporter");
     self->send_exit(native(telemetry_exporter_),
                     caf::exit_reason::user_shutdown);
-    if (sched)
-      sched->run();
+    // if (sched)
+    //   sched->run();
     self->wait_for(native(telemetry_exporter_));
     telemetry_exporter_ = nullptr;
   }
@@ -780,26 +675,36 @@ std::vector<peer_info> endpoint::peers() const {
   return result;
 }
 
+namespace {
+
+void web_socket_listener(caf::event_based_actor* self, endpoint_id id,
+                         caf::actor core, internal::web_socket::pull_t pull) {
+  pull.observe_on(self).for_each(
+    [self, id, core](const internal::web_socket::accept_event& ev) {
+      auto& [pull, push, info] = ev.data();
+      auto addr = network_info{info.remote_address, info.remote_port, 0s};
+      log::endpoint::info(
+        "web-socket-connect",
+        "new WebSocket client with address {} and user agent {}", addr,
+        info.user_agent);
+      using impl_t = internal::json_client_actor;
+      self->spawn<impl_t>(id, core, addr, pull, push);
+    });
+}
+
+} // namespace
+
 uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                                      error* err, bool reuse_addr) {
-  auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
-                      const caf::settings& hdr,
-                      internal::web_socket::connect_event_t& ev) {
-    auto& [pull, push] = ev;
-    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
-    auto addr =
-      network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
-                   caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
-    log::endpoint::info(
-      "web-socket-connect",
-      "new WebSocket client with address {} and user agent {}", addr,
-      user_agent);
-    using impl_t = internal::json_client_actor;
-    sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
+  auto on_connect = [sys = &ctx_->sys, id = id_,
+                     core = native(core_)](internal::web_socket::pull_t pull) {
+    sys->spawn(web_socket_listener, id, core, std::move(pull));
   };
+  auto tmp = openssl_options{};
   auto ssl_cfg = ctx_->cfg.openssl_options();
-  auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
-                                          reuse_addr, "/v1/messages/json",
+  auto* ssl_cfg_ptr = ssl_cfg ? &*ssl_cfg : &tmp;
+  auto res = internal::web_socket::launch(ctx_->sys, *ssl_cfg_ptr, address,
+                                          port, reuse_addr, "/v1/messages/json",
                                           std::move(on_connect));
   if (res) {
     return *res;
@@ -905,13 +810,13 @@ worker endpoint::do_subscribe(filter_type&& filter,
   obs //
     ->make_observable()
     .from_resource(con_res)
-    .subscribe(caf::flow::make_observer(
-      [sink](const data_message& msg) { sink->on_next(msg); },
-      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); },
-      [sink] {
-        error no_error;
-        sink->on_cleanup(no_error);
-      }));
+    .do_on_error(
+      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); })
+    .do_on_complete([sink] {
+      error no_error;
+      sink->on_cleanup(no_error);
+    })
+    .for_each([sink](const data_message& msg) { sink->on_next(msg); });
   auto worker = caf::actor{obs};
   launch_obs();
   // Hand the producer end to the core.

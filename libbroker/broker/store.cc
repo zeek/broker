@@ -8,7 +8,6 @@
 #include <caf/actor_cast.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/make_message.hpp>
 #include <caf/others.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>

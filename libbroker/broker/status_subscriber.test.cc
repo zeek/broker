@@ -7,7 +7,6 @@
 #include <utility>
 
 #include <caf/exit_reason.hpp>
-#include <caf/group.hpp>
 #include <caf/send.hpp>
 
 #include "broker/endpoint.hh"

@@ -70,7 +70,7 @@ auto concat(Ts... xs) {
   throw std::invalid_argument(what);
 }
 
-bool valid_log_level(caf::string_view x) {
+bool valid_log_level(std::string_view x) {
   return x == "trace" || x == "debug" || x == "info" || x == "warning"
          || x == "error" || x == "quiet";
 }
@@ -90,7 +90,7 @@ std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
   };
   auto is_empty = [](const std::string& x) { return x.empty(); };
   std::vector<std::string> result;
-  caf::split(result, caf::string_view{str, strlen(str)}, delim,
+  caf::split(result, std::string_view{str, strlen(str)}, delim,
              caf::token_compress_on);
   std::for_each(result.begin(), result.end(), trim);
   result.erase(std::remove_if(result.begin(), result.end(), is_empty),
@@ -201,7 +201,7 @@ configuration::configuration(broker_options opts) : configuration(skip_init) {
   impl_->set("broker.ttl", opts.ttl);
   caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
-  impl_->config_file_path = "broker.conf";
+  impl_->config_file_path("broker.conf");
 }
 
 configuration::configuration() : configuration(skip_init) {
@@ -338,12 +338,13 @@ std::string configuration::help_text() const {
   return impl_->custom_options().help_text();
 }
 
-const std::vector<std::string>& configuration::remainder() const {
-  return impl_->remainder;
+std::vector<std::string> configuration::remainder() const {
+  auto args = impl_->remainder();
+  return std::vector<std::string>{args.begin(), args.end()};
 }
 
 bool configuration::cli_helptext_printed() const {
-  return impl_->cli_helptext_printed;
+  return impl_->helptext_printed();
 }
 
 std::string configuration::openssl_certificate() const {

@@ -7,7 +7,6 @@
 #include <caf/test/bdd_dsl.hpp>
 
 #include <caf/actor_system.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 
 #include "broker/configuration.hh"
@@ -187,7 +186,7 @@ public:
 
   using super = time_aware_fixture<base_fixture>;
 
-  using scheduler_type = caf::scheduler::test_coordinator;
+  using scheduler_type = test_coordinator;
 
   base_fixture();
 
@@ -288,7 +287,7 @@ public:
     };
     for (;;) {
       exhaust();
-      caf::optional<caf::actor_clock::time_point> next_timeout;
+      std::optional<caf::actor_clock::time_point> next_timeout;
       get_next_timeout(next_timeout, n1);
       get_next_timeout(next_timeout, n2);
       if (!next_timeout) {

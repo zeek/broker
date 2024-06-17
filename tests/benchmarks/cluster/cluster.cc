@@ -50,7 +50,7 @@ using fractional_seconds = std::chrono::duration<double>;
 constexpr size_t max_nodes = 500;
 
 struct quoted {
-  caf::string_view str;
+  std::string_view str;
 };
 
 } // namespace
@@ -75,7 +75,7 @@ int print_impl(std::ostream& ostr, const string& x) {
   return 0;
 }
 
-int print_impl(std::ostream& ostr, const caf::string_view& x) {
+int print_impl(std::ostream& ostr, const std::string_view& x) {
   ostr.write(x.data(), x.size());
   return 0;
 }
@@ -1014,7 +1014,7 @@ int shrink_generator_file(const string& in_file, const string& out_file,
   }
   int return_code = EXIT_SUCCESS;
   using value_type = broker::internal::generator_file_reader::value_type;
-  using bytes = caf::span<const caf::byte>;
+  using bytes = caf::span<const std::byte>;
   auto f = [&, i{size_t{0}}](value_type* val, bytes chunk) mutable {
     if (fwrite(chunk.data(), 1, chunk.size(), out) != chunk.size()) {
       err::println("unable to write to ", out_file);
@@ -1053,8 +1053,8 @@ int shrink_generator_file(string_list args) {
 
 void print_peering_node(const std::string& prefix, const node& x, bool is_last,
                         std::set<std::string>& printed_nodes) {
-  caf::string_view first_prefix;
-  caf::string_view inner_prefix;
+  std::string_view first_prefix;
+  std::string_view inner_prefix;
   auto print_topics = [&] {
     if (printed_nodes.count(x.name) != 0) {
       verbose::println(prefix, inner_prefix, "│   └── (see above)");

@@ -1,9 +1,9 @@
 #include "broker/internal/flare_actor.hh"
 
 #include <caf/detail/sync_request_bouncer.hpp>
-#include <caf/execution_unit.hpp>
 #include <caf/intrusive/inbox_result.hpp>
 #include <caf/mailbox_element.hpp>
+#include <caf/scheduler.hpp>
 
 #include "broker/detail/assert.hh"
 
@@ -11,7 +11,7 @@ namespace broker::internal {
 
 flare_actor::flare_actor(caf::actor_config& sys) : blocking_actor{sys} {}
 
-void flare_actor::launch(caf::execution_unit*, bool, bool) {
+void flare_actor::launch(caf::scheduler*, bool, bool) {
   // Nothing todo here since we only extract messages via receive() calls.
 }
 
@@ -38,11 +38,11 @@ bool flare_actor::await_data(timeout_type timeout) {
   return res;
 }
 
-bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
+bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  switch (mailbox().enqueue(ptr.release())) {
+  switch (mailbox().push_back(std::move(ptr))) {
     case caf::intrusive::inbox_result::unblocked_reader: {
       flare_.fire();
       ++flare_count_;
@@ -62,17 +62,15 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   }
 }
 
-caf::mailbox_element_ptr flare_actor::dequeue() {
+caf::message flare_actor::get_next_message() {
   std::unique_lock<std::mutex> lock{flare_mtx_};
   auto rval = blocking_actor::dequeue();
 
-  if (rval) {
-    [[maybe_unused]] auto extinguished = flare_.extinguish_one();
-    BROKER_ASSERT(extinguished);
-    --flare_count_;
-  }
+  [[maybe_unused]] auto extinguished = flare_.extinguish_one();
+  BROKER_ASSERT(extinguished);
+  --flare_count_;
 
-  return rval;
+  return rval->content();
 }
 
 const char* flare_actor::name() const {

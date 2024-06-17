@@ -131,7 +131,7 @@ int run(gateway& gw) {
   using caf::get_as;
   using caf::get_or;
   auto& cfg = gw.config();
-  auto try_listen = [&](caf::string_view key) {
+  auto try_listen = [&](std::string_view key) {
     if (auto local_port = get_as<uint16_t>(cfg, key)) {
       auto p = caf::starts_with(key, "internal.")
                  ? gw.listen_internal({}, *local_port)

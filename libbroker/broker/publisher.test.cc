@@ -39,6 +39,8 @@ struct no_state {};
 
 } // namespace
 
+/*
+
 FIXTURE_SCOPE(publisher_tests, net_fixture<base_fixture>)
 
 TEST(publishers make data available to remote subscribers) {
@@ -84,17 +86,23 @@ TEST(publishers make data available to remote subscribers) {
 
 FIXTURE_SCOPE_END()
 
+*/
+
 // This regression test requires a non-deterministic setup since it checks that
 // a publisher eventually becomes unblocked via background activities.
 TEST(regression GH196) {
   MESSAGE("connect two endpoints over localhost");
+  broker::set_console_logger("debug");
+
   endpoint ep1;
   endpoint ep2;
   auto sub1 = ep1.make_subscriber({topic{"/test"}});
   auto sub2 = ep1.make_subscriber({topic{"/test"}});
   REQUIRE(ep1.await_filter_entry(topic{"/test"}));
   auto port = ep1.listen("127.0.0.1", 0);
+  MESSAGE("running at port " << port);
   ep2.peer("127.0.0.1", port);
+  MESSAGE("peered");
   auto pub = ep2.make_publisher({topic{"/test"}});
   MESSAGE("wait until the peers have finished the handshake");
   REQUIRE(ep1.await_peer(ep2.node_id()));

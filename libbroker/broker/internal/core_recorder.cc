@@ -14,7 +14,7 @@ namespace broker::internal {
 core_recorder::core_recorder(caf::local_actor* self) {
   auto& cfg = self->config();
   auto meta_dir = get_or(cfg, "broker.recording-directory",
-                         caf::string_view{defaults::recording_directory});
+                         std::string_view{defaults::recording_directory});
   if (!meta_dir.empty() && detail::is_directory(meta_dir)) {
     if (!open_file(topics_file_, meta_dir + "/topics.txt"))
       return;

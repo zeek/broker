@@ -156,6 +156,16 @@ struct fixture : base_fixture {
     // nop
   }
 
+  template <class Source, class Dest, class... Ts>
+  void send_as(const Source& src, const Dest& dest, Ts&&... xs) {
+    static_assert(sizeof...(Ts) > 0, "no message to send");
+    if (dest)
+      dest->enqueue(caf::make_mailbox_element(
+                      caf::actor_cast<caf::strong_actor_ptr>(src),
+                      caf::make_message_id(), std::forward<Ts>(xs)...),
+                    nullptr);
+  }
+
   // Uses a simulated transport channel that's beyond terrible. Randomly
   // reorders all messages and loses messages according to `loss_rate`.
   void ship(double loss_rate = 0) {
@@ -172,7 +182,7 @@ struct fixture : base_fixture {
       outgoing_messages.erase(i, outgoing_messages.end());
     }
     for (auto& msg : outgoing_messages)
-      caf::send_as(msg.sender, msg.receiver, std::move(msg.content));
+      send_as(msg.sender, msg.receiver, std::move(msg.content));
     outgoing_messages.clear();
   }
 
@@ -190,7 +200,7 @@ struct fixture : base_fixture {
     using actor_type = caf::stateful_actor<consumer_state>;
     producer.tick();
     for (const auto& kvp : consumers)
-      deref<actor_type>(kvp.second).state.consumer.tick();
+      deref<actor_type>(kvp.second).state().consumer.tick();
   }
 
   void ship_run_tick(double loss_rate = 0) {
@@ -204,7 +214,7 @@ struct fixture : base_fixture {
     if (i == consumers.end())
       FAIL("unable to retrieve state for consumer " << id);
     using actor_type = caf::stateful_actor<consumer_state>;
-    return deref<actor_type>(i->second).state.consumer;
+    return deref<actor_type>(i->second).state().consumer;
   }
 
   std::map<std::string, caf::actor> consumers;
@@ -269,11 +279,11 @@ struct consumer_visitor {
 
 caf::behavior consumer_actor(caf::stateful_actor<consumer_state>* self,
                              std::string id, fixture* fix) {
-  self->state.backend.id = std::move(id);
-  self->state.backend.attach(self, fix);
+  self->state().backend.id = std::move(id);
+  self->state().backend.attach(self, fix);
   return {
     [self](channel_type::producer_message& msg) {
-      auto& st = self->state;
+      auto& st = self->state();
       consumer_visitor f{&st.consumer};
       std::visit(f, msg);
       if (st.backend.closed)

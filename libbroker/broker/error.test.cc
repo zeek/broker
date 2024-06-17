@@ -23,6 +23,7 @@ data make_data_error(ec code, vector context = {}) {
 FIXTURE_SCOPE(status_tests, base_fixture)
 
 TEST(ec is convertible to and from string) {
+  puts("foo");
   CHECK_EQUAL(to_string(ec::unspecified), "unspecified"s);
   CHECK_EQUAL(to_string(ec::peer_incompatible), "peer_incompatible"s);
   CHECK_EQUAL(to_string(ec::peer_invalid), "peer_invalid"s);

@@ -18,7 +18,7 @@ using namespace std::literals;
   namespace caf {                                                              \
   template <>                                                                  \
   struct type_name<broker::internal::wire_format::type> {                      \
-    static constexpr string_view value = #type;                                \
+    static constexpr std::string_view value = #type;                           \
   };                                                                           \
   }
 
@@ -119,13 +119,13 @@ bool trait::convert(const envelope_ptr& msg, caf::byte_buffer& buf) {
                           "failed to write topic size");
       return false;
     }
-    auto first = reinterpret_cast<const caf::byte*>(str.data());
+    auto first = reinterpret_cast<const std::byte*>(str.data());
     sink.append(first, first + str.size());
     return true;
   };
   auto write_payload = [&msg, &sink] {
     auto [data, size] = msg->raw_bytes();
-    auto first = reinterpret_cast<const caf::byte*>(data);
+    auto first = reinterpret_cast<const std::byte*>(data);
     sink.append(first, first + size);
     return true;
   };

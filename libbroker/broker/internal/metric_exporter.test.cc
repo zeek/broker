@@ -99,11 +99,11 @@ struct fixture : base_fixture {
   }
 
   auto& state() {
-    return deref<internal::metric_exporter_actor>(aut).state;
+    return deref<internal::metric_exporter_actor>(aut).state();
   }
 
   auto& core_state() {
-    return deref<dummy_core_actor>(core).state;
+    return deref<dummy_core_actor>(core).state();
   }
 
   const auto& rows() {
