@@ -9,7 +9,7 @@
 #include "broker/message.hh"
 
 #include <caf/disposable.hpp>
-#include <caf/flow/item_publisher.hpp>
+#include <caf/flow/multicaster.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
 
@@ -55,8 +55,8 @@ public:
 
   /// Sets up the pipeline for this peer.
   caf::flow::observable<node_message>
-  setup(caf::scheduled_actor* self, node_consumer_res in_res,
-        node_producer_res out_res, caf::flow::observable<node_message> src);
+  setup(caf::scheduled_actor* self, chunk_consumer_res in_res,
+        chunk_producer_res out_res, caf::flow::observable<node_message> src);
 
   /// Queries whether `remove` was called.
   bool removed() const noexcept {
@@ -66,7 +66,7 @@ public:
   /// Tag this peering as removed and send a BYE message on the `snk` for a
   /// graceful shutdown.
   void remove(caf::scheduled_actor* self,
-              caf::flow::item_publisher<node_message>& snk,
+              caf::flow::multicaster<node_message>& snk,
               bool with_timeout = true);
 
   /// Returns the ID of this node.

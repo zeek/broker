@@ -5,10 +5,10 @@
 #include <caf/allowed_unsafe_message_type.hpp>
 #include <caf/behavior.hpp>
 #include <caf/binary_deserializer.hpp>
+#include <caf/chunk.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
-#include <caf/group.hpp>
 #include <caf/make_counted.hpp>
 #include <caf/none.hpp>
 #include <caf/response_promise.hpp>
@@ -30,6 +30,8 @@
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
+
+#include <iostream>
 
 using namespace std::literals;
 
@@ -810,8 +812,8 @@ void core_actor_state::try_connect(const network_info& addr,
 caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                            const network_info& addr,
                                            const filter_type& filter,
-                                           node_consumer_res in_res,
-                                           node_producer_res out_res) {
+                                           chunk_consumer_res in_res,
+                                           chunk_producer_res out_res) {
   if (shutting_down()) {
     log::core::debug("init-new-peer-shutdown",
                      "drop incoming peering: shutting down");
@@ -927,12 +929,12 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   // prefixed with 32 bit with the size.
   namespace cn = caf::net;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
-  auto resources1 = caf::async::make_spsc_buffer_resource<node_message>();
+  auto resources1 = caf::async::make_spsc_buffer_resource<caf::chunk>();
   auto& [rd_1, wr_1] = resources1;
-  auto resources2 = caf::async::make_spsc_buffer_resource<node_message>();
+  auto resources2 = caf::async::make_spsc_buffer_resource<caf::chunk>();
   auto& [rd_2, wr_2] = resources2;
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
-    log::core::debug("init-new-peer-failed",
+    log::core::error("init-new-peer-failed",
                      "failed to run pending connection: {}", err);
     return err;
   } else {

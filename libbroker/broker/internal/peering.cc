@@ -3,12 +3,14 @@
 #include "broker/data.hh"
 #include "broker/data_envelope.hh"
 #include "broker/format/bin.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/logger.hh"
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
+#include <caf/chunk.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 
 namespace broker::internal {
@@ -155,8 +157,8 @@ node_message peering::make_bye_message() {
 }
 
 caf::flow::observable<node_message>
-peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
-               node_producer_res out_res,
+peering::setup(caf::scheduled_actor* self, chunk_consumer_res in_res,
+               chunk_producer_res out_res,
                caf::flow::observable<node_message> src) {
   // Construct the BYE message that we emit at the end.
   bye_id_ = self->new_u64_id();
@@ -165,17 +167,64 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
   src //
     .compose(add_flow_scope_t{output_stats_})
     .compose(inject_killswitch_t{&out_})
+    .filter([](const node_message& input) {
+      if (input == nullptr)
+        return false;
+      if (input->topic().size() > 0xFFFF) {
+        log::core::error("topic-too-long",
+                         "topic exceeds maximum size of 65,535 characters");
+        return false;
+      }
+      return true;
+    })
+    .map([buf = std::vector<std::byte>{}](const node_message& input) mutable {
+      using span_of_span = caf::span<const caf::const_byte_span>;
+      namespace bin_v1 = format::bin::v1;
+      buf.clear();
+      auto append_data = [&buf](auto* data, size_t size) {
+        buf.insert(buf.end(), data, data + size);
+      };
+      auto append_from = [&buf](auto& what) {
+        buf.insert(buf.end(), what.begin(), what.end());
+      };
+      auto out = std::back_inserter(buf);
+      append_from(input->sender().bytes());
+      append_from(input->receiver().bytes());
+      bin_v1::write_unsigned(input->type(), out);
+      bin_v1::write_unsigned(input->ttl(), out);
+      bin_v1::write_unsigned(static_cast<uint16_t>(input->topic().size()), out);
+      append_data(reinterpret_cast<const std::byte*>(input->topic().data()),
+                  input->topic().size());
+      caf::const_byte_span buffers[2];
+      buffers[0] = caf::const_byte_span{buf.data(), buf.size()};
+      auto [payload, payload_size] = input->raw_bytes();
+      buffers[1] = caf::const_byte_span{payload, payload_size};
+      return caf::chunk{span_of_span{buffers, 2}};
+    })
     .subscribe(std::move(out_res));
   // Read inputs and surround them with connect/disconnect status messages.
   return self //
     ->make_observable()
     .from_generator(prefix_generator{shared_from_this()})
     .concat( //
-      self->make_observable()
-        .from_resource(std::move(in_res))
+      in_res.observe_on(self)
+        .do_on_error([](const caf::error& what) {
+          log::core::debug("peering-connection-error",
+                           "peering connection closed: {}", what);
+        })
         .on_error_complete()
         .compose(add_flow_scope_t{input_stats_})
         .compose(inject_killswitch_t{&in_})
+        .map([](const caf::chunk& msg) {
+          auto res = envelope::deserialize(msg.bytes().data(), msg.size());
+          if (res)
+            return *res;
+          log::core::warning("failed-to-deserialize",
+                             "failed to deserialize incoming message: {}",
+                             res.error());
+          return node_message{};
+        })
+        .filter([](const node_message& msg) { return msg != nullptr; })
         .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
                       const node_message& msg) mutable {
           // When unpeering, we send a BYE ping message. When
@@ -198,7 +247,7 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
 }
 
 void peering::remove(caf::scheduled_actor* self,
-                     caf::flow::item_publisher<node_message>& snk,
+                     caf::flow::multicaster<node_message>& snk,
                      bool with_timeout) {
   if (removed_)
     return;

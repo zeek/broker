@@ -11,7 +11,7 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/flow/item_publisher.hpp>
+#include <caf/flow/multicaster.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/hash/fnv.hpp>
 #include <caf/response_handle.hpp>
@@ -267,7 +267,7 @@ public:
   ///       terminates.
   std::unordered_map<detail::shared_store_state_ptr, size_t> attached_states;
 
-  caf::flow::item_publisher<command_message> out;
+  caf::flow::multicaster<command_message> out;
 
   /// Registry for our Prometheus metrics.
   prometheus_registry_ptr registry;

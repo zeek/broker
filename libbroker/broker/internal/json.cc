@@ -55,7 +55,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
   if (dtype == "string") {
     if (!dval.is_string())
       return false;
-    auto val = caf::to_string(dval.to_string());
+    auto val = dval.to_string();
     out = bin_v1::encode_with_tag(val, out);
     return true;
   }
@@ -64,7 +64,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
       return false;
     auto val = dval.to_string();
     broker::address tmp;
-    if (!convert(caf::to_string(val), tmp))
+    if (!convert(std::string{val}, tmp))
       throw std::runtime_error("failed to convert address");
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
@@ -74,7 +74,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
       return false;
     auto val = dval.to_string();
     broker::subnet tmp;
-    if (!convert(caf::to_string(val), tmp))
+    if (!convert(std::string{val}, tmp))
       return false;
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
@@ -84,7 +84,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
       return false;
     auto val = dval.to_string();
     broker::port tmp;
-    if (!convert(caf::to_string(val), tmp))
+    if (!convert(std::string{val}, tmp))
       return false;
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
@@ -112,7 +112,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
   if (dtype == "enum-value") {
     if (!dval.is_string())
       return false;
-    broker::enum_value tmp{caf::to_string(dval.to_string())};
+    broker::enum_value tmp{std::string{dval.to_string()}};
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
   }

@@ -37,7 +37,7 @@ std::string to_hex(const byte_buffer& buf) {
 
 template <class... Ts>
 byte_buffer make_bytes(Ts... xs) {
-  return {static_cast<caf::byte>(xs)...};
+  return {static_cast<std::byte>(xs)...};
 }
 
 bool convert(const byte_buffer& bytes, data& value) {
@@ -204,8 +204,8 @@ TEST(parsing a string) {
 
 TEST(parsing an address) {
   byte_buffer bytes;
-  bytes.push_back(static_cast<caf::byte>(type::address));
-  auto* begin = reinterpret_cast<const caf::byte*>(localhost.bytes().data());
+  bytes.push_back(static_cast<std::byte>(type::address));
+  auto* begin = reinterpret_cast<const std::byte*>(localhost.bytes().data());
   bytes.insert(bytes.end(), begin, begin + localhost.bytes().size());
   auto cpy = parse_bytes(bytes);
   CHECK(cpy.is_address());

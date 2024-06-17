@@ -117,6 +117,9 @@ if (ENABLE_SHARED)
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                              $<INSTALL_INTERFACE:include>)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(broker PRIVATE -Wno-deprecated-declarations)
+  endif()
 endif ()
 
 if (ENABLE_STATIC)
@@ -140,6 +143,9 @@ if (ENABLE_STATIC)
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                              $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                              $<INSTALL_INTERFACE:include>)
+  if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(broker_static PRIVATE -Wno-deprecated-declarations)
+  endif()
 endif ()
 
 if (ENABLE_SHARED)

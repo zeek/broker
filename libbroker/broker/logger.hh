@@ -124,6 +124,7 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
     }
     next();
   }
+  ::abort();
   throw std::invalid_argument("format string ended unexpectedly");
 }
 

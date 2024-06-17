@@ -6,6 +6,7 @@
 
 #include <caf/test/unit_test_impl.hpp>
 
+#include <caf/chunk.hpp>
 #include <caf/defaults.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/test/dsl.hpp>

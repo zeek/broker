@@ -7,14 +7,14 @@ namespace broker {
 
 namespace {
 
-// TODO: caf::byte is soon to get replaced by std::byte. This is going to make
+// TODO: std::byte is soon to get replaced by std::byte. This is going to make
 //       these two conversion functions trivial.
 
 caf::uuid to_uuid(const endpoint_id& id) {
-  std::array<caf::byte, 16> tmp;
+  std::array<std::byte, 16> tmp;
   auto& bytes = id.bytes();
   for (size_t index = 0; index < 16; ++index)
-    tmp[index] = static_cast<caf::byte>(bytes[index]);
+    tmp[index] = static_cast<std::byte>(bytes[index]);
   return caf::uuid{tmp};
 }
 
