@@ -16,8 +16,8 @@
 namespace broker::internal {
 
 auto generator_file_writer::format::header()
-  -> std::array<caf::byte, header_size> {
-  std::array<caf::byte, header_size> result;
+  -> std::array<std::byte, header_size> {
+  std::array<std::byte, header_size> result;
   auto m = format::magic;
   auto v = format::version;
   memcpy(result.data(), &m, sizeof(m));

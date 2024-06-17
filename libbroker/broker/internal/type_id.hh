@@ -134,6 +134,8 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_internal, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::erase_command))
   BROKER_ADD_TYPE_ID((broker::expire_command))
   BROKER_ADD_TYPE_ID((broker::filter_type))
+  BROKER_ADD_TYPE_ID((broker::internal::chunk_consumer_res))
+  BROKER_ADD_TYPE_ID((broker::internal::chunk_producer_res))
   BROKER_ADD_TYPE_ID((broker::internal::command_consumer_res))
   BROKER_ADD_TYPE_ID((broker::internal::command_producer_res))
   BROKER_ADD_TYPE_ID((broker::internal::connector_event_id))
@@ -196,12 +198,12 @@ struct inspector_access<broker::cow_tuple<Ts...>> {
   }
 
   template <class Inspector>
-  static bool save_field(Inspector& f, string_view field_name, value_type& x) {
+  static bool save_field(Inspector& f, std::string_view field_name, value_type& x) {
     return detail::save_field(f, field_name, detail::as_mutable_ref(x.data()));
   }
 
   template <class Inspector, class IsPresent, class Get>
-  static bool save_field(Inspector& f, string_view field_name,
+  static bool save_field(Inspector& f, std::string_view field_name,
                          IsPresent& is_present, Get& get) {
     if constexpr (std::is_lvalue_reference_v<decltype(get())>) {
       auto get_data = [&get]() -> decltype(auto) {
@@ -218,14 +220,14 @@ struct inspector_access<broker::cow_tuple<Ts...>> {
   }
 
   template <class Inspector, class IsValid, class SyncValue>
-  static bool load_field(Inspector& f, string_view field_name, value_type& x,
+  static bool load_field(Inspector& f, std::string_view field_name, value_type& x,
                          IsValid& is_valid, SyncValue& sync_value) {
     return detail::load_field(f, field_name, x.unshared(), is_valid,
                               sync_value);
   }
 
   template <class Inspector, class IsValid, class SyncValue, class SetFallback>
-  static bool load_field(Inspector& f, string_view field_name, value_type& x,
+  static bool load_field(Inspector& f, std::string_view field_name, value_type& x,
                          IsValid& is_valid, SyncValue& sync_value,
                          SetFallback& set_fallback) {
     return detail::load_field(f, field_name, x.unshared(), is_valid, sync_value,
@@ -248,6 +250,8 @@ CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::pong_envelope_ptr)
 
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::detail::shared_store_state_ptr)
 
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::chunk_consumer_res)
+CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::chunk_producer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::command_consumer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::command_producer_res)
 CAF_ALLOW_UNSAFE_MESSAGE_TYPE(broker::internal::data_consumer_res)

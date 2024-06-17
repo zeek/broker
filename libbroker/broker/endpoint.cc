@@ -22,8 +22,10 @@
 #include <caf/actor.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_system_config.hpp>
+#include <caf/anon_mail.hpp>
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
+#include <caf/detail/test_coordinator.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
@@ -35,7 +37,6 @@
 #include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
@@ -53,6 +54,7 @@
 #include "broker/timeout.hh"
 
 #include <chrono>
+#include <fstream>
 #include <memory>
 #include <thread>
 
@@ -97,7 +99,8 @@ struct async_helper_state {
   }
 
   caf::behavior make_behavior() {
-    self->request(core, caf::infinite, std::move(msg))
+    self->mail(std::move(msg))
+      .request(core, caf::infinite)
       .then(std::move(on_value), std::move(on_error));
     return {};
   }
@@ -149,7 +152,7 @@ public:
     auto& sc = ctx_->sys.clock();
     auto t = sc.now() + after;
     auto me = caf::make_mailbox_element(nullptr, caf::make_message_id(),
-                                        caf::no_stages, std::move(msg));
+                                        std::move(msg));
     sc.schedule_message(t, caf::actor_cast<caf::strong_actor_ptr>(native(dest)),
                         std::move(me));
   }
@@ -199,7 +202,7 @@ public:
       // it's actually going to be used.
       while (it != pending_.end() && it->first <= t) {
         auto& pm = it->second;
-        caf::anon_send(pm.first, std::move(pm.second));
+        caf::anon_mail(std::move(pm.second)).send(pm.first);
         sync_with_actors.emplace(pm.first);
         it = pending_.erase(it);
         --pending_count_;
@@ -208,12 +211,12 @@ public:
     // Send messages to all actors that we sync with.
     caf::scoped_actor self{ctx_->sys};
     for (auto& who : sync_with_actors)
-      self->send(who, atom::sync_point_v, self);
+      self->mail(atom::sync_point_v, self).send(who);
     // Schedule a timeout (tick) message to abort syncing in case the actors
     // take too long.
     auto tout_mme = caf::make_mailbox_element(self->ctrl(),
                                               caf::make_message_id(),
-                                              caf::no_stages, atom::tick_v);
+                                              atom::tick_v);
     auto& caf_clock = self->clock();
     auto tout =
       caf_clock.schedule_message(caf_clock.now() + timeout::frontend,
@@ -379,7 +382,7 @@ endpoint::endpoint(configuration config, endpoint_id id,
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
-  if (cfg.cli_helptext_printed)
+  if (cfg.helptext_printed())
     exit(0);
   // Make sure the OpenSSL config is consistent.
   if (ssl_cfg && ssl_cfg->authentication_enabled()) {
@@ -394,7 +397,7 @@ endpoint::endpoint(configuration config, endpoint_id id,
   }
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(cfg, "broker.recording-directory",
-                         caf::string_view{defaults::recording_directory});
+                         std::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
     if (detail::is_directory(meta_dir))
       detail::remove_all(meta_dir);
@@ -482,20 +485,20 @@ void endpoint::shutdown() {
   if (!await_stores_on_shutdown_) {
     log::endpoint::debug("signal-store-shutdown",
                          "tell core actor to terminate stores");
-    caf::anon_send(native(core_), atom::shutdown_v, atom::data_store_v);
+    caf::anon_mail(atom::shutdown_v, atom::data_store_v).send(native(core_));
   }
   // Lifetime scope of the scoped actor: must go out of scope before destroying
   // the actor system.
   {
     // TODO: there's got to be a better solution than calling the test
     //       coordinator manually here.
-    using caf::scheduler::test_coordinator;
     auto& sys = ctx_->sys;
-    auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
+    // TODO: include test/dsl.hpp or find a better way to
+    auto sched = dynamic_cast<caf::detail::test_coordinator*>(&sys.scheduler());
     caf::scoped_actor self{sys};
     log::endpoint::debug("signal-core-shutdown", "tell core actor to stop");
     self->monitor(native(core_));
-    self->send(native(core_), atom::shutdown_v, shutdown_options_);
+    self->mail(atom::shutdown_v, shutdown_options_).send(native(core_));
     if (sched)
       sched->run();
     self->receive( // Give the core 5s time to shut down gracefully.
@@ -535,9 +538,8 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port,
                       port, ctx_->cfg.options().disable_ssl ? "no SSL" : "SSL");
   uint16_t result = 0;
   caf::scoped_actor self{ctx_->sys};
-  self
-    ->request(native(core_), caf::infinite, atom::listen_v, address, port,
-              reuse_addr)
+  self->mail(atom::listen_v, address, port, reuse_addr)
+    .request(native(core_), caf::infinite)
     .receive(
       [&](atom::listen, atom::ok, uint16_t res) {
         BROKER_ASSERT(res != 0);
@@ -560,9 +562,8 @@ bool endpoint::peer(const std::string& address, uint16_t port,
                       address, port, retry.count());
   bool result = false;
   caf::scoped_actor self{ctx_->sys};
-  self
-    ->request(native(core_), caf::infinite, atom::peer_v,
-              network_info{address, port, retry})
+  self->mail(atom::peer_v, network_info{address, port, retry})
+    .request(native(core_), caf::infinite)
     .receive(
       [&](atom::peer, atom::ok, endpoint_id id) {
         log::endpoint::info("sync-peer-success", "now peered to {}:{}, id: {}",
@@ -581,8 +582,8 @@ void endpoint::peer_nosync(const std::string& address, uint16_t port,
   log::endpoint::info("async-peer-start",
                       "starting to peer with {}:{} (retry: {}s) [asynchronous]",
                       address, port, retry.count());
-  caf::anon_send(native(core_), atom::peer_v,
-                 network_info{address, port, retry});
+  caf::anon_mail(atom::peer_v, network_info{address, port, retry})
+    .send(native(core_));
 }
 
 std::future<bool> endpoint::peer_async(std::string host, uint16_t port,
@@ -607,9 +608,8 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
                       port);
   bool result = false;
   caf::scoped_actor self{ctx_->sys};
-  self
-    ->request(native(core_), caf::infinite, atom::unpeer_v,
-              network_info{address, port})
+  self->mail(atom::unpeer_v, network_info{address, port})
+    .request(native(core_), caf::infinite)
     .receive(
       [&] {
         log::endpoint::info("sync-unpeer-success", "stopped peering with {}:{}",
@@ -628,13 +628,15 @@ void endpoint::unpeer_nosync(const std::string& address, uint16_t port) {
   log::endpoint::info("async-unpeer-start",
                       "stopping to peer with {}:{} [asynchronous]", address,
                       port);
-  caf::anon_send(native(core_), atom::unpeer_v, network_info{address, port});
+  caf::anon_mail(atom::unpeer_v, network_info{address, port})
+    .send(native(core_));
 }
 
 std::vector<peer_info> endpoint::peers() const {
   std::vector<peer_info> result;
   caf::scoped_actor self{ctx_->sys};
-  self->request(native(core_), caf::infinite, atom::get_v, atom::peer_v)
+  self->mail(atom::get_v, atom::peer_v)
+    .request(native(core_), caf::infinite)
     .receive([&](std::vector<peer_info>& peers) { result = std::move(peers); },
              [](const caf::error& e) {
                detail::die("failed to get peers:", to_string(e));
@@ -642,26 +644,36 @@ std::vector<peer_info> endpoint::peers() const {
   return result;
 }
 
+namespace {
+
+void web_socket_listener(caf::event_based_actor* self, endpoint_id id,
+                         caf::actor core, internal::web_socket::pull_t pull) {
+  pull.observe_on(self).for_each(
+    [self, id, core](const internal::web_socket::accept_event& ev) {
+      auto& [pull, push, info] = ev.data();
+      auto addr = network_info{info.remote_address, info.remote_port, 0s};
+      log::endpoint::info(
+        "web-socket-connect",
+        "new WebSocket client with address {} and user agent {}", addr,
+        info.user_agent);
+      using impl_t = internal::json_client_actor;
+      self->spawn<impl_t>(id, core, addr, pull, push);
+    });
+}
+
+} // namespace
+
 uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                                      error* err, bool reuse_addr) {
-  auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
-                      const caf::settings& hdr,
-                      internal::web_socket::connect_event_t& ev) {
-    auto& [pull, push] = ev;
-    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
-    auto addr =
-      network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
-                   caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
-    log::endpoint::info(
-      "web-socket-connect",
-      "new WebSocket client with address {} and user agent {}", addr,
-      user_agent);
-    using impl_t = internal::json_client_actor;
-    sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
+  auto on_connect = [sys = &ctx_->sys, id = id_,
+                     core = native(core_)](internal::web_socket::pull_t pull) {
+    sys->spawn(web_socket_listener, id, core, std::move(pull));
   };
+  auto tmp = openssl_options{};
   auto ssl_cfg = ctx_->cfg.openssl_options();
-  auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
-                                          reuse_addr, "/v1/messages/json",
+  auto* ssl_cfg_ptr = ssl_cfg ? &*ssl_cfg : &tmp;
+  auto res = internal::web_socket::launch(ctx_->sys, *ssl_cfg_ptr, address,
+                                          port, reuse_addr, "/v1/messages/json",
                                           std::move(on_connect));
   if (res) {
     return *res;
@@ -675,9 +687,8 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
 std::vector<topic> endpoint::peer_subscriptions() const {
   std::vector<topic> result;
   caf::scoped_actor self{ctx_->sys};
-  self
-    ->request(native(core_), caf::infinite, atom::get_v, atom::peer_v,
-              atom::subscriptions_v)
+  self->mail(atom::get_v, atom::peer_v, atom::subscriptions_v)
+    .request(native(core_), caf::infinite)
     .receive([&](std::vector<topic>& ts) { result = std::move(ts); },
              [](const caf::error& e) {
                detail::die("failed to get peer subscriptions:", to_string(e));
@@ -687,7 +698,7 @@ std::vector<topic> endpoint::peer_subscriptions() const {
 
 void endpoint::forward(std::vector<topic> ts) {
   log::endpoint::info("forward", "forwarding topics {}", ts);
-  caf::anon_send(native(core_), atom::subscribe_v, std::move(ts));
+  caf::anon_mail(atom::subscribe_v, std::move(ts)).send(native(core_));
 }
 
 void endpoint::publish(topic t, const data& d) {
@@ -718,7 +729,7 @@ void endpoint::publish(const endpoint_info& dst, std::string_view t,
 void endpoint::publish(data_message x) {
   log::endpoint::debug("publish", "publishing {} at {}", x->value(),
                        x->topic());
-  caf::anon_send(native(core_), atom::publish_v, std::move(x));
+  caf::anon_mail(atom::publish_v, std::move(x)).send(native(core_));
 }
 
 void endpoint::publish(std::vector<data_message> xs) {
@@ -727,7 +738,7 @@ void endpoint::publish(std::vector<data_message> xs) {
 }
 
 void endpoint::publish(const endpoint_info& dst, data_message msg) {
-  caf::anon_send(native(core_), atom::publish_v, std::move(msg), dst);
+  caf::anon_mail(atom::publish_v, std::move(msg), dst).send(native(core_));
 }
 
 publisher endpoint::make_publisher(topic ts) {
@@ -743,16 +754,6 @@ subscriber endpoint::make_subscriber(filter_type filter, size_t queue_size) {
   return subscriber::make(*this, std::move(filter), queue_size);
 }
 
-namespace {
-
-struct worker_state {
-  static inline const char* name = "broker.subscriber";
-};
-
-using worker_actor = caf::stateful_actor<worker_state>;
-
-} // namespace
-
 worker endpoint::do_subscribe(filter_type&& filter,
                               const detail::sink_driver_ptr& sink) {
   BROKER_ASSERT(sink != nullptr);
@@ -762,22 +763,22 @@ worker endpoint::do_subscribe(filter_type&& filter,
   auto resources = make_spsc_buffer_resource<data_message>();
   auto& [con_res, prod_res] = resources;
   // Subscribe a new worker to the consumer end.
-  auto [obs, launch_obs] = ctx_->sys.spawn_inactive<worker_actor>();
+  auto [obs, launch_obs] = ctx_->sys.spawn_inactive();
   sink->init();
   obs //
     ->make_observable()
     .from_resource(con_res)
-    .subscribe(caf::flow::make_observer(
-      [sink](const data_message& msg) { sink->on_next(msg); },
-      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); },
-      [sink] {
-        error no_error;
-        sink->on_cleanup(no_error);
-      }));
+    .do_on_error(
+      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); })
+    .do_on_complete([sink] {
+      error no_error;
+      sink->on_cleanup(no_error);
+    })
+    .for_each([sink](const data_message& msg) { sink->on_next(msg); });
   auto worker = caf::actor{obs};
   launch_obs();
   // Hand the producer end to the core.
-  caf::anon_send(native(core()), std::move(filter), std::move(prod_res));
+  caf::anon_mail(std::move(filter), std::move(prod_res)).send(native(core()));
   // Store background worker and return.
   workers_.emplace_back(facade(worker));
   return workers_.back();
@@ -837,7 +838,7 @@ endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   auto resources = make_spsc_buffer_resource<data_message>();
   auto [con_res, prod_res] = resources;
   // Push to the producer end with a new worker.
-  auto [src, launch_src] = ctx_->sys.spawn_inactive<worker_actor>();
+  auto [src, launch_src] = ctx_->sys.spawn_inactive();
   driver->init();
   src //
     ->make_observable()
@@ -846,8 +847,8 @@ endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   auto worker = caf::actor{src};
   launch_src();
   // Hand the consumer end to the core.
-  caf::anon_send(native(core_),
-                 internal::data_consumer_res{std::move(con_res)});
+  caf::anon_mail(internal::data_consumer_res{std::move(con_res)})
+    .send(native(core_));
   // Store background worker and return.
   workers_.emplace_back(facade(worker));
   return workers_.back();
@@ -864,8 +865,9 @@ expected<store> endpoint::attach_master(std::string name, backend type,
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{ctx_->sys};
   self
-    ->request(native(core_), caf::infinite, atom::data_store_v, atom::master_v,
-              atom::attach_v, name, type, std::move(opts))
+    ->mail(atom::data_store_v, atom::master_v, atom::attach_v, name, type,
+           std::move(opts))
+    .request(native(core_), caf::infinite)
     .receive(
       [&](caf::actor& master) {
         log::endpoint::info("attach-master-success",
@@ -893,9 +895,9 @@ expected<store> endpoint::attach_clone(std::string name, double resync_interval,
   expected<store> res{ec::unspecified};
   caf::scoped_actor self{ctx_->sys};
   self
-    ->request(native(core_), caf::infinite, atom::data_store_v, atom::clone_v,
-              atom::attach_v, name, resync_interval, stale_interval,
-              mutation_buffer_interval)
+    ->mail(atom::data_store_v, atom::clone_v, atom::attach_v, name,
+           resync_interval, stale_interval, mutation_buffer_interval)
+    .request(native(core_), caf::infinite)
     .receive(
       [&](caf::actor& clone) {
         log::endpoint::info("attach-clone-success",
@@ -941,7 +943,8 @@ void endpoint::deinit_system() {
 bool endpoint::await_peer(endpoint_id whom, timespan timeout) {
   bool result = false;
   caf::scoped_actor self{ctx_->sys};
-  self->request(native(core()), timeout, atom::await_v, whom)
+  self->mail(atom::await_v, whom)
+    .request(native(core()), timeout)
     .receive(
       [&]([[maybe_unused]] endpoint_id& discovered) {
         BROKER_ASSERT(whom == discovered);
@@ -962,7 +965,8 @@ void endpoint::await_peer(endpoint_id whom, std::function<void(bool)> callback,
   }
   auto f = [whom, cb{std::move(callback)}](caf::event_based_actor* self,
                                            const caf::actor& core, timespan t) {
-    self->request(core, t, atom::await_v, whom)
+    self->mail(atom::await_v, whom)
+      .request(core, t)
       .then(
         [&]([[maybe_unused]] endpoint_id& discovered) {
           BROKER_ASSERT(whom == discovered);
@@ -991,7 +995,8 @@ bool endpoint::await_filter_entry(const topic& what, timespan timeout) {
 filter_type endpoint::filter() const {
   filter_type result;
   caf::scoped_actor self{ctx_->sys};
-  self->request(native(core()), caf::infinite, atom::get_filter_v)
+  self->mail(atom::get_filter_v)
+    .request(native(core()), caf::infinite)
     .receive(
       [&](filter_type& res) {
         using std::swap;

@@ -25,7 +25,8 @@ using flow_scope_stats_deregister_fn =
 template <class Input>
 class flow_scope_sub : public caf::ref_counted,
                        public caf::flow::observer_impl<Input>,
-                       public caf::flow::subscription_impl {
+                       public caf::flow::subscription_impl,
+                       public caf::disposable::impl {
 public:
   // -- member types -----------------------------------------------------------
 
@@ -94,7 +95,7 @@ public:
   }
 
   void on_complete() override {
-    in_ = nullptr;
+    in_.release_later();
     if (out_) {
       auto tmp = std::move(out_);
       tmp.on_complete();
@@ -102,7 +103,7 @@ public:
   }
 
   void on_error(const caf::error& what) override {
-    in_ = nullptr;
+    in_.release_later();
     if (out_) {
       auto tmp = std::move(out_);
       tmp.on_error(what);
@@ -117,11 +118,17 @@ public:
         pre_subscribe_demand_ = 0;
       }
     } else {
-      in.dispose();
+      in.cancel();
     }
   }
 
-  // -- implementation of subscription_impl ------------------------------------
+  // -- implementation of coordinated ------------------------------------------
+
+  caf::flow::coordinator* parent() const noexcept override {
+    return ctx_;
+  }
+
+  // -- implementation of disposable::impl -------------------------------------
 
   bool disposed() const noexcept override {
     return !in_ && !out_;
@@ -132,8 +139,16 @@ public:
       ctx_->delay_fn([out = std::move(out_)]() mutable { out.on_complete(); });
     }
     if (in_) {
-      in_.dispose();
-      in_ = nullptr;
+      in_.cancel();
+    }
+  }
+
+  // -- implementation of subscription_impl ------------------------------------
+
+  void cancel() override {
+    out_.release_later();
+    if (in_) {
+      in_.cancel();
     }
   }
 
@@ -171,7 +186,7 @@ public:
 
   flow_scope(decorated_type decorated, flow_scope_stats_ptr stats,
              flow_scope_stats_deregister_fn deregister_cb)
-    : super(decorated.ctx()),
+    : super(decorated.parent()),
       decorated_(std::move(decorated)),
       stats_(std::move(stats)),
       deregister_cb_(std::move(deregister_cb)) {
@@ -185,7 +200,7 @@ public:
       return {};
     }
     using sub_t = flow_scope_sub<Input>;
-    auto sub = caf::make_counted<sub_t>(this->ctx(), out, std::move(stats_),
+    auto sub = caf::make_counted<sub_t>(this->parent(), out, std::move(stats_),
                                         std::move(deregister_cb_));
     out.on_subscribe(caf::flow::subscription{sub});
     decorated_.subscribe(caf::flow::observer<Input>{sub});

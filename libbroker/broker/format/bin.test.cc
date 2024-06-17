@@ -11,16 +11,16 @@ namespace {
 
 template <class T>
 auto apply_serialize(const T& value) {
-  std::vector<caf::byte> buf;
-  caf::binary_serializer sink{nullptr, buf};
+  std::vector<std::byte> buf;
+  caf::binary_serializer sink{buf};
   if (!sink.apply(value))
     FAIL("serialization failed");
   return buf;
 }
 
-template <class Out = caf::byte, class T>
+template <class T>
 auto apply_encoder(const T& value) {
-  std::vector<Out> buf;
+  std::vector<std::byte> buf;
   format::bin::v1::encoder sink{std::back_inserter(buf)};
   if (!sink.apply(value))
     FAIL("serialization failed");
@@ -29,7 +29,7 @@ auto apply_encoder(const T& value) {
 
 template <class T>
 auto do_encode(const T& value) {
-  std::vector<caf::byte> buf;
+  std::vector<std::byte> buf;
   format::bin::v1::encode(value, std::back_inserter(buf));
   return buf;
 }
@@ -304,7 +304,7 @@ struct dummy_decoder_handler {
 template <class T>
 std::string do_decode(T&& arg) {
   auto input = data{std::forward<T>(arg)};
-  auto buf = apply_encoder<std::byte>(input);
+  auto buf = apply_encoder(input);
   dummy_decoder_handler handler;
   auto [ok, pos] = format::bin::v1::decode(buf.data(), buf.data() + buf.size(),
                                            handler);
@@ -383,7 +383,7 @@ T apply_decoder(const std::vector<std::byte>& buf) {
 
 template <class T>
 T roundtrip(const T& value) {
-  return apply_decoder<T>(apply_encoder<std::byte>(value));
+  return apply_decoder<T>(apply_encoder(value));
 }
 
 template <class T, class... Ts>

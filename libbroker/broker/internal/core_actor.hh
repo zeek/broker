@@ -9,7 +9,7 @@
 #include "broker/message.hh"
 
 #include <caf/disposable.hpp>
-#include <caf/flow/item_publisher.hpp>
+#include <caf/flow/multicaster.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
 
@@ -152,8 +152,8 @@ public:
   /// Connects the input and output buffers for a new peer to our central merge
   /// point.
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
-                           const filter_type& filter, node_consumer_res in_res,
-                           node_producer_res out_res);
+                           const filter_type& filter, chunk_consumer_res in_res,
+                           chunk_producer_res out_res);
 
   /// Spin up a new background worker managing the socket and then dispatch to
   /// `init_new_peer` with the buffers that connect to the worker.
@@ -255,10 +255,10 @@ public:
   /// Pushes messages into the flow. This is marked as unsafe, because we push
   /// inputs from the mailbox directly into the buffer without a back-pressure
   /// for the senders.
-  caf::flow::item_publisher<node_message> unsafe_inputs;
+  caf::flow::multicaster<node_message> unsafe_inputs;
 
   /// Pushes flows into the central merge point.
-  caf::flow::item_publisher<caf::flow::observable<node_message>> flow_inputs;
+  caf::flow::multicaster<caf::flow::observable<node_message>> flow_inputs;
 
   /// The output of `flow_inputs`.
   caf::flow::observable<node_message> central_merge;

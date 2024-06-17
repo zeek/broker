@@ -159,6 +159,16 @@ struct fixture {
     // nop
   }
 
+  template <class Source, class Dest, class... Ts>
+  void send_as(const Source& src, const Dest& dest, Ts&&... xs) {
+    static_assert(sizeof...(Ts) > 0, "no message to send");
+    if (dest)
+      dest->enqueue(caf::make_mailbox_element(
+                      caf::actor_cast<caf::strong_actor_ptr>(src),
+                      caf::make_message_id(), std::forward<Ts>(xs)...),
+                    nullptr);
+  }
+
   // Uses a simulated transport channel that's beyond terrible. Randomly
   // reorders all messages and loses messages according to `loss_rate`.
   void ship(double loss_rate = 0) {

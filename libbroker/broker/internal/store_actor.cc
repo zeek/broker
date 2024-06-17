@@ -92,10 +92,9 @@ void store_actor_state::init(prometheus_registry_ptr reg,
   self //
     ->make_observable()
     .from_resource(std::move(in_res))
-    .subscribe(caf::flow::make_observer(
-      [this](const command_message& msg) { dispatch(msg); },
-      [this](const caf::error& what) { self->quit(what); },
-      [this] { self->quit(); }));
+    .do_on_error([this](const caf::error& what) { self->quit(what); })
+    .do_on_complete([this] { self->quit(); })
+    .for_each([this](const command_message& msg) { dispatch(msg); });
   out.as_observable().subscribe(std::move(out_res));
 }
 
@@ -149,7 +148,7 @@ void store_actor_state::on_down_msg(const caf::actor_addr& source,
   }
   auto i = local_requests.begin();
   while (i != local_requests.end()) {
-    if (source == i->second.next())
+    if (source == i->second.source())
       i = local_requests.erase(i);
     else
       ++i;
