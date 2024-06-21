@@ -325,9 +325,11 @@ endif ()
 
 # -- Tools and benchmarks -----------------------------------------------------
 
-add_subdirectory(broker-node)
-add_subdirectory(broker-pipe)
-add_subdirectory(broker-throughput)
+if (NOT broker_is_subproject)
+  add_subdirectory(broker-node)
+  add_subdirectory(broker-pipe)
+  add_subdirectory(broker-throughput)
+endif ()
 
 # -- Bindings -----------------------------------------------------------------
 
