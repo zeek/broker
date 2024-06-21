@@ -5,8 +5,8 @@ project(broker C CXX)
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
-include(ZeekBundle.cmake)
 include(cmake/CommonCMakeConfig.cmake)
+include(cmake/ZeekBundle.cmake)
 
 set(BROKER_TEST_TIMEOUT 60)
 
@@ -216,8 +216,7 @@ if (NOT broker_is_subproject)
   ZeekBundle_Add(
     NAME prometheus-cpp
     FETCH
-      GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
-      GIT_TAG        v1.2.4
+      SOURCE_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/auxil/prometheus-cpp
     CONFIGURE
       ENABLE_COMPRESSION=OFF
       ENABLE_PUSH=OFF)
