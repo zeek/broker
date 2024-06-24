@@ -1,18 +1,16 @@
-FROM fedora:38
+FROM opensuse/leap:15.6
 
 # A version field to invalidate Cirrus's build cache when needed, as suggested in
 # https://github.com/cirruslabs/cirrus-ci-docs/issues/544#issuecomment-566066822
-ENV DOCKERFILE_VERSION 20230813
+ENV DOCKERFILE_VERSION 20240524
 
-RUN dnf -y install \
+RUN zypper in -y \
     cmake \
-    diffutils \
     gcc \
     gcc-c++ \
     git \
+    libopenssl-devel \
     make \
-    openssl \
-    openssl-devel \
     python3 \
     python3-devel \
-  && dnf clean all && rm -rf /var/cache/dnf
+  && rm -rf /var/cache/zypp

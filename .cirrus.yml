@@ -63,6 +63,14 @@ clang_tidy_task:
   << : *UNIX_ENV
   << : *BRANCH_WHITELIST
 
+fedora40_task:
+  container:
+    # Fedora 40 EOL: Around May 2025
+    dockerfile: ci/fedora-40/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
 fedora39_task:
   container:
     # Fedora 39 EOL: Around Nov 2024
@@ -71,26 +79,10 @@ fedora39_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-fedora38_task:
-  container:
-    # Fedora 38 EOL: Around May 2024
-    dockerfile: ci/fedora-38/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
 centosstream9_task:
   container:
     # Stream 9 EOL: Around Dec 2027
     dockerfile: ci/centos-stream-9/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-centosstream8_task:
-  container:
-    # Stream 8 EOL: May 31, 2024
-    dockerfile: ci/centos-stream-8/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -131,6 +123,14 @@ opensuse_leap_15_5_task:
   container:
     # Opensuse Leap 15.5 EOL: ~Dec 2024
     dockerfile: ci/opensuse-leap-15.5/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+opensuse_leap_15_6_task:
+  container:
+    # Opensuse Leap 15.6 EOL: ~Dec 2025
+    dockerfile: ci/opensuse-leap-15.6/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -208,7 +208,7 @@ freebsd14_task:
 freebsd13_task:
   freebsd_instance:
     # FreeBSD 13 EOL: January 31, 2026
-    image_family: freebsd-13-2
+    image_family: freebsd-13-3
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
     memory: 8GB
