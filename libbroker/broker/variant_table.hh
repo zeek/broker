@@ -133,23 +133,23 @@ public:
 
   // -- key lookup -------------------------------------------------------------
 
-  iterator find(const variant& key) const noexcept {
+  iterator find(const variant& key) const {
     return iterator{values_->find(*key->raw()), envelope_.get()};
   }
 
-  variant operator[](const variant& key) const noexcept {
+  variant operator[](const variant& key) const {
     if (auto i = values_->find(*key.raw()); i != values_->end())
       return variant{std::addressof(i->second), envelope_};
     return variant{};
   }
 
-  variant operator[](std::string_view key) const noexcept {
+  variant operator[](std::string_view key) const {
     return do_lookup(key);
   }
 
 private:
   template <class T>
-  variant do_lookup(T key) const noexcept {
+  variant do_lookup(T key) const {
     if (values_ == nullptr)
       return variant{};
     auto key_view = variant_data{key};
