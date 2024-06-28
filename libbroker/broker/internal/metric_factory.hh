@@ -1,10 +1,14 @@
 #pragma once
 
-#include <caf/fwd.hpp>
-#include <caf/telemetry/counter.hpp>
-#include <caf/telemetry/gauge.hpp>
-#include <caf/telemetry/histogram.hpp>
-#include <caf/telemetry/metric_registry.hpp>
+#include "broker/fwd.hh"
+
+#include <prometheus/family.h>
+#include <prometheus/histogram.h>
+#include <prometheus/labels.h>
+#include <prometheus/metric_family.h>
+#include <prometheus/registry.h>
+
+#include <string>
 
 namespace broker::internal {
 
@@ -14,36 +18,24 @@ public:
   // -- convenience type aliases -----------------------------------------------
 
   template <class T>
-  using family_t = caf::telemetry::metric_family_impl<T>;
+  using family_t = prometheus::Family<T>;
 
-  using dbl_gauge = caf::telemetry::dbl_gauge;
+  using gauge = prometheus::Gauge;
 
-  using dbl_gauge_family = family_t<dbl_gauge>;
+  using gauge_family = family_t<gauge>;
 
-  using int_gauge = caf::telemetry::int_gauge;
+  using counter = prometheus::Counter;
 
-  using int_gauge_family = family_t<int_gauge>;
+  using counter_family = family_t<counter>;
 
-  using dbl_counter = caf::telemetry::dbl_counter;
+  using histogram = prometheus::Histogram;
 
-  using dbl_counter_family = family_t<dbl_counter>;
-
-  using int_counter = caf::telemetry::int_counter;
-
-  using int_counter_family = family_t<int_counter>;
-
-  using dbl_histogram = caf::telemetry::dbl_histogram;
-
-  using dbl_histogram_family = family_t<dbl_histogram>;
-
-  using int_histogram = caf::telemetry::int_histogram;
-
-  using int_histogram_family = family_t<int_histogram>;
+  using histogram_family = family_t<histogram>;
 
   /// Bundles all Broker metrics for the core system.
   class core_t {
   public:
-    explicit core_t(caf::telemetry::metric_registry* reg) : reg_(reg) {}
+    explicit core_t(prometheus::Registry& reg) : reg_(&reg) {}
 
     core_t(const core_t&) noexcept = default;
 
@@ -52,11 +44,11 @@ public:
     /// Keeps track of the active connections.
     ///
     /// Label dimensions: `type` ('native' or 'web-socket').
-    int_gauge_family* connections_family();
+    gauge_family* connections_family();
 
     struct connections_t {
-      int_gauge* native;
-      int_gauge* web_socket;
+      gauge* native;
+      gauge* web_socket;
     };
 
     /// Returns all instances of `broker.connections`.
@@ -66,14 +58,14 @@ public:
     ///
     /// Label dimensions: `type` ('data', 'command', 'routing-update', 'ping',
     /// or 'pong').
-    int_counter_family* processed_messages_family();
+    counter_family* processed_messages_family();
 
     struct processed_messages_t {
-      int_counter* data;
-      int_counter* command;
-      int_counter* routing_update;
-      int_counter* ping;
-      int_counter* pong;
+      counter* data;
+      counter* command;
+      counter* routing_update;
+      counter* ping;
+      counter* pong;
     };
 
     /// Returns all instances of `broker.processed-messages`.
@@ -83,76 +75,76 @@ public:
     ///
     /// Label dimensions: `type` ('data', 'command', 'routing-update', 'ping',
     /// or 'pong').
-    int_gauge_family* buffered_messages_family();
+    gauge_family* buffered_messages_family();
 
     struct buffered_messages_t {
-      int_gauge* data;
-      int_gauge* command;
-      int_gauge* routing_update;
-      int_gauge* ping;
-      int_gauge* pong;
+      gauge* data;
+      gauge* command;
+      gauge* routing_update;
+      gauge* ping;
+      gauge* pong;
     };
 
     /// Returns all instances of `broker.buffered-messages`.
     buffered_messages_t buffered_messages_instances();
 
   private:
-    caf::telemetry::metric_registry* reg_;
+    prometheus::Registry* reg_;
   };
 
   /// Bundles all Broker metrics for the data stores.
   class store_t {
   public:
-    explicit store_t(caf::telemetry::metric_registry* reg) : reg_(reg) {}
+    explicit store_t(prometheus::Registry& reg) : reg_(&reg) {}
 
     store_t(const store_t&) noexcept = default;
 
     store_t& operator=(const store_t&) noexcept = default;
 
     /// Counts how many input channels a data store currently has.
-    int_gauge_family* input_channels_family();
+    gauge_family* input_channels_family();
 
     /// Returns an instance of `broker.store-input-channels` for the given
     /// data store.
-    int_gauge* input_channels_instance(std::string_view name);
+    gauge* input_channels_instance(std::string name);
 
     /// Counts how many inputs are currently buffered because they arrived
     /// out-of-order.
-    int_gauge_family* out_of_order_updates_family();
+    gauge_family* out_of_order_updates_family();
 
     /// Returns an instance of `broker.store-out-of-order-updates` for the given
     /// data store.
-    int_gauge* out_of_order_updates_instance(std::string_view name);
+    gauge* out_of_order_updates_instance(std::string name);
 
     /// Counts how many output channels a data store currently has.
-    int_gauge_family* output_channels_family();
+    gauge_family* output_channels_family();
 
     /// Returns an instance of `broker.store-output-channels` for the given
     /// data store.
-    int_gauge* output_channels_instance(std::string_view name);
+    gauge* output_channels_instance(std::string name);
 
     /// Counts how many entries a data store currently has.
-    int_gauge_family* entries_family();
+    gauge_family* entries_family();
 
     /// Returns an instance of `broker.store-entries` for the given data store.
-    int_gauge* entries_instance(std::string_view name);
+    gauge* entries_instance(std::string name);
 
     /// Counts how many updates were processed in total.
-    int_counter_family* processed_updates_family();
+    counter_family* processed_updates_family();
 
     /// Returns an instance of `broker.store-processed-updates` for the
     /// given data store.
-    int_counter* processed_updates_instance(std::string_view name);
+    counter* processed_updates_instance(std::string name);
 
     /// Counts how many updates are currently unacknowledged.
-    int_gauge_family* unacknowledged_updates_family();
+    gauge_family* unacknowledged_updates_family();
 
     /// Returns an instance of `broker.store-unacknowledged-updates` for the
     /// given data store.
-    int_gauge* unacknowledged_updates_instance(std::string_view name);
+    gauge* unacknowledged_updates_instance(std::string name);
 
   private:
-    caf::telemetry::metric_registry* reg_;
+    prometheus::Registry* reg_;
   };
 
   // -- properties -------------------------------------------------------------
@@ -163,10 +155,8 @@ public:
 
   // --- constructors ----------------------------------------------------------
 
-  explicit metric_factory(caf::actor_system& sys) noexcept;
-
-  explicit metric_factory(caf::telemetry::metric_registry& reg) noexcept
-    : core(&reg), store(&reg) {
+  explicit metric_factory(prometheus::Registry& reg) noexcept
+    : core(reg), store(reg) {
     // nop
   }
 

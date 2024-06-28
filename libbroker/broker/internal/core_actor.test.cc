@@ -30,6 +30,8 @@ struct fixture : test_coordinator_fixture<config> {
 
   std::vector<caf::actor> bridges;
 
+  prometheus_registry_ptr registry;
+
   using data_message_list = std::vector<data_message>;
 
   data_message_list test_data = data_message_list({
@@ -60,6 +62,7 @@ struct fixture : test_coordinator_fixture<config> {
   }
 
   fixture() {
+    registry = std::make_shared<prometheus::Registry>();
     // We don't do networking, but our flares use the socket API.
     ep1.id = endpoint_id::random(1);
     ep2.id = endpoint_id::random(2);
@@ -68,7 +71,7 @@ struct fixture : test_coordinator_fixture<config> {
 
   template <class... Ts>
   void spin_up(endpoint_state& ep, Ts&... xs) {
-    ep.hdl = sys.spawn<internal::core_actor>(ep.id, ep.filter);
+    ep.hdl = sys.spawn<internal::core_actor>(registry, ep.id, ep.filter);
     MESSAGE(ep.id << " is running at " << ep.hdl);
     if constexpr (sizeof...(Ts) == 0)
       run();
