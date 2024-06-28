@@ -23,6 +23,7 @@
 #include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/channel.hh"
+#include "broker/internal/checked.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/topic.hh"
 
@@ -68,8 +69,8 @@ public:
   /// Initializes the state.
   /// @pre `ptr != nullptr`
   /// @pre `clock != nullptr`
-  void init(endpoint_id this_endpoint, endpoint::clock* clock, std::string&& id,
-            caf::actor&& core,
+  void init(prometheus_registry_ptr reg, endpoint_id this_endpoint,
+            endpoint::clock* clock, std::string&& id, caf::actor&& core,
             caf::async::consumer_resource<command_message> in_res,
             caf::async::producer_resource<command_message> out_res);
 
@@ -81,7 +82,10 @@ public:
                                   defaults::store::heartbeat_interval));
     out.connection_timeout_factor(get_or(cfg, "broker.store.connection-timeout",
                                          defaults::store::connection_timeout));
-    out.metrics().init(self->system(), store_name);
+    out.metrics().init(
+      checked_deref(registry,
+                    "cannot initialize a store actor without registry"),
+      store_name);
   }
 
   template <class Backend>
@@ -99,7 +103,10 @@ public:
     in.heartbeat_interval(heartbeat_interval);
     in.connection_timeout_factor(connection_timeout);
     in.nack_timeout(nack_timeout);
-    in.metrics().init(self->system(), store_name);
+    in.metrics().init(
+      checked_deref(registry,
+                    "cannot initialize a store actor without registry"),
+      store_name);
   }
 
   template <class... Fs>
@@ -190,7 +197,7 @@ public:
     result.emplace("last-seq"s, in.last_seq());
     result.emplace("num-ticks"s, in.num_ticks());
     if (auto out_of_order_updates = in.metrics().out_of_order_updates)
-      result.emplace("buffered"s, out_of_order_updates->value());
+      result.emplace("buffered"s, out_of_order_updates->Value());
     return result;
   }
 
@@ -254,6 +261,9 @@ public:
   std::unordered_map<detail::shared_store_state_ptr, size_t> attached_states;
 
   caf::flow::item_publisher<command_message> out;
+
+  /// Registry for our Prometheus metrics.
+  prometheus_registry_ptr registry;
 };
 
 } // namespace broker::internal

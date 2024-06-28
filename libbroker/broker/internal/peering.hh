@@ -12,8 +12,6 @@
 #include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
-#include <caf/telemetry/counter.hpp>
-#include <caf/telemetry/gauge.hpp>
 
 #include <memory>
 

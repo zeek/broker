@@ -16,6 +16,8 @@
 #include "broker/lamport_timestamp.hh"
 #include "broker/none.hh"
 
+#include <prometheus/gauge.h>
+
 namespace broker::internal {
 
 /// A message-driven channel for ensuring reliable and ordered transport over an
@@ -160,23 +162,19 @@ public:
     /// Bundles metrics for the producer.
     struct metrics_t {
       /// Keeps track of how many output channels exist.
-      caf::telemetry::int_gauge* output_channels = nullptr;
+      prometheus::Gauge* output_channels = nullptr;
 
       /// Keeps track of how many messages currently wait for an ACK.
-      caf::telemetry::int_gauge* unacknowledged = nullptr;
+      prometheus::Gauge* unacknowledged = nullptr;
 
       /// Keeps track of how many messages were sent (acknowledged) in total.
-      caf::telemetry::int_counter* processed = nullptr;
+      prometheus::Counter* processed = nullptr;
 
-      void init(caf::telemetry::metric_registry& reg, std::string_view name) {
+      void init(prometheus::Registry& reg, std::string name) {
         metric_factory factory{reg};
         output_channels = factory.store.output_channels_instance(name);
         unacknowledged = factory.store.unacknowledged_updates_instance(name);
-        processed = factory.store.processed_updates_instance(name);
-      }
-
-      void init(caf::actor_system& sys, std::string_view name) {
-        init(sys.metrics(), name);
+        processed = factory.store.processed_updates_instance(std::move(name));
       }
 
       bool initialized() const noexcept {
@@ -186,23 +184,23 @@ public:
 
       void inc_output_channels() {
         if (output_channels)
-          output_channels->inc();
+          output_channels->Increment();
       }
 
       void dec_output_channels() {
         if (output_channels)
-          output_channels->dec();
+          output_channels->Decrement();
       }
 
       void inc_unacknowledged() {
         if (unacknowledged)
-          unacknowledged->inc();
+          unacknowledged->Increment();
       }
 
       void shipped(int64_t num) {
         if (unacknowledged) {
-          unacknowledged->dec(num);
-          processed->inc(num);
+          unacknowledged->Decrement(num);
+          processed->Increment(num);
         }
       }
     };
@@ -530,20 +528,17 @@ public:
     /// Bundles metrics for the consumer.
     struct metrics_t {
       /// Keeps track of how many output channels exist.
-      caf::telemetry::int_gauge* input_channels = nullptr;
+      prometheus::Gauge* input_channels = nullptr;
 
       /// Keeps track of how many messages are currently buffered because they
       /// arrived out-of-order.
-      caf::telemetry::int_gauge* out_of_order_updates = nullptr;
+      prometheus::Gauge* out_of_order_updates = nullptr;
 
-      void init(caf::telemetry::metric_registry& reg, std::string_view name) {
+      void init(prometheus::Registry& reg, std::string name) {
         metric_factory mf{reg};
         input_channels = mf.store.input_channels_instance(name);
-        out_of_order_updates = mf.store.out_of_order_updates_instance(name);
-      }
-
-      void init(caf::actor_system& sys, std::string_view name) {
-        init(sys.metrics(), name);
+        out_of_order_updates =
+          mf.store.out_of_order_updates_instance(std::move(name));
       }
 
       bool initialized() const noexcept {
@@ -553,22 +548,22 @@ public:
 
       void inc_input_channels() {
         if (input_channels)
-          input_channels->inc();
+          input_channels->Increment();
       }
 
       void dec_input_channels() {
         if (input_channels)
-          input_channels->dec();
+          input_channels->Decrement();
       }
 
       void inc_out_of_order_updates() {
         if (out_of_order_updates)
-          out_of_order_updates->inc();
+          out_of_order_updates->Increment();
       }
 
-      void dec_out_of_order_updates(int64_t n = 1) {
+      void dec_out_of_order_updates(double n = 1) {
         if (out_of_order_updates)
-          out_of_order_updates->dec(n);
+          out_of_order_updates->Decrement(n);
       }
     };
 

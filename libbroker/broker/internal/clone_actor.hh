@@ -34,8 +34,9 @@ public:
 
   // -- initialization ---------------------------------------------------------
 
-  clone_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-              std::string nm, caf::timespan master_timeout, caf::actor parent,
+  clone_state(caf::event_based_actor* ptr, prometheus_registry_ptr reg,
+              endpoint_id this_endpoint, std::string nm,
+              caf::timespan master_timeout, caf::actor parent,
               endpoint::clock* ep_clock,
               caf::async::consumer_resource<command_message> in_res,
               caf::async::producer_resource<command_message> out_res);

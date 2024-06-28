@@ -3,7 +3,6 @@
 #include <caf/disposable.hpp>
 #include <caf/flow/op/cold.hpp>
 #include <caf/scheduled_actor.hpp>
-#include <caf/telemetry/counter.hpp>
 
 #include <functional>
 

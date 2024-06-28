@@ -10,3 +10,6 @@
 [submodule "caf"]
 	path = caf
 	url = https://github.com/zeek/actor-framework.git
+[submodule "auxil/prometheus-cpp"]
+	path = auxil/prometheus-cpp
+	url = https://github.com/zeek/prometheus-cpp.git

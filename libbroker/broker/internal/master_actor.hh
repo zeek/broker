@@ -6,7 +6,6 @@
 #include <caf/behavior.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/stateful_actor.hpp>
-#include <caf/telemetry/gauge.hpp>
 
 #include "broker/data.hh"
 #include "broker/detail/abstract_backend.hh"
@@ -37,10 +36,10 @@ public:
 
   /// Bundles metrics for the master.
   struct metrics_t {
-    metrics_t(caf::actor_system& sys, const std::string& name) noexcept;
+    metrics_t(prometheus::Registry& reg, const std::string& name) noexcept;
 
     /// Keeps track of how many entries the store currently has.
-    caf::telemetry::int_gauge* entries = nullptr;
+    prometheus::Gauge* entries = nullptr;
   };
 
   template <class T>
@@ -58,9 +57,9 @@ public:
 
   // -- initialization ---------------------------------------------------------
 
-  master_state(caf::event_based_actor* ptr, endpoint_id this_endpoint,
-               std::string nm, backend_pointer bp, caf::actor parent,
-               endpoint::clock* clock,
+  master_state(caf::event_based_actor* ptr, prometheus_registry_ptr reg,
+               endpoint_id this_endpoint, std::string nm, backend_pointer bp,
+               caf::actor parent, endpoint::clock* clock,
                caf::async::consumer_resource<command_message> in_res,
                caf::async::producer_resource<command_message> out_res);
 

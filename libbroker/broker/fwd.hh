@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <future>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -193,3 +194,20 @@ class LogWrite;
 class IdentifierUpdate;
 
 } // namespace broker::zeek
+
+// -- third-party types --------------------------------------------------------
+
+namespace prometheus {
+class Counter;
+class Gauge;
+class Historgram;
+class Registry;
+} // namespace prometheus
+
+// -- type aliases for third-party libraries -----------------------------------
+
+namespace broker {
+
+using prometheus_registry_ptr = std::shared_ptr<prometheus::Registry>;
+
+} // namespace broker
