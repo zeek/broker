@@ -6,3 +6,6 @@ target_link_libraries(btest-sqlite-driver PRIVATE ${BROKER_LIBRARY} CAF::core CA
 
 add_executable(btest-peers endpoint/peers.cc)
 target_link_libraries(btest-peers PRIVATE ${BROKER_LIBRARY} CAF::core CAF::net)
+
+add_executable(btest-publish-and-receive endpoint/publish-and-receive.cc)
+target_link_libraries(btest-publish-and-receive PRIVATE ${BROKER_LIBRARY})
