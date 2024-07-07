@@ -13,7 +13,7 @@ timespan operator""_ns(unsigned long long value) {
   return timespan{static_cast<int64_t>(value)};
 }
 
-struct fixture : base_fixture {
+struct fixture : ids_fixture {
   uint64_t obj = 42;
 };
 
