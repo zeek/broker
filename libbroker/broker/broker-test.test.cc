@@ -124,11 +124,7 @@ std::string_view id_strings[] = {
 
 } // namespace
 
-base_fixture::base_fixture()
-  : ep(make_config()),
-    sys(internal::endpoint_access{&ep}.sys()),
-    self(sys),
-    sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
+ids_fixture::ids_fixture() {
   for (char id = 'A'; id <= 'Z'; ++id) {
     auto index = id - 'A';
     str_ids[id] = id_strings[index];
@@ -136,18 +132,30 @@ base_fixture::base_fixture()
   }
 }
 
+ids_fixture::~ids_fixture() {
+  // Only defined because the id_fixture is a base class.
+}
+
+char ids_fixture::id_by_value(const broker::endpoint_id& value) {
+  for (const auto& [key, val] : ids)
+    if (val == value)
+      return key;
+  FAIL("value not found: " << value);
+}
+
+base_fixture::base_fixture()
+  : ep(make_config()),
+    sys(internal::endpoint_access{&ep}.sys()),
+    self(sys),
+    sched(dynamic_cast<scheduler_type&>(sys.scheduler())) {
+  // nop
+}
+
 base_fixture::~base_fixture() {
   run();
   // Our core might do some messaging in its dtor, hence we need to make sure
   // messages are handled when enqueued to avoid blocking.
   sched.inline_all_enqueues();
-}
-
-char base_fixture::id_by_value(const broker::endpoint_id& value) {
-  for (const auto& [key, val] : ids)
-    if (val == value)
-      return key;
-  FAIL("value not found: " << value);
 }
 
 configuration base_fixture::make_config() {

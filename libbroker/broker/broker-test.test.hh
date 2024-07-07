@@ -175,9 +175,25 @@ private:
   }
 };
 
+class ids_fixture {
+public:
+  ids_fixture();
+
+  virtual ~ids_fixture();
+
+  char id_by_value(const broker::endpoint_id& value);
+
+  // A couple of predefined endpoint IDs for testing purposes. Filled from A-Z.
+  std::map<char, broker::endpoint_id> ids;
+
+  // String representation of all `ids`.
+  std::map<char, std::string> str_ids;
+};
+
 /// A fixture that hosts an endpoint configured with `test_coordinator` as
 /// scheduler as well as a `scoped_actor`.
-class base_fixture : public time_aware_fixture<base_fixture> {
+class base_fixture : public time_aware_fixture<base_fixture>,
+                     public ids_fixture {
 public:
   struct endpoint_state {
     broker::endpoint_id id;
@@ -198,19 +214,11 @@ public:
   caf::scoped_actor self;
   scheduler_type& sched;
 
-  // A couple of predefined endpoint IDs for testing purposes. Filled from A-Z.
-  std::map<char, broker::endpoint_id> ids;
-
-  // String representation of all `ids`.
-  std::map<char, std::string> str_ids;
-
   using super::run;
 
   void run();
 
   void consume_message();
-
-  char id_by_value(const broker::endpoint_id& value);
 
   /// Dereferences `hdl` and downcasts it to `T`.
   template <class T = caf::scheduled_actor, class Handle = caf::actor>

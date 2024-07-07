@@ -15,7 +15,7 @@ using namespace broker;
 
 namespace {
 
-struct fixture : base_fixture {
+struct fixture : public ids_fixture {
   void stringify(const multipath& path, std::string& result) {
     if (!path.head().id()) {
       result += "()";
@@ -131,13 +131,13 @@ TEST(multipaths are serializable) {
   caf::binary_serializer::container_type buf;
   MESSAGE("serializer the path into a buffer");
   {
-    caf::binary_serializer sink{sys, buf};
+    caf::binary_serializer sink{nullptr, buf};
     CHECK(sink.apply(path));
   }
   multipath copy;
   MESSAGE("deserializers a copy from the path from the buffer");
   {
-    caf::binary_deserializer source{sys, buf};
+    caf::binary_deserializer source{nullptr, buf};
     CHECK(source.apply(copy));
   }
   MESSAGE("after a serialization roundtrip, the path is equal to its copy");
