@@ -177,7 +177,6 @@ set(BROKER_TEST_SRC
   broker/internal/metric_collector.test.cc
   broker/internal/metric_exporter.test.cc
   broker/internal/wire_format.test.cc
-  broker/master.test.cc
   broker/peering.test.cc
   broker/radix_tree.test.cc
   broker/shutdown.test.cc
