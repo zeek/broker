@@ -5,8 +5,11 @@
 #include <cmath>
 #include <random>
 #include <string>
+#include <vector>
 
 using namespace broker;
+
+using namespace std::literals;
 
 namespace {
 
@@ -26,7 +29,6 @@ struct consumer_backend {
   std::string id;
   std::string input;
   std::string output;
-  caf::event_based_actor* self = nullptr;
   fixture* fix = nullptr;
   bool closed = false;
   bool fail_on_nil = false;
@@ -37,8 +39,7 @@ struct consumer_backend {
     // nop
   }
 
-  void attach(caf::event_based_actor* self, fixture* fix) {
-    this->self = self;
+  void attach(fixture* fix) {
     this->fix = fix;
   }
 
@@ -70,24 +71,20 @@ struct consumer_state {
   }
 };
 
-caf::behavior consumer_actor(caf::stateful_actor<consumer_state>* self,
-                             std::string id, fixture* fix);
-
 // -- fixture / producer boilerplate code --------------------------------------
 
-caf::behavior producer_actor(caf::event_based_actor* self,
-                             producer_type* state);
-
-struct fixture : base_fixture {
+struct fixture {
   struct outgoing_message {
-    caf::actor sender;
-    caf::actor receiver;
-    caf::message content;
-    template <class... Ts>
-    outgoing_message(caf::actor sender, caf::actor receiver, Ts&&... xs)
-      : sender(std::move(sender)),
-        receiver(std::move(receiver)),
-        content(caf::make_message(std::forward<Ts>(xs)...)) {
+    std::string src;
+
+    std::string dst;
+
+    std::variant<channel_type::producer_message, channel_type::consumer_message>
+      content;
+
+    template <class T>
+    outgoing_message(std::string src, std::string dst, T&& xs)
+      : src(std::move(src)), dst(std::move(dst)), content(std::forward<T>(xs)) {
       // nop
     }
   };
@@ -96,16 +93,22 @@ struct fixture : base_fixture {
 
   producer_type producer;
 
-  caf::actor producer_hdl;
+  std::map<std::string, std::shared_ptr<consumer_state>> consumers;
+
+  std::vector<outgoing_message> outgoing_messages;
+
+  std::minstd_rand rng;
 
   fixture() : producer(this), rng(0xC00L) {
     // nop
   }
 
-  void setup_actors(std::initializer_list<std::string> consumer_names) {
-    producer_hdl = sys.spawn(producer_actor, &producer);
+  void setup_consumers(std::initializer_list<std::string> consumer_names) {
     for (const auto& name : consumer_names) {
-      consumers.emplace(name, sys.spawn(consumer_actor, name, this));
+      auto new_consumer = std::make_shared<consumer_state>();
+      new_consumer->backend.id = name;
+      new_consumer->backend.attach(this);
+      consumers.emplace(name, new_consumer);
       producer.add(name);
     }
     MESSAGE("setup: " << consumers);
@@ -133,7 +136,7 @@ struct fixture : base_fixture {
     producer_log += " <- ";
     producer_log += caf::deep_to_string(x);
     if (auto i = consumers.find(dst); i != consumers.end())
-      outgoing_messages.emplace_back(producer_hdl, i->second,
+      outgoing_messages.emplace_back("producer"s, i->first,
                                      channel_type::producer_message{x});
   }
 
@@ -144,11 +147,11 @@ struct fixture : base_fixture {
     producer_log += " <- ";
     producer_log += caf::deep_to_string(x);
     for (auto& kvp : consumers)
-      outgoing_messages.emplace_back(producer_hdl, kvp.second,
+      outgoing_messages.emplace_back("producer"s, kvp.first,
                                      channel_type::producer_message{x});
   }
 
-  void drop(producer_type*, std::string hdl, ec) {
+  void drop(producer_type*, const std::string& hdl, ec) {
     consumers.erase(hdl);
   }
 
@@ -171,9 +174,6 @@ struct fixture : base_fixture {
       auto i = outgoing_messages.begin() + new_size;
       outgoing_messages.erase(i, outgoing_messages.end());
     }
-    for (auto& msg : outgoing_messages)
-      caf::send_as(msg.sender, msg.receiver, std::move(msg.content));
-    outgoing_messages.clear();
   }
 
   std::string render_buffer(consumer_type& ref) {
@@ -187,10 +187,59 @@ struct fixture : base_fixture {
   }
 
   void tick() {
-    using actor_type = caf::stateful_actor<consumer_state>;
     producer.tick();
     for (const auto& kvp : consumers)
-      deref<actor_type>(kvp.second).state.consumer.tick();
+      kvp.second->consumer.tick();
+  }
+
+  void run() {
+    decltype(outgoing_messages) tmp;
+    tmp.swap(outgoing_messages);
+    for (auto& msg : tmp) {
+      auto handle_consumer_msg = [this, &msg](auto& content) {
+        using content_type = std::decay_t<decltype(content)>;
+        if constexpr (std::is_same_v<content_type,
+                                     channel_type::cumulative_ack>) {
+          producer.handle_ack(msg.src, content.seq);
+        } else {
+          static_assert(std::is_same_v<content_type, channel_type::nack>);
+          producer.handle_nack(msg.src, content.seqs);
+        }
+      };
+      auto handle_producer_msg = [this, &msg](auto& content) {
+        using content_type = std::decay_t<decltype(content)>;
+        auto* cptr = consumers[msg.dst].get();
+        if (cptr == nullptr) {
+          throw std::runtime_error("consumer not found");
+        }
+        if constexpr (std::is_same_v<content_type, channel_type::handshake>) {
+          cptr->consumer.handle_handshake(content.offset,
+                                          content.heartbeat_interval);
+        } else if constexpr (std::is_same_v<content_type,
+                                            channel_type::heartbeat>) {
+          cptr->consumer.handle_heartbeat(content.seq);
+        } else if constexpr (std::is_same_v<content_type,
+                                            channel_type::event>) {
+          cptr->consumer.handle_event(content.seq, content.content);
+        } else {
+          static_assert(
+            std::is_same_v<content_type, channel_type::retransmit_failed>);
+          cptr->consumer.handle_retransmit_failed(content.seq);
+        }
+      };
+      auto handle_msg = [&](auto& content) {
+        using content_type = std::decay_t<decltype(content)>;
+        if constexpr (std::is_same_v<content_type,
+                                     channel_type::producer_message>) {
+          std::visit(handle_producer_msg, content);
+        } else {
+          static_assert(
+            std::is_same_v<content_type, channel_type::consumer_message>);
+          std::visit(handle_consumer_msg, content);
+        }
+      };
+      std::visit(handle_msg, msg.content);
+    }
   }
 
   void ship_run_tick(double loss_rate = 0) {
@@ -203,47 +252,18 @@ struct fixture : base_fixture {
     auto i = consumers.find(id);
     if (i == consumers.end())
       FAIL("unable to retrieve state for consumer " << id);
-    using actor_type = caf::stateful_actor<consumer_state>;
-    return deref<actor_type>(i->second).state.consumer;
-  }
-
-  std::map<std::string, caf::actor> consumers;
-  std::vector<outgoing_message> outgoing_messages;
-  std::minstd_rand rng;
-};
-
-// -- actor implementations ----------------------------------------------------
-
-struct producer_visitor {
-  producer_type* ch;
-  const std::string& src;
-
-  void operator()(channel_type::cumulative_ack& msg) {
-    ch->handle_ack(src, msg.seq);
-  }
-
-  void operator()(channel_type::nack& msg) {
-    ch->handle_nack(src, msg.seqs);
+    return i->second->consumer;
   }
 };
-
-caf::behavior producer_actor(caf::event_based_actor* self,
-                             producer_type* state) {
-  return {
-    [state](std::string& src, channel_type::consumer_message& msg) {
-      producer_visitor f{state, src};
-      std::visit(f, msg);
-    },
-  };
-}
 
 template <class T>
 void consumer_backend::send(consumer_type*, const T& x) {
-  if (!output.empty())
+  if (!output.empty()) {
     output += '\n';
+  }
   output += caf::deep_to_string(x);
-  if (self && fix)
-    fix->outgoing_messages.emplace_back(self, fix->producer_hdl, id,
+  if (fix)
+    fix->outgoing_messages.emplace_back(id, "producer"s,
                                         channel_type::consumer_message{x});
 }
 
@@ -266,21 +286,6 @@ struct consumer_visitor {
     ch->handle_retransmit_failed(msg.seq);
   }
 };
-
-caf::behavior consumer_actor(caf::stateful_actor<consumer_state>* self,
-                             std::string id, fixture* fix) {
-  self->state.backend.id = std::move(id);
-  self->state.backend.attach(self, fix);
-  return {
-    [self](channel_type::producer_message& msg) {
-      auto& st = self->state;
-      consumer_visitor f{&st.consumer};
-      std::visit(f, msg);
-      if (st.backend.closed)
-        self->quit();
-    },
-  };
-}
 
 } // namespace
 
@@ -486,7 +491,7 @@ TEST(consumers send NACK messages when receiving incomplete data) {
 }
 
 TEST(producers become idle after all consumers ACKed all messages) {
-  setup_actors({"A", "B", "C", "D"});
+  setup_consumers({"A", "B", "C", "D"});
   producer.produce("a");
   producer.produce("b");
   producer.produce("c");
@@ -518,7 +523,7 @@ TEST(producers become idle after all consumers ACKed all messages) {
 TEST(messages arrive eventually - even with 33 percent loss rate) {
   producer.connection_timeout_factor(12);
   // Essentially the same test as above, but with a loss rate of 33%.
-  setup_actors({"A", "B", "C", "D"});
+  setup_consumers({"A", "B", "C", "D"});
   CHECK_EQUAL(get("A").backend().input, "");
   CHECK_EQUAL(get("B").backend().input, "");
   CHECK_EQUAL(get("C").backend().input, "");
@@ -556,7 +561,7 @@ TEST(messages arrive eventually - even with 33 percent loss rate) {
 TEST(messages arrive eventually - even with 66 percent loss rate) {
   producer.connection_timeout_factor(24);
   // Essentially the same test again, but with a loss rate of 66%.
-  setup_actors({"A", "B", "C", "D"});
+  setup_consumers({"A", "B", "C", "D"});
   producer.produce("a");
   producer.produce("b");
   producer.produce("c");
