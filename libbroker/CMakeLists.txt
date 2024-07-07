@@ -179,14 +179,11 @@ set(BROKER_TEST_SRC
   broker/internal/wire_format.test.cc
   broker/master.test.cc
   broker/peering.test.cc
-  broker/publisher.test.cc
   broker/radix_tree.test.cc
   broker/shutdown.test.cc
   broker/status.test.cc
-  broker/status_subscriber.test.cc
   broker/store.test.cc
   broker/store_event.test.cc
-  broker/subscriber.test.cc
   broker/telemetry/histogram.test.cc
   broker/topic.test.cc
   broker/variant.test.cc

@@ -11,12 +11,14 @@
 #include <broker/subscriber.hh>
 
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <variant>
 
 using namespace std::literals;
 
-int run_publisher(broker::endpoint& ep, uint16_t port) {
+int run_publisher(broker::endpoint& ep, uint16_t port, int num,
+                  std::string_view mode) {
   // Start listening on the given port.
   auto ssub = ep.make_status_subscriber(true);
   if (ep.listen({}, port) != port) {
@@ -44,23 +46,32 @@ int run_publisher(broker::endpoint& ep, uint16_t port) {
   std::cout << "Start sending messages\n";
   auto pub1 = ep.make_publisher("/test");         // Subscribed by the receiver.
   auto pub2 = ep.make_publisher("/unsubscribed"); // Not subscribed.
-  for (broker::integer value = 0; value < 10; ++value) {
-    pub1.publish(broker::data{value});
-    pub2.publish(broker::data{value});
-    std::ignore = ssub.poll(); // Drop any events.
+  if (mode == "single"sv) {
+    for (broker::integer value = 0; value < num; ++value) {
+      pub1.publish(broker::data{value});
+      pub2.publish(broker::data{value});
+      std::ignore = ssub.poll(); // Drop any events.
+    }
+  } else {
+    std::vector<broker::data> batch;
+    for (broker::integer value = 0; value < num; ++value) {
+      batch.emplace_back(value);
+    }
+    pub1.publish(batch);
+    pub2.publish(batch);
   }
-  std::cout << "Sent 10 messages\n";
+  std::cout << "Sent " << num << " messages\n";
   return EXIT_SUCCESS;
 }
 
-int run_receiver(broker::endpoint& ep, uint16_t port) {
+int run_receiver(broker::endpoint& ep, uint16_t port, int num) {
   auto sub = ep.make_subscriber({"/test"});
   if (!ep.peer("localhost", port, 1s)) {
     std::cout << "Failed to peer with localhost:" << port << '\n';
     return EXIT_FAILURE;
   }
   std::vector<broker::variant> received;
-  for (auto i = 0; i < 10; ++i) {
+  for (auto i = 0; i < num; ++i) {
     auto msg = sub.get(3s);
     if (!msg) {
       std::cout << "Timeout waiting for message\n";
@@ -75,13 +86,18 @@ int run_receiver(broker::endpoint& ep, uint16_t port) {
   return EXIT_SUCCESS;
 }
 
+[[noreturn]] void usage() {
+  std::cerr << "Usage:\n"
+            << "- publish-and-receive publisher <num-items> <single|batch>\n"
+            << "- publish-and-receive receiver <num-items>\n";
+  exit(EXIT_FAILURE);
+}
+
 int main(int argc, char** argv) {
   setvbuf(stdout, nullptr, _IOLBF, 0); // Always line-buffer stdout.
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " <role>\n";
-    return 1;
+  if (argc < 2) {
+    usage();
   }
-
   // Check the role.
   auto is_publisher = false;
   if (std::string_view{argv[1]} == "publisher") {
@@ -93,7 +109,6 @@ int main(int argc, char** argv) {
     std::cout << "Invalid role: " << argv[1] << '\n';
     return EXIT_FAILURE;
   }
-
   // Get the port from the BROKER_PORT environment variable.
   std::string port_str;
   if (auto env = getenv("BROKER_PORT")) {
@@ -107,12 +122,19 @@ int main(int argc, char** argv) {
     std::cout << "Invalid port: " << argv[2] << '\n';
     return 1;
   }
-
+  // Dispatch to the appropriate role.
   broker::endpoint::system_guard sys_guard; // Initialize global state.
   broker::endpoint ep;
   if (is_publisher) {
-    return run_publisher(ep, static_cast<uint16_t>(port));
+    if (argc != 4) {
+      usage();
+    }
+    return run_publisher(ep, static_cast<uint16_t>(port), std::stoi(argv[2]),
+                         argv[3]);
   } else {
-    return run_receiver(ep, static_cast<uint16_t>(port));
+    if (argc != 3) {
+      usage();
+    }
+    return run_receiver(ep, static_cast<uint16_t>(port), std::stoi(argv[2]));
   }
 }
