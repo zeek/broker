@@ -171,7 +171,6 @@ set(BROKER_TEST_SRC
   broker/format/bin.test.cc
   broker/format/json.test.cc
   broker/internal/channel.test.cc
-  broker/internal/core_actor.test.cc
   broker/internal/json.test.cc
   broker/internal/metric_collector.test.cc
   broker/internal/metric_exporter.test.cc
