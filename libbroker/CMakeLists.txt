@@ -152,7 +152,6 @@ if ( BROKER_DISABLE_TESTS )
 endif ()
 
 set(BROKER_TEST_SRC
-  # broker/integration.test.cc
   # broker/internal/data_generator.test.cc
   # broker/internal/generator_file_writer.test.cc
   # broker/internal/json_type_mapper.test.cc
