@@ -393,11 +393,13 @@ PYBIND11_MODULE(_broker, m) {
     .def("peers", &broker::endpoint::peers)
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)
-    .def("publish", (void(broker::endpoint::*)(broker::topic, broker::data))
-                      & broker::endpoint::publish)
-    .def("publish", (void(broker::endpoint::*)(const broker::endpoint_info&,
-                                               broker::topic, broker::data))
-                      & broker::endpoint::publish)
+    .def("publish",
+         (void(broker::endpoint::*)(broker::topic, const broker::data&))
+           & broker::endpoint::publish)
+    .def("publish",
+         (void(broker::endpoint::*)(const broker::endpoint_info&, broker::topic,
+                                    const broker::data&))
+           & broker::endpoint::publish)
     .def("publish_batch",
          [](broker::endpoint& ep, std::vector<topic_data_pair> batch) {
            for (auto& item : batch)

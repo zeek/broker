@@ -134,7 +134,7 @@ public:
 
   explicit Invalid(variant msg) : Message(std::move(msg)) {}
 
-  explicit Invalid(data_message msg) : Invalid(broker::get_data(msg)) {}
+  explicit Invalid(const data_message& msg) : Invalid(broker::get_data(msg)) {}
 
   explicit Invalid(Message&& msg) : Message(std::move(msg)) {}
 };
@@ -270,7 +270,7 @@ public:
 
   explicit Event(variant msg) : Message(std::move(msg)) {}
 
-  explicit Event(data_message msg) : Message(broker::get_data(msg)) {}
+  explicit Event(const data_message& msg) : Message(broker::get_data(msg)) {}
 
   std::string_view name() const {
     auto&& fields = sub_fields();
@@ -369,7 +369,8 @@ public:
 
   explicit LogCreate(variant msg) : Message(std::move(msg)) {}
 
-  explicit LogCreate(data_message msg) : LogCreate(broker::move_data(msg)) {}
+  explicit LogCreate(const data_message& msg)
+    : LogCreate(broker::move_data(msg)) {}
 
   enum_value_view stream_id() const {
     auto&& fields = sub_fields();
@@ -432,7 +433,8 @@ public:
 
   explicit LogWrite(variant msg) : Message(std::move(msg)) {}
 
-  explicit LogWrite(data_message msg) : LogWrite(broker::move_data(msg)) {}
+  explicit LogWrite(const data_message& msg)
+    : LogWrite(broker::move_data(msg)) {}
 
   enum_value_view stream_id() const {
     auto&& fields = sub_fields();
@@ -485,7 +487,7 @@ public:
 
   explicit IdentifierUpdate(variant msg) : Message(std::move(msg)) {}
 
-  explicit IdentifierUpdate(data_message msg)
+  explicit IdentifierUpdate(const data_message& msg)
     : IdentifierUpdate(broker::move_data(msg)) {}
 
   std::string_view id_name() const {
@@ -512,7 +514,7 @@ class Batch : public Message {
 public:
   explicit Batch(variant msg);
 
-  explicit Batch(data_message msg) : Batch(broker::get_data(msg)) {}
+  explicit Batch(const data_message& msg) : Batch(broker::get_data(msg)) {}
 
   size_t size() const noexcept {
     return impl_ ? impl_->size() : 0;
@@ -570,7 +572,7 @@ private:
 };
 
 template <class F>
-auto visit_as_message(F&& f, broker::data_message msg) {
+auto visit_as_message(F&& f, const broker::data_message& msg) {
   auto do_visit = [&f](auto& tmp) {
     if (tmp.valid())
       return f(tmp);
@@ -579,27 +581,27 @@ auto visit_as_message(F&& f, broker::data_message msg) {
   };
   switch (Message::type(msg)) {
     default: {
-      Invalid tmp{std::move(msg)};
+      Invalid tmp{msg};
       return f(tmp);
     }
     case Message::Type::Event: {
-      Event tmp{std::move(msg)};
+      Event tmp{msg};
       return do_visit(tmp);
     }
     case Message::Type::LogCreate: {
-      LogCreate tmp{std::move(msg)};
+      LogCreate tmp{msg};
       return do_visit(tmp);
     }
     case Message::Type::LogWrite: {
-      LogWrite tmp{std::move(msg)};
+      LogWrite tmp{msg};
       return do_visit(tmp);
     }
     case Message::Type::IdentifierUpdate: {
-      IdentifierUpdate tmp{std::move(msg)};
+      IdentifierUpdate tmp{msg};
       return do_visit(tmp);
     }
     case Message::Type::Batch: {
-      Batch tmp{std::move(msg)};
+      Batch tmp{msg};
       return do_visit(tmp);
     }
   }

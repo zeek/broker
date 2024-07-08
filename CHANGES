@@ -1,3 +1,9 @@
+2.8.0-dev.84 | 2024-06-24 15:38:31 +0200
+
+  * Remove unused master_resolver from the code base (Dominik Charousset, Corelight)
+
+  * Fix/suppress clang-tidy findings (Dominik Charousset, Corelight)
+
 2.8.0-dev.80 | 2024-05-31 09:10:03 +0200
 
   * Add JSON schema for the WebSocket output format (Dominik Charousset, Corelight)

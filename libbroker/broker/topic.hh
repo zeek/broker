@@ -54,6 +54,14 @@ public:
   /// Default-constructs an empty topic.
   topic() = default;
 
+  topic(const topic&) = default;
+
+  topic(topic&&) noexcept = default;
+
+  topic& operator=(const topic&) = default;
+
+  topic& operator=(topic&&) noexcept = default;
+
   /// Constructs a topic from a type that is convertible to a string.
   /// @param x A value convertible to a string.
   template <class T,

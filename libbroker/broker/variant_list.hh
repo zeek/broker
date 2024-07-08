@@ -85,6 +85,8 @@ public:
 
   variant_list() noexcept = default;
 
+  variant_list(variant_list&&) noexcept = default;
+
   variant_list(const variant_list&) noexcept = default;
 
   bool empty() const noexcept {

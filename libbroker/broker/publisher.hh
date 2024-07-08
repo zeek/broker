@@ -73,7 +73,7 @@ public:
   void publish(const data& x);
 
   /// Sends `xs` to all subscribers.
-  void publish(std::vector<data> xs);
+  void publish(const std::vector<data>& xs);
 
   /// Sends `x` to all subscribers.
   void publish(set_builder&& x);
