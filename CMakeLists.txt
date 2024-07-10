@@ -2,9 +2,11 @@
 
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(broker C CXX)
+
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
 include(cmake/CommonCMakeConfig.cmake)
+include(cmake/ZeekBundle.cmake)
 
 set(BROKER_TEST_TIMEOUT 60)
 
@@ -207,6 +209,36 @@ function(add_bundled_caf)
   set(BUILD_SHARED_LIBS OFF)
   add_subdirectory(caf EXCLUDE_FROM_ALL)
 endfunction()
+
+# Bundle prometheus-cpp. This approach is currently experimental.
+if (CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(msvc_zeekbundle_args
+        CMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}
+        CMAKE_MSVC_RUNTIME_LIBRARY_FLAG=${CMAKE_MSVC_RUNTIME_LIBRARY_FLAG})
+endif ()
+ZeekBundle_Add(
+  NAME prometheus-cpp
+  FETCH
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/auxil/prometheus-cpp
+  CONFIGURE
+    ${msvc_zeekbundle_args}
+    ENABLE_COMPRESSION=OFF
+    ENABLE_PUSH=OFF)
+unset(msvc_zeekbundle_args)
+
+# Bundle all prometheus-cpp libraries that we need as single interface library.
+add_library(broker-prometheus-cpp INTERFACE)
+target_link_libraries(
+  broker-prometheus-cpp
+  INTERFACE
+    $<BUILD_INTERFACE:prometheus-cpp::core>
+    $<BUILD_INTERFACE:prometheus-cpp::pull>)
+# Prometheus-cpp sets C++ 11 via CMake property, but we need C++ 17.
+target_compile_features(broker-prometheus-cpp INTERFACE cxx_std_17)
+# Must be exported to keep CMake happy, even though we only need it internally.
+install(TARGETS broker-prometheus-cpp
+        EXPORT BrokerTargets
+        DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # NOTE: building and linking against an external CAF version is NOT supported!
 #       This variable is FOR DEVELOPMENT ONLY. The only officially supported CAF
