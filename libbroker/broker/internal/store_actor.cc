@@ -66,11 +66,13 @@ store_actor_state::store_actor_state(caf::event_based_actor* selfptr)
   // nop
 }
 
-void store_actor_state::init(endpoint_id this_endpoint, endpoint::clock* clock,
+void store_actor_state::init(prometheus_registry_ptr reg,
+                             endpoint_id this_endpoint, endpoint::clock* clock,
                              std::string&& store_name, caf::actor&& core,
                              consumer_resource<command_message> in_res,
                              producer_resource<command_message> out_res) {
   BROKER_ASSERT(clock != nullptr);
+  this->registry = std::move(reg);
   this->clock = clock;
   this->store_name = std::move(store_name);
   this->id.endpoint = this_endpoint;

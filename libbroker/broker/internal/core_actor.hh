@@ -12,9 +12,8 @@
 #include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
-#include <caf/telemetry/counter.hpp>
-#include <caf/telemetry/gauge.hpp>
 
+#include <array>
 #include <optional>
 #include <string_view>
 #include <unordered_map>
@@ -32,13 +31,13 @@ public:
   /// Bundles message-related metrics that have a label dimension for the type.
   struct message_metrics_t {
     /// Counts how many messages were processed since starting the core.
-    caf::telemetry::int_counter* processed = nullptr;
+    prometheus::Counter* processed = nullptr;
 
     /// Keeps track of how many messages are currently buffered at the core.
-    caf::telemetry::int_gauge* buffered = nullptr;
+    prometheus::Gauge* buffered = nullptr;
 
-    void assign(caf::telemetry::int_counter* processed_instance,
-                caf::telemetry::int_gauge* buffered_instance) noexcept {
+    void assign(prometheus::Counter* processed_instance,
+                prometheus::Gauge* buffered_instance) noexcept {
       processed = processed_instance;
       buffered = buffered_instance;
     }
@@ -46,13 +45,13 @@ public:
 
   /// Bundles metrics for the core.
   struct metrics_t {
-    explicit metrics_t(caf::actor_system& sys);
+    explicit metrics_t(prometheus::Registry& reg);
 
     /// Keeps track of how many native peers are currently connected.
-    caf::telemetry::int_gauge* native_connections = nullptr;
+    prometheus::Gauge* native_connections = nullptr;
 
     /// Keeps track of how many WebSocket clients are currently connected.
-    caf::telemetry::int_gauge* web_socket_connections = nullptr;
+    prometheus::Gauge* web_socket_connections = nullptr;
 
     /// Stores the metrics for all message types.
     std::array<message_metrics_t, 6> message_metric_sets;
@@ -68,7 +67,8 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  core_actor_state(caf::event_based_actor* self, endpoint_id this_peer,
+  core_actor_state(caf::event_based_actor* self,
+                   prometheus_registry_ptr registry, endpoint_id this_peer,
                    filter_type initial_filter, endpoint::clock* clock = nullptr,
                    const domain_options* adaptation = nullptr,
                    connector_ptr conn = nullptr);
@@ -242,6 +242,9 @@ public:
 
   /// Enables manual time management by the user.
   endpoint::clock* clock;
+
+  /// Stores a reference to the metrics registry.
+  prometheus_registry_ptr registry;
 
   /// Caches pointers to the Broker metrics.
   metrics_t metrics;

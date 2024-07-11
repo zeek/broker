@@ -1,3 +1,15 @@
+2.8.0-dev.93 | 2024-07-11 12:11:26 -0700
+
+  * Add safety checks for accessing registry pointers (Dominik Charousset, Corelight)
+
+  * Fix build on Windows (Dominik Charousset, Corelight)
+
+  * Remove obsolete tests (Dominik Charousset, Corelight)
+
+  * Use bundling approach for building prometheus-cpp (Dominik Charousset and Christian Kreibich, Corelight)
+
+  * Drop legacy telemetry API (Dominik Charousset, Corelight)
+
 2.8.0-dev.84 | 2024-06-24 15:38:31 +0200
 
   * Remove unused master_resolver from the code base (Dominik Charousset, Corelight)
