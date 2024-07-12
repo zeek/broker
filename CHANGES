@@ -1,3 +1,9 @@
+2.8.0-dev.97 | 2024-07-12 15:04:40 -0700
+
+  * CI: Only use Sonoma for macOS (Tim Wojtulewicz, Corelight)
+
+  * CI: Set FETCH_CONTENT_FULLY_DISCONNECTED flag for configure (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.93 | 2024-07-11 12:11:26 -0700
 
   * Add safety checks for accessing registry pointers (Dominik Charousset, Corelight)
