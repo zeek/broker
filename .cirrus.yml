@@ -2,8 +2,8 @@
 cpus: &CPUS 8
 memory: &MEMORY 24GB
 
-config: &CONFIG --build-type=release --enable-static
-memcheck_config: &MEMCHECK_CONFIG --build-type=debug --sanitizers=address
+config: &CONFIG --build-type=release --enable-static -D FETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON
+memcheck_config: &MEMCHECK_CONFIG --build-type=debug --sanitizers=address -D FETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON
 
 resources_template: &RESOURCES_TEMPLATE
   cpu: *CPUS
