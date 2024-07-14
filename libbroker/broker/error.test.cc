@@ -20,7 +20,7 @@ data make_data_error(ec code, vector context = {}) {
 
 } // namespace
 
-FIXTURE_SCOPE(status_tests, base_fixture)
+FIXTURE_SCOPE(status_tests, ids_fixture)
 
 TEST(ec is convertible to and from string) {
   CHECK_EQUAL(to_string(ec::unspecified), "unspecified"s);

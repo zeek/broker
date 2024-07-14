@@ -7,7 +7,7 @@ using namespace broker::literals;
 
 namespace {
 
-struct fixture : base_fixture {
+struct fixture : ids_fixture {
   endpoint_id A;
 
   endpoint_id B;

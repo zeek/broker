@@ -147,7 +147,7 @@ private:
   std::vector<std::string> paths_;
 };
 
-struct fixture : base_fixture {
+struct fixture {
   fixture() {
     auto opts = backend_options{{"path", detail::make_temp_file_name()}};
     backend = std::make_unique<meta_backend>(std::move(opts));

@@ -6,7 +6,7 @@ using namespace broker;
 
 namespace {
 
-struct fixture : base_fixture {
+struct fixture : ids_fixture {
   detail::peer_status_map uut;
   endpoint_id pid;
 

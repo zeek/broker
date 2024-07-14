@@ -153,8 +153,6 @@ if ( BROKER_DISABLE_TESTS )
 endif ()
 
 set(BROKER_TEST_SRC
-  # broker/core.test.cc
-  # broker/integration.test.cc
   # broker/internal/data_generator.test.cc
   # broker/internal/generator_file_writer.test.cc
   # broker/internal/json_type_mapper.test.cc
@@ -174,19 +172,14 @@ set(BROKER_TEST_SRC
   broker/format/bin.test.cc
   broker/format/json.test.cc
   broker/internal/channel.test.cc
-  broker/internal/core_actor.test.cc
   broker/internal/json.test.cc
   broker/internal/wire_format.test.cc
-  broker/master.test.cc
   broker/peering.test.cc
-  broker/publisher.test.cc
   broker/radix_tree.test.cc
   broker/shutdown.test.cc
   broker/status.test.cc
-  broker/status_subscriber.test.cc
   broker/store.test.cc
   broker/store_event.test.cc
-  broker/subscriber.test.cc
   broker/topic.test.cc
   broker/variant.test.cc
   broker/zeek.test.cc

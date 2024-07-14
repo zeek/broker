@@ -1,3 +1,7 @@
+2.8.0-dev.107 | 2024-07-14 08:39:15 +0200
+
+  * Add more btests to replace "unit" tests (Dominik Charousset, Corelight)
+
 2.8.0-dev.97 | 2024-07-12 15:04:40 -0700
 
   * CI: Only use Sonoma for macOS (Tim Wojtulewicz, Corelight)
