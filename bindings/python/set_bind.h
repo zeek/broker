@@ -64,8 +64,7 @@ void set_modifiers(
     "remove", [](Set& s, const T& x) { s.erase(x); }, arg("x"),
     "Removes an item from this set.");
 
-  cl.def(
-    "clear", [](Set& s) { s.clear(); }, "Empties this set.");
+  cl.def("clear", [](Set& s) { s.clear(); }, "Empties this set.");
 }
 
 // To iterate by copying objects, as std::set iterators are const.

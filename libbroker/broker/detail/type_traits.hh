@@ -115,8 +115,8 @@ inline constexpr bool are_same_v = are_same<Ts...>::value;
 template <class From, class To>
 struct has_convert {
   template <class T>
-  static auto test(const T* x)
-    -> decltype(convert(*x, std::declval<To&>()), std::true_type());
+  static auto test(const T* x) -> decltype(convert(*x, std::declval<To&>()),
+                                           std::true_type());
 
   template <class T>
   static auto test(...) -> std::false_type;
@@ -240,9 +240,9 @@ inline constexpr bool is_tuple = is_tuple_oracle<T>::value;
   class has_encode_overload {                                                  \
   private:                                                                     \
     template <class U>                                                         \
-    static auto sfinae(U& y)                                                   \
-      -> decltype(::ns_name::encode(y, std::declval<OutIter&>()),              \
-                  std::true_type{});                                           \
+    static auto                                                                \
+    sfinae(U& y) -> decltype(::ns_name::encode(y, std::declval<OutIter&>()),   \
+                             std::true_type{});                                \
     static std::false_type sfinae(...);                                        \
     using result_type = decltype(sfinae(std::declval<T&>()));                  \
                                                                                \

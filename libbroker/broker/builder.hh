@@ -54,8 +54,8 @@ struct builder_access {
   static Builder& add(Builder& builder, T&& value) {
     namespace bin_v1 = format::bin::v1;
     using value_type = std::decay_t<T>;
-    static_assert(variant_data::is_primitive<
-                    value_type> || detail::has_builder_access<value_type>,
+    static_assert(variant_data::is_primitive<value_type>
+                    || detail::has_builder_access<value_type>,
                   "T is neither a builder nor a recognized data type");
     using value_type = std::decay_t<T>;
     if constexpr (is_builder<value_type>) {
@@ -65,9 +65,8 @@ struct builder_access {
     } else {
       // Omit the tag for `variant` and `data`, because they will write it
       // themselves.
-      if constexpr (!std::is_same_v<
-                      value_type,
-                      variant> && !std::is_same_v<value_type, data>) {
+      if constexpr (!std::is_same_v<value_type, variant>
+                    && !std::is_same_v<value_type, data>) {
         bin_v1::write_unsigned(data_tag_v<value_type>, builder.adder());
       }
       bin_v1::encode(std::forward<T>(value), builder.adder());

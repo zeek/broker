@@ -553,8 +553,7 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, atom::keys, request_id id) {
       auto x = backend->keys();
-      BROKER_INFO("KEYS"
-                  << "with id:" << id << "->" << x);
+      BROKER_INFO("KEYS" << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else

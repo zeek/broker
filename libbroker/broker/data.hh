@@ -64,11 +64,10 @@ public:
       return detail::tag<count>{};
     } else if constexpr (std::is_signed_v<T>) {
       return detail::tag<integer>{};
-    } else if constexpr (
-      std::is_same_v<
-        T,
-        std::
-          string> || std::is_same_v<T, std::string_view> || std::is_same_v<T, char*> || std::is_same_v<T, const char*>) {
+    } else if constexpr (std::is_same_v<T, std::string>
+                         || std::is_same_v<T, std::string_view>
+                         || std::is_same_v<T, char*>
+                         || std::is_same_v<T, const char*>) {
       return detail::tag<std::string>{};
     } else if constexpr (std::is_same_v<T, timestamp>      //
                          || std::is_same_v<T, timespan>    //
