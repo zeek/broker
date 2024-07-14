@@ -1,5 +1,3 @@
-#include "broker/internal/logger.hh" // Needs to come before CAF includes.
-
 #include <caf/actor.hpp>
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
@@ -18,6 +16,7 @@
 #include "broker/internal/checked.hh"
 #include "broker/internal/master_actor.hh"
 #include "broker/internal/metric_factory.hh"
+#include "broker/logger.hh"
 #include "broker/store.hh"
 #include "broker/time.hh"
 #include "broker/topic.hh"
@@ -78,11 +77,11 @@ master_state::master_state(
   if (auto entries = backend->size(); entries && *entries > 0) {
     metrics.entries->Set(*entries);
   }
-  BROKER_INFO("attached master" << id << "to" << store_name);
+  log::store::info("attached", "attached master {} to {}", id, store_name);
 }
 
 void master_state::dispatch(const command_message& msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
+  log::store::debug("dispatch", "received command {}", msg);
   // Here, we receive all command messages from the stream. The first step is
   // figuring out whether the received message stems from a writer or clone.
   // Clones can only send control messages (they are always consumers). Writers
@@ -97,7 +96,9 @@ void master_state::dispatch(const command_message& msg) {
       if (auto i = inputs.find(cmd.sender); i != inputs.end())
         i->second.handle_event(seq, msg);
       else
-        BROKER_DEBUG("received action from unknown sender:" << cmd.sender);
+        log::store::debug("unknown-sender-action",
+                          "master received action from unknown sender {}",
+                          cmd.sender);
       break;
     }
     case command_tag::producer_control: {
@@ -105,7 +106,9 @@ void master_state::dispatch(const command_message& msg) {
       if (auto i = inputs.find(cmd.sender); i != inputs.end()) {
         switch (type) {
           case internal_command::type::attach_writer_command: {
-            BROKER_DEBUG("ignore repeated handshake from" << cmd.sender);
+            log::store::debug("repeated-attach-writer",
+                              "master ignores repeated handshake from {}",
+                              cmd.sender);
             break;
           }
           case internal_command::type::keepalive_command: {
@@ -119,22 +122,30 @@ void master_state::dispatch(const command_message& msg) {
             break;
           }
           default: {
-            BROKER_ERROR("received bogus producer control message:" << cmd);
+            log::store::error(
+              "bogus-producer-control",
+              "master received bogus producer control message {}", cmd);
           }
         }
       } else if (type == internal_command::type::attach_writer_command) {
-        BROKER_DEBUG("attach new writer:" << cmd.sender);
+        log::store::debug("attach-writer", "master attaches new writer: {}",
+                          cmd.sender);
         auto& inner = get<attach_writer_command>(cmd.content);
         i = inputs.emplace(cmd.sender, this).first;
         super::init(i->second);
         i->second.producer(cmd.sender);
         if (!i->second.handle_handshake(inner.offset,
                                         inner.heartbeat_interval)) {
-          BROKER_ERROR("abort connection: handle_handshake returned false");
+          log::store::error(
+            "store-handshake-error",
+            "master aborts connection: handle_handshake returned false");
           inputs.erase(i);
         }
       } else {
-        BROKER_DEBUG("received command from unknown sender:" << cmd);
+        log::store::debug(
+          "unknown-sender-producer-control",
+          "master received producer control message from unknown sender {}",
+          cmd.sender);
       }
       break;
     }
@@ -153,7 +164,10 @@ void master_state::dispatch(const command_message& msg) {
           break;
         }
         default: {
-          BROKER_ERROR("received bogus consumer control message:" << cmd);
+          log::store::debug(
+            "unknown-sender-consumer-control",
+            "master received consumer control message from unknown sender {}",
+            cmd.sender);
         }
       }
     }
@@ -176,7 +190,6 @@ table master_state::status_snapshot() const {
 }
 
 void master_state::tick() {
-  BROKER_TRACE("");
   output.tick();
   for (auto& kvp : inputs)
     kvp.second.tick();
@@ -184,13 +197,15 @@ void master_state::tick() {
   for (auto i = expirations.begin(); i != expirations.end();) {
     if (t > i->second) {
       const auto& key = i->first;
-      BROKER_INFO("EXPIRE" << key);
       if (auto result = backend->expire(key, t); !result) {
-        BROKER_ERROR("EXPIRE" << key << "(FAILED)"
-                              << to_string(result.error()));
+        log::store::error("expire-error", "failed to expire key {}: {}", key,
+                          result.error());
+
       } else if (!*result) {
-        BROKER_INFO("EXPIRE" << key << "(IGNORE/STALE)");
+        log::store::warning("expire-stale-key", "tried to expire stale key {}",
+                            key);
       } else {
+        log::store::info("expire", "expired key {}", key);
         expire_command cmd{key, id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
@@ -220,14 +235,15 @@ void master_state::consume(consumer_type*, command_message& msg) {
 }
 
 void master_state::consume(put_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("PUT" << x.key << "->" << x.value << "with expiry"
-                    << (x.expiry ? to_string(*x.expiry) : "none"));
+  log::store::debug("put-command",
+                    "master received put command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
   auto result = backend->put(x.key, x.value, et);
   if (!result) {
-    BROKER_WARNING("failed to put" << x.key << "->" << x.value);
+    log::store::error("put-command-failed", "failed to write to key {}: {}",
+                      x.key, result.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   set_expire_time(x.key, x.expiry);
@@ -241,10 +257,9 @@ void master_state::consume(put_command& x) {
 }
 
 void master_state::consume(put_unique_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("PUT_UNIQUE" << x.key << "->" << x.value << "with expiry"
-                           << (x.expiry ? to_string(*x.expiry) : "none")
-                           << "from" << x.who);
+  log::store::debug("put-unique-command",
+                    "master received put unique command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto broadcast_result = [this, &x](bool inserted) {
     broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
     if (x.who) {
@@ -261,7 +276,8 @@ void master_state::consume(put_unique_command& x) {
   }
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->put(x.key, x.value, et); !res) {
-    BROKER_WARNING("failed to put_unique" << x.key << "->" << x.value);
+    log::store::error("put-unique-command-failed",
+                      "failed to write to key {}: {}", x.key, res.error());
     broadcast_result(false);
     return;
   }
@@ -276,14 +292,16 @@ void master_state::consume(put_unique_command& x) {
 }
 
 void master_state::consume(erase_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("ERASE" << x.key);
+  log::store::debug("erase-command", "master received erase command for key {}",
+                    x.key);
   if (!exists(x.key)) {
-    BROKER_DEBUG("failed to erase" << x.key << "-> no such key");
+    log::store::debug("erase-command-no-such-key",
+                      "master failed to erase key {}: no such key", x.key);
     return;
   }
   if (auto res = backend->erase(x.key); !res) {
-    BROKER_WARNING("failed to erase" << x.key << "->" << res.error());
+    log::store::error("erase-command-failed",
+                      "master failed to erase key {}: {}", x.key, res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   emit_erase_event(x.key, x.publisher);
@@ -292,18 +310,21 @@ void master_state::consume(erase_command& x) {
 }
 
 void master_state::consume(add_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("ADD" << x);
+  log::store::debug("add-command",
+                    "master received add command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto old_value = backend->get(x.key);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   if (auto res = backend->add(x.key, x.value, x.init_type, et); !res) {
-    BROKER_WARNING("failed to add" << x.value << "to" << x.key << "->"
-                                   << res.error());
+    log::store::error("add-command-failed",
+                      "master failed to add {} to key {}: {}", x.value, x.key,
+                      res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto val = backend->get(x.key); !val) {
-    BROKER_ERROR("failed to get"
-                 << x.value << "after add() returned success:" << val.error());
+    log::store::error("add-then-read-failed",
+                      "master failed to read new value for key {}: {}", x.key,
+                      val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     set_expire_time(x.key, x.expiry);
@@ -322,23 +343,28 @@ void master_state::consume(add_command& x) {
 }
 
 void master_state::consume(subtract_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("SUBTRACT" << x);
+  log::store::debug("subtract-command",
+                    "master received subtract command (expiry {}): {} -> {}",
+                    expiry_formatter{x.expiry}, x.key, x.value);
   auto et = to_opt_timestamp(clock->now(), x.expiry);
   auto old_value = backend->get(x.key);
   if (!old_value) {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
-    BROKER_WARNING("cannot substract from non-existing value for key" << x.key);
+    log::store::warning("subtract-command-invalid-key",
+                        "master failed to subtract {} from key {}: no such key",
+                        x.value, x.key, old_value.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto res = backend->subtract(x.key, x.value, et); !res) {
-    BROKER_WARNING("failed to substract" << x.value << "from" << x.key);
+    log::store::error("subtract-command-failed",
+                      "master failed to subtract {} from key {}: {}", x.value,
+                      x.key, res.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto val = backend->get(x.key); !val) {
-    BROKER_ERROR("failed to get"
-                 << x.value
-                 << "after subtract() returned success:" << val.error());
+    log::store::error("subtract-then-read-failed",
+                      "master failed to read new value for key {}: {}", x.key,
+                      val.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   } else {
     set_expire_time(x.key, x.expiry);
@@ -352,10 +378,11 @@ void master_state::consume(subtract_command& x) {
 }
 
 void master_state::consume(clear_command& x) {
-  BROKER_TRACE(BROKER_ARG(x));
-  BROKER_INFO("CLEAR" << x);
+  log::store::info("clear-command", "master received clear command");
   if (auto keys_res = backend->keys(); !keys_res) {
-    BROKER_ERROR("unable to obtain keys:" << keys_res.error());
+    log::store::error("clear-command-no-key-res",
+                      "master failed to retrieve keys for clear command: {}",
+                      keys_res.error());
     return;
   } else {
     if (auto keys = get_if<vector>(*keys_res)) {
@@ -367,40 +394,51 @@ void master_state::consume(clear_command& x) {
         emit_erase_event(key, x.publisher);
       metrics.entries->Set(0);
     } else if (!is<none>(*keys_res)) {
-      BROKER_ERROR("backend->keys() returned an unexpected result type");
+      log::store::error("clear-command-invalid-keys",
+                        "master failed to retrieve keys for clear "
+                        "command: unexpected result type");
     }
   }
-  if (auto res = backend->clear(); !res)
+  if (auto res = backend->clear(); !res) {
+    log::store::critical("clear-command-failed",
+                         "master failed to clear the table: {}", res.error());
     detail::die("failed to clear master");
+  }
   broadcast(x);
 }
 
 error master_state::consume_nil(consumer_type* src) {
-  BROKER_TRACE("");
   // We lost a message from a writer. This is obviously bad, since we lost some
   // information before it made it into the backend. However, it is not a fatal
   // error in the sense that we must abort processing. Hence, we return `none`
   // here to keep processing messages from the writer.
-  BROKER_ERROR("lost a message from" << src->producer());
+  log::store::error("lost-consumer-message", "lost a message from {}",
+                    src->producer());
   return {};
 }
 
 void master_state::close(consumer_type* src, const error& reason) {
-  BROKER_TRACE(BROKER_ARG(reason));
   if (auto i = inputs.find(src->producer()); i != inputs.end()) {
     if (reason)
-      BROKER_INFO("removed" << src->producer() << "due to an error:" << reason);
+      log::store::info("close-consumer-with-error",
+                       "removed producer {} due to an error: {}",
+                       src->producer(), reason);
     else
-      BROKER_DEBUG("received graceful shutdown for" << src->producer());
+      log::store::info("close-consumer",
+                       "removed producer {} after graceful shutdown",
+                       src->producer());
     inputs.erase(i);
-  } else {
-    BROKER_ERROR("close called from an unknown consumer");
+    return;
   }
+  log::store::error("close-consumer-unknown",
+                    "received close request from unknown producer {}",
+                    src->producer());
 }
 
 void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
   auto dst = ptr->producer();
-  BROKER_DEBUG(BROKER_ARG(ack) << BROKER_ARG(dst));
+  log::store::debug("send-cumulative-ack",
+                    "send cumulative ack with seq {} to {}", ack.seq, dst);
   auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, cumulative_ack_command{ack.seq}});
@@ -409,7 +447,7 @@ void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
 
 void master_state::send(consumer_type* ptr, channel_type::nack nack) {
   auto dst = ptr->producer();
-  BROKER_DEBUG(BROKER_ARG(nack) << BROKER_ARG(dst));
+  log::store::debug("send-nack", "send nack to {}", dst);
   auto msg = make_command_message(
     clones_topic,
     internal_command{0, id, dst, nack_command{std::move(nack.seqs)}});
@@ -420,9 +458,9 @@ void master_state::send(consumer_type* ptr, channel_type::nack nack) {
 
 void master_state::send(producer_type*, const entity_id& whom,
                         const channel_type::event& what) {
-  BROKER_DEBUG("send event with seq"
-               << get_command(what.content).seq << "and type"
-               << get_command(what.content).content.index() << "to" << whom);
+  log::store::debug("send-event", "send event with seq {} and type {} to {}",
+                    get_command(what.content).seq,
+                    get_command(what.content).content.index(), whom);
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
   self->send(core, atom::publish_v, what.content, whom.endpoint);
 }
@@ -441,24 +479,24 @@ void master_state::send(producer_type*, const entity_id& whom,
                                          std::move(*ss)}});
     i = open_handshakes.emplace(whom, std::move(cmd)).first;
   }
-  BROKER_DEBUG("send producer handshake with offset" << msg.offset << "to"
-                                                     << whom);
+  log::store::debug("send-handshake", "send handshake with offset {} to {}",
+                    msg.offset, whom);
   self->send(core, atom::publish_v, i->second, whom.endpoint);
 }
 
 void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::retransmit_failed msg) {
-  BROKER_TRACE(BROKER_ARG(whom) << BROKER_ARG(msg));
   auto cmd = make_command_message(
     clones_topic,
     internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
-  BROKER_DEBUG("send retransmit_failed with seq" << msg.seq << "to" << whom);
+  log::store::debug("send-retransmit-failed",
+                    "send retransmit_failed with seq {} to {}", msg.seq, whom);
   self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
 }
 
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
-  BROKER_DEBUG("broadcast keepalive_command with seq" << msg.seq);
+  log::store::debug("broadcast-heartbeat", "broadcast heartbeat with seq {}",
+                    msg.seq);
   auto cmd = make_command_message(clones_topic,
                                   internal_command{0, id, entity_id::nil(),
                                                    keepalive_command{msg.seq}});
@@ -467,23 +505,23 @@ void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
 
 void master_state::broadcast(producer_type*, const channel_type::event& what) {
   BROKER_ASSERT(what.seq == get_command(what.content).seq);
-  BROKER_DEBUG("broadcast event with seq"
-               << get_command(what.content).seq << "and type"
-               << get_command(what.content).content.index());
+  log::store::debug("broadcast-event",
+                    "broadcast event with seq {} and type {}",
+                    get_command(what.content).seq,
+                    get_command(what.content).content.index());
   self->send(core, atom::publish_v, what.content);
 }
 
 void master_state::drop(producer_type*, const entity_id& clone,
                         [[maybe_unused]] ec reason) {
-  BROKER_TRACE(BROKER_ARG(clone) << BROKER_ARG(reason));
-  BROKER_INFO("drop" << clone);
+  log::core::info("drop-clone", "drop clone {}", clone);
   open_handshakes.erase(clone);
   inputs.erase(clone);
 }
 
 void master_state::handshake_completed(producer_type*, const entity_id& clone) {
-  BROKER_TRACE(BROKER_ARG(clone));
-  BROKER_INFO("producer handshake completed for" << clone);
+  log::store::info("handshake-completed", "producer handshake completed for {}",
+                   clone);
   open_handshakes.erase(clone);
 }
 
@@ -504,7 +542,6 @@ bool master_state::idle() const noexcept {
 // -- initial behavior ---------------------------------------------------------
 
 caf::behavior master_state::make_behavior() {
-  BROKER_TRACE(BROKER_ARG(id) << BROKER_ARG(core) << BROKER_ARG(store_name));
   // Setup.
   self->monitor(core);
   self->set_down_handler([this](const caf::down_msg& msg) { //
@@ -515,7 +552,6 @@ caf::behavior master_state::make_behavior() {
   return super::make_behavior(
     // --- local communication -------------------------------------------------
     [this](atom::local, internal_command_variant& content) {
-      BROKER_TRACE(BROKER_ARG(content));
       // Locally received message are already ordered and reliable. Hence, we
       // can process them immediately.
       auto tag = detail::tag_of(content);
@@ -531,7 +567,8 @@ caf::behavior master_state::make_behavior() {
         }
         std::visit([this](auto& x) { consume(x); }, content);
       } else {
-        BROKER_ERROR("received unexpected command locally:" << content);
+        log::store::error("unexpected-command",
+                          "received unexpected command locally");
       }
     },
     [this](atom::tick) {
@@ -548,13 +585,10 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, atom::keys) -> caf::result<data> {
       auto x = backend->keys();
-      BROKER_INFO("KEYS ->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, atom::keys, request_id id) {
       auto x = backend->keys();
-      BROKER_INFO("KEYS"
-                  << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else
@@ -562,28 +596,23 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::exists, const data& key) -> caf::result<data> {
       auto x = backend->exists(key);
-      BROKER_INFO("EXISTS" << key << "->" << x);
       return {data{*x}};
     },
     [this](atom::exists, const data& key, request_id id) {
       auto x = backend->exists(key);
-      BROKER_INFO("EXISTS" << key << "with id:" << id << "->" << x);
       return caf::make_message(data{*x}, id);
     },
     [this](atom::get, const data& key) -> caf::result<data> {
       auto x = backend->get(key);
-      BROKER_INFO("GET" << key << "->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, const data& key,
            const data& aspect) -> caf::result<data> {
       auto x = backend->get(key, aspect);
-      BROKER_INFO("GET" << key << aspect << "->" << x);
       return to_caf_res(std::move(x));
     },
     [this](atom::get, const data& key, request_id id) {
       auto x = backend->get(key);
-      BROKER_INFO("GET" << key << "with id:" << id << "->" << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else
@@ -591,8 +620,6 @@ caf::behavior master_state::make_behavior() {
     },
     [this](atom::get, const data& key, const data& value, request_id id) {
       auto x = backend->get(key, value);
-      BROKER_INFO("GET" << key << "->" << value << "with id:" << id << "->"
-                        << x);
       if (x)
         return caf::make_message(std::move(*x), id);
       else

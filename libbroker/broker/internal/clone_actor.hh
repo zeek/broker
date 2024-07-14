@@ -14,6 +14,7 @@
 #include "broker/entity_id.hh"
 #include "broker/internal/store_actor.hh"
 #include "broker/internal_command.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
@@ -70,7 +71,8 @@ public:
 
   template <class T>
   void consume(T& cmd) {
-    BROKER_ERROR("master got unexpected command:" << cmd);
+    log::store::debug("unexpected-command", "clone got unexpected command: {}",
+                      cmd);
   }
 
   error consume_nil(consumer_type* src);

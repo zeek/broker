@@ -6,10 +6,10 @@
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/format/bin.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 
 #include <caf/async/spsc_buffer.hpp>
@@ -197,7 +197,7 @@ namespace broker::internal {
 caf::net::openssl::ctx_ptr
 ssl_context_from_cfg(const openssl_options_ptr& cfg) {
   if (cfg == nullptr) {
-    BROKER_DEBUG("run without SSL (no SSL config)");
+    log::network::debug("no-ssl-config", "run without SSL (no SSL config)");
     return nullptr;
   }
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
@@ -206,8 +206,9 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
   auto method = TLSv1_2_method();
 #endif
   auto ctx = caf::net::openssl::make_ctx(method);
-  BROKER_DEBUG(BROKER_ARG2("authentication", cfg->authentication_enabled()));
   if (cfg->authentication_enabled()) {
+    log::network::debug("ssl-enable-authentication",
+                        "enable SSL authentication");
     // Require valid certificates on both sides.
     ERR_clear_error();
     if (!cfg->certificate.empty()
@@ -240,6 +241,8 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1)
       throw ssl_error("failed to set cipher list");
   } else { // No authentication.
+    log::network::debug("ssl-disable-authentication",
+                        "disable SSL authentication");
     ERR_clear_error();
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
 #if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
@@ -283,8 +286,8 @@ public:
   caf::error run(caf::actor_system& sys,
                  caf::async::consumer_resource<node_message> pull,
                  caf::async::producer_resource<node_message> push) override {
-    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
-                                          << "(no SSL)");
+    log::network::debug("run-plain-connection", "run plain connection on fd {}",
+                        fd_.id);
     using trait_t = wire_format::v1::trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
@@ -318,8 +321,8 @@ public:
   caf::error run(caf::actor_system& sys,
                  caf::async::consumer_resource<node_message> pull,
                  caf::async::producer_resource<node_message> push) override {
-    BROKER_DEBUG("run pending connection" << BROKER_ARG2("fd", fd_.id)
-                                          << "(SSL)");
+    log::network::debug("run-ssl-connection", "run SSL connection on fd {}",
+                        fd_.id);
     using trait_t = wire_format::v1::trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
@@ -358,7 +361,8 @@ caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
             && snk.apply(uint32_t{0}) // Placeholder for the serialized size.
             && (snk.apply(xs) && ...);
   if (!ok) {
-    BROKER_ERROR("failed to serialize arguments");
+    log::network::error("serialization-failed",
+                        "failed to serialize arguments");
     throw std::runtime_error("failed to serialize arguments");
   }
   if constexpr (sizeof...(Ts) > 0) {
@@ -410,7 +414,6 @@ public:
 
   template <class Manager>
   void read(Manager& mgr) {
-    BROKER_TRACE("");
     for (;;) {
       auto rdres = caf::net::read(sock_, caf::make_span(rd_buf_));
       if (rdres > 0) {
@@ -427,7 +430,6 @@ public:
 private:
   template <class Manager>
   void invoke_from_buf(Manager& mgr) {
-    BROKER_TRACE(BROKER_ARG2("buf.size", buf_.size()));
     while (!buf_.empty()) {
       caf::binary_deserializer src{nullptr, buf_};
       uint8_t tag = 0;
@@ -435,7 +437,8 @@ private:
         throw std::runtime_error{"error while parsing pipe input"};
       auto msg_type = static_cast<connector_msg>(tag);
       if (msg_type == connector_msg::shutdown) {
-        BROKER_DEBUG("received shutdown event, stop the connector");
+        log::network::debug("stop-connector",
+                            "received shutdown event, stop the connector");
         *done_ = true;
         return;
       }
@@ -445,35 +448,39 @@ private:
       if (!src.apply(len) || len == 0)
         throw std::runtime_error{"error while parsing pipe input"};
       if (src.remaining() < len) {
-        BROKER_DEBUG("wait for payload of size"
-                     << len << "with" << src.remaining() << "already received");
+        log::network::debug(
+          "wait-for-payload",
+          "wait for payload of size {} with {} already received", len,
+          src.remaining());
         return; // Try again later.
       }
       src.reset({buf_.data() + 5, len});
       switch (msg_type) {
         case connector_msg::connect: {
-          BROKER_DEBUG("received connect event");
+          log::network::debug("received-connect-event",
+                              "received connect event");
           auto&& [eid, addr] =
             from_source<connector_event_id, network_info>(src);
           mgr.connect(eid, addr);
           break;
         }
         case connector_msg::drop: {
-          BROKER_DEBUG("received drop event");
+          log::network::debug("received-drop-event", "received drop event");
           auto&& [eid, addr] =
             from_source<connector_event_id, network_info>(src);
           mgr.drop(eid, addr);
           break;
         }
         case connector_msg::listen: {
-          BROKER_DEBUG("received listen event");
+          log::network::debug("received-listen-event", "received listen event");
           auto&& [eid, host, port, reuse_addr] =
             from_source<connector_event_id, std::string, uint16_t, bool>(src);
           mgr.listen(eid, host, port, reuse_addr);
           break;
         }
         default:
-          BROKER_ERROR("received invalid event");
+          log::network::error("received-invalid-event",
+                              "received invalid event");
           throw std::runtime_error{"error while parsing pipe input"};
       }
       buf_.erase(buf_.begin(), buf_.begin() + 5 + static_cast<ptrdiff_t>(len));
@@ -534,7 +541,8 @@ public:
     wr_buf.reserve(128);
     rd_buf.reserve(128);
     reset(socket_state::running, caf::net::default_stream_transport_policy{});
-    BROKER_DEBUG("created new connect_state object");
+    log::network::debug("new-connection-state",
+                        "created new connect_state object");
   }
 
   connect_state(connect_manager* mgr, connector_event_id eid, network_info addr)
@@ -543,14 +551,18 @@ public:
     rd_buf.reserve(128);
     reset(socket_state::running, caf::net::default_stream_transport_policy{});
     event_id = eid;
-    BROKER_DEBUG("created new connect_state object" << BROKER_ARG(event_id)
-                                                    << BROKER_ARG(addr));
+    log::network::debug(
+      "new-connection-state",
+      "created new connect_state object with event-id {} and addr {}", event_id,
+      addr);
     this->addr = std::move(addr);
   }
 
   ~connect_state() {
-    BROKER_DEBUG("destroy connect_state object" << BROKER_ARG(event_id)
-                                                << BROKER_ARG(addr));
+    log::network::debug(
+      "destroy-connection-state",
+      "destroy connect_state object with event-id {} and addr {}", event_id,
+      addr);
   }
 
   // -- member variables -------------------------------------------------------
@@ -656,12 +668,15 @@ public:
   /// reconnect.
   template <class Policy>
   void reset(socket_state st, Policy new_policy) {
-    BROKER_DEBUG("resetting connect_state object"
-                 << BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(st));
+    log::network::debug(
+      "reset-connection-state",
+      "resetting connect_state object with event-id {} and addr {}", event_id,
+      addr);
     redundant = false;
     if (added_peer_status) {
       auto& psm = peer_statuses();
-      BROKER_DEBUG(remote_id << "::" << psm.get(remote_id) << "-> ()");
+      log::network::debug("added-peer-status", "added peer status {}::{} => ()",
+                          remote_id, psm.get(remote_id));
       psm.remove(remote_id);
       added_peer_status = false;
     }
@@ -753,7 +768,8 @@ public:
     if (auto res = do_write(fd, wr_buf); res > 0) {
       wr_buf.erase(wr_buf.begin(), wr_buf.begin() + res);
       if (wr_buf.empty()) {
-        BROKER_DEBUG("finished sending message to peer");
+        log::network::debug("write-finished",
+                            "finished sending message to peer");
         return write_result::stop;
       } else {
         return write_result::again;
@@ -781,7 +797,6 @@ public:
   }
 
   read_result continue_reading(stream_socket fd) {
-    BROKER_TRACE(BROKER_ARG(fd.id));
     switch (sck_state) {
       case socket_state::accepting:
         return do_transport_handshake_rd<true>(fd);
@@ -792,13 +807,13 @@ public:
     }
     for (;;) {
       auto read_size = payload_size + 4;
-      BROKER_DEBUG("try reading more bytes"
-                   << BROKER_ARG2("fd", fd.id)
-                   << BROKER_ARG2("rd_buf.size", rd_buf.size())
-                   << BROKER_ARG(read_pos) << BROKER_ARG(read_size));
+      log::network::debug(
+        "try-read-more",
+        "try reading more bytes from fd {}: got {} bytes, want {} bytes", fd.id,
+        read_pos, read_size);
       auto res = do_read(fd, caf::make_span(rd_buf.data() + read_pos,
                                             read_size - read_pos));
-      BROKER_DEBUG(BROKER_ARG(res));
+      log::network::debug("try-read-more-result", "do_read returned {}", res);
       if (res < 0) {
         return read_result_from_last_error(fd, res);
       } else if (res == 0) {
@@ -814,11 +829,13 @@ public:
           [[maybe_unused]] auto ok = src.apply(payload_size);
           BROKER_ASSERT(ok);
           if (payload_size == 0) {
-            BROKER_DEBUG("received message with payload size 0, drop");
+            log::network::debug("empty-payload",
+                                "received message with payload size 0, drop");
             transition(&connect_state::err);
             return read_result::stop;
           }
-          BROKER_DEBUG("wait for payload of size" << payload_size);
+          log::network::debug("wait-for-payload", "wait for payload of size {}",
+                              payload_size);
           rd_buf.resize(payload_size + 4);
           return continue_reading(fd);
         } else if (read_pos == read_size) {
@@ -828,8 +845,9 @@ public:
           [[maybe_unused]] auto ok = src.apply(pl_size);
           BROKER_ASSERT(ok);
           if (pl_size != payload_size) {
-            BROKER_DEBUG("expected payload size" << payload_size << "but got"
-                                                 << pl_size);
+            log::network::debug("invalid-payload-size",
+                                "expected payload size {} but got {}",
+                                payload_size, pl_size);
             transition(&connect_state::err);
             return read_result::stop;
           }
@@ -839,7 +857,8 @@ public:
           auto msg = wire_format::decode(bytes);
           if (std::holds_alternative<wire_format::var_msg_error>(msg)) {
             auto& [ec, descr] = std::get<wire_format::var_msg_error>(msg);
-            BROKER_DEBUG("reject connection:" << ec << "->" << descr);
+            log::network::debug("reject-connection",
+                                "reject connection: {} -> {}", ec, descr);
             send(wire_format::make_drop_conn_msg(this_peer(), ec,
                                                  std::move(descr)));
             transition(&connect_state::err);
@@ -880,7 +899,9 @@ public:
     } else if (f == &connect_state::err) {
       if (added_peer_status) {
         auto& psm = peer_statuses();
-        BROKER_DEBUG(remote_id << "::" << psm.get(remote_id) << "-> ()");
+        log::network::debug("added-peer-status",
+                            "added peer status {}::{} => ()", remote_id,
+                            psm.get(remote_id));
         psm.remove(remote_id);
         added_peer_status = false;
       }
@@ -913,19 +934,22 @@ public:
   /// Connections enter this state when detecting a redundant connection. From
   /// here, they transition to FIN after sending drop_conn eventually.
   bool paused(wire_format::var_msg&) {
-    BROKER_ERROR("tried processing a message after reaching state PAUSE");
+    log::network::error("read-after-pause",
+                        "tried processing a message in state PAUSE");
     return false;
   }
 
   /// The terminal state for success.
   bool fin(wire_format::var_msg&) {
-    BROKER_ERROR("tried processing a message after reaching state FIN");
+    log::network::error("read-after-fin",
+                        "tried processing a message in state FIN");
     return false;
   }
 
   /// The terminal state for errors.
   bool err(wire_format::var_msg&) {
-    BROKER_ERROR("tried processing a message after reaching state ERR");
+    log::network::error("read-after-err",
+                        "tried processing a message in state ERR");
     return false;
   }
 };
@@ -977,9 +1001,7 @@ struct connect_manager {
       filter(filter),
       peer_statuses_(peer_statuses),
       this_peer(this_peer),
-      ssl_ctx(std::move(ctx)) {
-    BROKER_TRACE(BROKER_ARG(this_peer));
-  }
+      ssl_ctx(std::move(ctx)) {}
 
   connect_manager(const connect_manager&) = delete;
 
@@ -1013,16 +1035,17 @@ struct connect_manager {
     auto pred = [ptr](const auto& kvp) { return kvp.second.get() == ptr; };
     auto e = pending.end();
     if (auto i = std::find_if(pending.begin(), e, pred); i != e) {
-      BROKER_DEBUG("register for"
-                   << (event == read_mask ? "reading" : "writing")
-                   << BROKER_ARG2("fd", i->first));
+      log::network::debug("register-fd", "register fd {} for {}", i->first,
+                          event == read_mask ? "reading" : "writing");
       if (auto fds_ptr = find_pollfd(i->first)) {
         fds_ptr->events = static_cast<short>(fds_ptr->events | event);
       } else {
         pending_fdset.emplace_back(pollfd{i->first, event, 0});
       }
     } else {
-      BROKER_ERROR("called register_writing for an unknown connect state");
+      log::network::error(
+        "register-fd-failed",
+        "called register_writing for an unknown connect state");
     }
   }
 
@@ -1045,17 +1068,18 @@ struct connect_manager {
 
   void connect(connect_state_ptr state) {
     using namespace std::literals;
-    BROKER_TRACE("");
     BROKER_ASSERT(!state->addr.address.empty());
     caf::uri::authority_type authority;
     authority.host = state->addr.address;
     authority.port = state->addr.port;
-    BROKER_DEBUG("try connecting to" << authority << "with a timeout of 1s");
+    log::network::debug("try-connect",
+                        "try connecting to {} with a timeout of 1s", authority);
     auto event_id = state->event_id;
     if (auto sock = caf::net::make_connected_tcp_stream_socket(authority, 1s)) {
-      BROKER_DEBUG("established connection to" << authority
-                                               << "(initiate handshake)"
-                                               << BROKER_ARG2("fd", sock->id));
+      log::network::debug("connect-ok",
+                          "established connection on fd {} to {} "
+                          "(initiate handshake)",
+                          sock->id, authority);
       if (auto err = caf::net::nonblocking(*sock, true)) {
         auto err_str = to_string(err);
         fprintf(stderr,
@@ -1071,9 +1095,10 @@ struct connect_manager {
         ::abort();
       }
       if (auto i = pending.find(sock->id); i != pending.end()) {
-        BROKER_WARNING("socket" << sock->id
-                                << "already associated to state object -> "
-                                   "assume stale state and drop it!");
+        log::network::warning("stale-connection",
+                              "fd {} already associated to state object -> "
+                              "assume stale state and drop it!",
+                              sock->id);
         pending.erase(i);
       }
       short mask = 0;
@@ -1093,14 +1118,16 @@ struct connect_manager {
     } else {
       auto retry_interval = state->addr.retry;
       if (retry_interval.count() != 0) {
-        BROKER_DEBUG("failed to connect to" << authority << "-> retry in"
-                                            << retry_interval);
+        log::network::debug("connect-failed-with-retry",
+                            "failed to connect to {} -> retry in {}s",
+                            authority, retry_interval);
         listener->on_peer_unavailable(state->addr);
         retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                std::move(state));
       } else if (valid(event_id)) {
-        BROKER_DEBUG("failed to connect to" << authority
-                                            << "-> fail (retry disabled)");
+        log::network::debug("connect-failed",
+                            "failed to connect to {} -> fail (retry disabled)",
+                            authority);
         listener->on_error(event_id, caf::make_error(ec::peer_unavailable));
       } else {
         listener->on_peer_unavailable(state->addr);
@@ -1110,14 +1137,12 @@ struct connect_manager {
 
   /// Registers a new state object for connecting to given address.
   void connect(connector_event_id event_id, const network_info& addr) {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr));
     connect(make_connect_state(this, event_id, addr));
   }
 
   void listen(connector_event_id event_id, std::string& addr, uint16_t port,
               bool reuse_addr) {
     using namespace std::literals;
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr) << BROKER_ARG(port));
     caf::uri::authority_type authority;
     authority.host = addr;
     authority.port = port;
@@ -1129,18 +1154,22 @@ struct connect_manager {
 #endif
     if (auto sock = caf::net::make_tcp_accept_socket(authority, reuse_addr)) {
       if (auto actual_port = caf::net::local_port(*sock)) {
-        BROKER_DEBUG("started listening on port" << *actual_port << "socket"
-                                                 << sock->id);
+        log::network::debug("started-listening",
+                            "started listening on port {} (socket {})",
+                            *actual_port, sock->id);
         acceptors.emplace(sock->id);
         pending_fdset.push_back({sock->id, read_mask, 0});
         listener->on_listen(event_id, *actual_port);
       } else {
-        BROKER_ERROR("local_port failed:" << actual_port.error());
+        log::network::error("local_port-failed",
+                            "failed to determine local port: {}",
+                            actual_port.error());
         caf::net::close(*sock);
         listener->on_error(event_id, std::move(actual_port.error()));
       }
     } else {
-      BROKER_DEBUG("make_tcp_accept_socket failed:" << sock.error());
+      log::network::error("make_tcp_accept_socket-failed",
+                          "make_tcp_accept_socket failed: {}", sock.error());
       listener->on_error(event_id, std::move(sock.error()));
     }
   }
@@ -1151,7 +1180,6 @@ struct connect_manager {
   }
 
   void finalize(pollfd& entry, connect_state& state) {
-    BROKER_TRACE(BROKER_ARG2("fd", entry.fd));
     if (!state.redundant) {
       auto conn = state.make_pending_connection(stream_socket{entry.fd});
       listener->on_connection(state.event_id, state.remote_id, state.addr,
@@ -1172,7 +1200,6 @@ struct connect_manager {
   }
 
   void continue_reading(pollfd& entry) {
-    BROKER_TRACE(BROKER_ARG2("fd", entry.fd));
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       switch (i->second->continue_reading(entry.fd)) {
         case read_result::again:
@@ -1199,7 +1226,8 @@ struct connect_manager {
           entry.events = write_mask;
           break;
         default:
-          BROKER_ERROR("state returned unsupported read_result");
+          log::network::error("invalid-read-result",
+                              "state returned unsupported read_result");
           abort(entry);
       }
     } else if (acceptors.count(entry.fd) != 0) {
@@ -1227,9 +1255,10 @@ struct connect_manager {
           st->addr.address = std::move(*addr);
         if (auto port = caf::net::remote_port(*sock))
           st->addr.port = *port;
-        BROKER_DEBUG("accepted new connection from socket"
-                     << entry.fd << "-> register for reading"
-                     << BROKER_ARG2("fd", sock->id));
+        log::network::debug("accepted-new-connection",
+                            "accepted new connection from socket {}"
+                            " -> register for reading {}",
+                            entry.fd, sock->id);
         short mask = 0;
         if (ssl_ctx) {
           mask = write_mask; // SSL wants to write first.
@@ -1251,7 +1280,6 @@ struct connect_manager {
   }
 
   void continue_writing(pollfd& entry) {
-    BROKER_TRACE(BROKER_ARG2("fd", entry.fd));
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       switch (i->second->continue_writing(entry.fd)) {
         case write_result::again:
@@ -1263,7 +1291,9 @@ struct connect_manager {
           } else {
             entry.events &= ~write_mask;
             if (i->second->done()) {
-              BROKER_DEBUG("peer state reports done fd =" << entry.fd);
+              log::network::debug("peer-state-done",
+                                  "peer state reports done for fd {}",
+                                  entry.fd);
               finalize(entry, *i->second);
               pending.erase(i);
             }
@@ -1273,7 +1303,8 @@ struct connect_manager {
           entry.events = read_mask;
           break;
         default:
-          BROKER_ERROR("state returned unsupported write_result");
+          log::network::error("invalid-write-result",
+                              "state returned unsupported write_result");
           abort(entry);
       }
     } else {
@@ -1282,12 +1313,12 @@ struct connect_manager {
   }
 
   void abort(pollfd& entry) {
-    BROKER_TRACE(BROKER_ARG2("fd", entry.fd));
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       auto state = std::move(i->second);
       pending.erase(i);
       if (state->redundant) {
-        BROKER_DEBUG("drop redundant connection on socket" << entry.fd);
+        log::network::debug("drop-redundant-connection",
+                            "drop redundant connection on socket {}", entry.fd);
         if (state->event_id != invalid_connector_event_id)
           listener->on_redundant_connection(state->event_id, state->remote_id,
                                             state->addr);
@@ -1297,11 +1328,13 @@ struct connect_manager {
           listener->on_peer_unavailable(state->addr);
           retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                  std::move(state));
-          BROKER_DEBUG("failed to connect on socket"
-                       << entry.fd << "-> try again in" << retry_interval);
+          log::network::debug("failed-to-connect",
+                              "failed to connect on socket {}, try again in {}",
+                              entry.fd, retry_interval);
         } else {
-          BROKER_DEBUG("failed to connect on socket" << entry.fd
-                                                     << "-> give up");
+          log::network::debug("failed-to-connect",
+                              "failed to connect on socket {} -> give up",
+                              entry.fd);
           if (valid(state->event_id)) {
             listener->on_error(state->event_id,
                                caf::make_error(ec::peer_unavailable));
@@ -1310,13 +1343,15 @@ struct connect_manager {
           }
         }
       } else {
-        BROKER_DEBUG("incoming peering failed on socket" << entry.fd);
+        log::network::debug("incoming-peering-failed",
+                            "incoming peering failed on socket {}", entry.fd);
       }
     } else if (auto j = acceptors.find(entry.fd); j != acceptors.end()) {
-      BROKER_ERROR("acceptor failed: socket" << entry.fd);
+      log::network::error("acceptor-failed", "acceptor failed on socket {}",
+                          entry.fd);
       acceptors.erase(j);
     }
-    BROKER_DEBUG("close socket" << entry.fd);
+    log::network::debug("close-socket", "close socket {}", entry.fd);
     close(caf::net::socket{entry.fd});
     entry.events = 0;
   }
@@ -1338,7 +1373,6 @@ struct connect_manager {
   }
 
   void handle_timeouts() {
-    BROKER_TRACE("");
     auto now = caf::make_timestamp();
     while (!retry_schedule.empty() && retry_schedule.begin()->first <= now) {
       auto i = retry_schedule.begin();
@@ -1349,15 +1383,14 @@ struct connect_manager {
   }
 
   void prepare_next_cycle() {
-    BROKER_TRACE("pending handles:" << pending_fdset.size());
     auto is_done = [](auto& x) { return x.events == 0; };
     auto new_end = std::remove_if(fdset.begin(), fdset.end(), is_done);
     if (new_end != fdset.end()) {
 #if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
       std::for_each(new_end, fdset.end(), [](auto& x) {
         if (x.fd != detail::invalid_native_socket)
-          BROKER_DEBUG("drop completed socket from pollset"
-                       << BROKER_ARG2("fd", x.fd));
+          log::network::debug("drop-completed-socket",
+                              "drop completed socket {} from pollset", x.fd);
       });
 #endif
       fdset.erase(new_end, fdset.end());
@@ -1399,7 +1432,8 @@ write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
       return write_result::stop;
     }
   } else {
-    BROKER_ERROR("invalid state: called connect() on a non-SSL socket");
+    log::network::error("invalid-ssl-state-wr",
+                        "invalid state: called connect() on a non-SSL socket");
     transition(&connect_state::err);
     return write_result::stop;
   }
@@ -1425,7 +1459,8 @@ read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
       return read_result::stop;
     }
   } else {
-    BROKER_ERROR("invalid state: called connect() on a non-SSL socket");
+    log::network::error("invalid-ssl-state-rd",
+                        "invalid state: called connect() on a non-SSL socket");
     transition(&connect_state::err);
     return read_result::stop;
   }
@@ -1442,12 +1477,12 @@ void connect_state::send(const T& what) {
   std::ignore = wire_format::encode(sink, what);
   auto len = static_cast<uint32_t>(wr_buf.size() - old_size - 4);
   bin_v1::encode(len, wr_buf.begin() + static_cast<ptrdiff_t>(old_size));
-  BROKER_DEBUG("start writing a" << T::tag << "message of size" << len);
+  log::network::debug("start-writing", "start writing a {} message of size {}",
+                      T::tag, len);
   mgr->register_writing(this);
 }
 
 bool connect_state::handle(wire_format::drop_conn_msg& msg) {
-  BROKER_TRACE(BROKER_ARG(msg));
   // The remote peer sends this message with error code ec::redundant_connection
   // if we already have a connection established. However, re-connects after an
   // unpeering or other events may produce conflicting views where the remote
@@ -1456,8 +1491,9 @@ bool connect_state::handle(wire_format::drop_conn_msg& msg) {
   // otherwise we raise an error to trigger retries.
   if (msg.code == static_cast<uint8_t>(ec::redundant_connection)) {
     auto stat = peer_statuses().get(msg.sender_id);
-    BROKER_DEBUG("received drop_conn from" << msg.sender_id
-                                           << "with peer status" << stat);
+    log::network::debug("received-drop-conn",
+                        "received drop_conn from {} with peer status {}",
+                        msg.sender_id, stat);
     switch (stat) {
       case peer_status::connecting:
       case peer_status::connected:
@@ -1477,7 +1513,6 @@ bool connect_state::handle(wire_format::drop_conn_msg& msg) {
 }
 
 bool connect_state::await_hello_or_version_select(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   switch (msg.index()) {
     default:
       transition(&connect_state::err);
@@ -1504,14 +1539,17 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
   auto status = peer_status::connecting;
   if (psm.insert(id, status)) {
     BROKER_ASSERT(status == peer_status::connecting);
-    BROKER_DEBUG(id << ":: () -> connecting");
+    log::network::debug("peer-status-inserted",
+                        "inserted peer status {}::{} -> ()", id, status);
     return proceed();
   } else {
     for (;;) { // Repeat until we succeed or fail.
       switch (status) {
         case peer_status::initialized:
           if (psm.update(id, status, peer_status::connecting)) {
-            BROKER_DEBUG(id << ":: initialized -> connecting");
+            log::network::debug(
+              "peer-status-updated",
+              "updated peer status {}::initialized -> connecting", id);
             return proceed();
           }
           break;
@@ -1519,7 +1557,9 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
         case peer_status::reconnecting:
           if (is_originator) {
             if (auto other = mgr->find_pending_handshake(id)) {
-              BROKER_DEBUG("detected redundant connection, enter paused state");
+              log::network::debug("redundant-connection",
+                                  "detected redundant connection, "
+                                  "enter paused state");
               BROKER_ASSERT(other != this);
               redundant = true;
               remote_id = id;
@@ -1527,8 +1567,9 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
               transition(&connect_state::paused);
               return false;
             } else {
-              BROKER_DEBUG("detected redundant connection but "
-                           "find_pending_handshake failed");
+              log::network::debug("redundant-connection-failed",
+                                  "detected redundant connection but "
+                                  "find_pending_handshake failed");
               send(wire_format::make_drop_conn_msg(
                 this_peer(), ec::logic_error,
                 "detected redundant connection but "
@@ -1537,8 +1578,10 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
               return false;
             }
           } else {
-            BROKER_WARNING("detected redundant connection to"
-                           << id << "at the responder" << BROKER_ARG(status));
+            log::network::warning("redundant-responder-connection",
+                                  "detected redundant connection to {} "
+                                  "at the responder with status {}",
+                                  id, status);
             send(wire_format::make_drop_conn_msg(
               this_peer(), ec::logic_error,
               "detected redundant connection at the responder"));
@@ -1549,7 +1592,9 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
         case peer_status::connected:
         case peer_status::peered:
           if (is_originator) {
-            BROKER_DEBUG("detected redundant connection for connected peer");
+            log::network::debug("redundant-connection",
+                                "detected redundant connection "
+                                "for connected peer");
             send(wire_format::make_drop_conn_msg(
               this_peer(), ec::redundant_connection, "redundant connection"));
             redundant = true;
@@ -1557,8 +1602,10 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
             transition(&connect_state::fin);
             return false;
           } else {
-            BROKER_WARNING("detected redundant connection to"
-                           << id << "at the responder" << BROKER_ARG(status));
+            log::network::warning("redundant-responder-connection",
+                                  "detected redundant connection to {} "
+                                  "at the responder with status {}",
+                                  id, status);
             send(wire_format::make_drop_conn_msg(
               this_peer(), ec::logic_error,
               "detected redundant connection at the responder"));
@@ -1567,7 +1614,9 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
           }
         case peer_status::disconnected:
           if (psm.update(id, status, peer_status::reconnecting)) {
-            BROKER_DEBUG(id << ":: disconnected -> reconnecting");
+            log::network::debug("disconnected->reconnecting",
+                                "peer status {}::disconnected -> reconnecting",
+                                id);
             return proceed();
           }
           break;
@@ -1578,7 +1627,8 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
           transition(&connect_state::err);
           return false;
         default:
-          BROKER_ERROR("invalid peer status");
+          log::network::error("invalid-peer-status", "invalid peer status: {}",
+                              status);
           send(wire_format::make_drop_conn_msg(this_peer(), ec::logic_error,
                                                "invalid peer status"));
           transition(&connect_state::err);
@@ -1589,7 +1639,6 @@ bool connect_state::proceed_with_handshake(endpoint_id id, bool is_originator) {
 }
 
 bool connect_state::await_hello(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   switch (msg.index()) {
     default:
       transition(&connect_state::err);
@@ -1604,7 +1653,8 @@ bool connect_state::await_hello(wire_format::var_msg& msg) {
   }
   auto& hello = std::get<wire_format::hello_msg>(msg);
   if (hello.min_version > wire_format::protocol_version) {
-    BROKER_DEBUG("reject peering: version range not supported");
+    log::network::debug("reject-version",
+                        "reject peering: version range not supported");
     send(wire_format::make_drop_conn_msg(this_peer(), ec::peer_incompatible,
                                          "version range not supported"));
     transition(&connect_state::err);
@@ -1626,7 +1676,6 @@ bool connect_state::await_hello(wire_format::var_msg& msg) {
 }
 
 bool connect_state::await_version_select(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   switch (msg.index()) {
     default:
       transition(&connect_state::err);
@@ -1654,7 +1703,6 @@ bool connect_state::await_version_select(wire_format::var_msg& msg) {
 }
 
 bool connect_state::await_orig_syn(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   if (!std::holds_alternative<wire_format::v1::originator_syn_msg>(msg)) {
     transition(&connect_state::err);
     return false;
@@ -1667,7 +1715,6 @@ bool connect_state::await_orig_syn(wire_format::var_msg& msg) {
 }
 
 bool connect_state::await_resp_syn_ack(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   if (!std::holds_alternative<wire_format::v1::responder_syn_ack_msg>(msg)) {
     transition(&connect_state::err);
     return false;
@@ -1677,12 +1724,16 @@ bool connect_state::await_resp_syn_ack(wire_format::var_msg& msg) {
   auto& psm = peer_statuses();
   auto status = peer_status::connecting;
   if (psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: connecting -> connected");
+    log::network::debug("connecting->connected",
+                        "peer status {}::connecting -> connected", remote_id);
   } else if (status == peer_status::reconnecting
              && psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: reconnecting -> connected");
+    log::network::debug("reconnecting->connected",
+                        "peer status {}::reconnecting -> connected", remote_id);
   } else {
-    BROKER_ERROR("got a resp_syn_ack message but peer status does not match");
+    log::network::error(
+      "broken-syn-ack",
+      "received resp_syn_ack, but peer status does not match");
     return false;
   }
   send(wire_format::v1::make_originator_ack_msg());
@@ -1691,7 +1742,6 @@ bool connect_state::await_resp_syn_ack(wire_format::var_msg& msg) {
 }
 
 bool connect_state::await_orig_ack(wire_format::var_msg& msg) {
-  BROKER_TRACE(stringify(msg));
   if (!std::holds_alternative<wire_format::v1::originator_ack_msg>(msg)) {
     transition(&connect_state::err);
     return false;
@@ -1699,12 +1749,15 @@ bool connect_state::await_orig_ack(wire_format::var_msg& msg) {
   auto& psm = peer_statuses();
   auto status = peer_status::connecting;
   if (psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: connecting -> connected");
+    log::network::debug("connecting->connected",
+                        "peer status {}::connecting -> connected", remote_id);
   } else if (status == peer_status::reconnecting
              && psm.update(remote_id, status, peer_status::connected)) {
-    BROKER_DEBUG(remote_id << ":: reconnecting -> connected");
+    log::network::debug("reconnecting->connected",
+                        "peer status {}::reconnecting -> connected", remote_id);
   } else {
-    BROKER_ERROR("got a resp_syn_ack message but peer status does not match");
+    log::network::error("broken-ack",
+                        "received orig_ack, but peer status does not match");
     return false;
   }
   transition(&connect_state::fin);
@@ -1768,14 +1821,12 @@ connector::~connector() {
 
 void connector::async_connect(connector_event_id event_id,
                               const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr));
   auto buf = to_buf(connector_msg::connect, event_id, addr);
   write_to_pipe(buf);
 }
 
 void connector::async_drop(const connector_event_id event_id,
                            const network_info& addr) {
-  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(addr));
   auto buf = to_buf(connector_msg::drop, event_id, addr);
   write_to_pipe(buf);
 }
@@ -1783,26 +1834,22 @@ void connector::async_drop(const connector_event_id event_id,
 void connector::async_listen(connector_event_id event_id,
                              const std::string& address, uint16_t port,
                              bool reuse_addr) {
-  BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(address) << BROKER_ARG(port)
-                                    << BROKER_ARG(reuse_addr));
   auto buf = to_buf(connector_msg::listen, event_id, address, port, reuse_addr);
   write_to_pipe(buf);
 }
 
 void connector::async_shutdown() {
-  BROKER_TRACE("");
   auto buf = to_buf(connector_msg::shutdown);
   write_to_pipe(buf, true);
 }
 
 void connector::write_to_pipe(caf::span<const caf::byte> bytes,
                               bool shutdown_after_write) {
-  BROKER_TRACE(bytes.size() << "bytes");
   std::unique_lock guard{mtx_};
   if (shutting_down_) {
     if (!shutdown_after_write) {
       const char* errmsg = "failed to write to the pipe: shutting down";
-      BROKER_ERROR(errmsg);
+      log::network::error("write-to-pipe", "{}", errmsg);
       throw std::runtime_error(errmsg);
     } else {
       // Calling async_shutdown multiple times is OK.
@@ -1812,7 +1859,7 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes,
   auto res = caf::net::write(caf::net::pipe_socket{pipe_wr_}, bytes);
   if (res != static_cast<ptrdiff_t>(bytes.size())) {
     const char* errmsg = "wrong number of bytes written to the pipe";
-    BROKER_ERROR(errmsg);
+    log::network::error("write-to-pipe", "{}", errmsg);
     throw std::runtime_error(errmsg);
   }
   if (shutdown_after_write)
@@ -1834,7 +1881,6 @@ void connector::init(std::unique_ptr<listener> sub, shared_filter_ptr filter,
 }
 
 void connector::run() {
-  BROKER_TRACE("");
   // Wait for subscriber and filter before starting the loop.
   listener* sub = nullptr;
   shared_filter_type* filter = nullptr;
@@ -1847,8 +1893,9 @@ void connector::run() {
   }
   try {
     run_impl(sub, filter);
-  } catch ([[maybe_unused]] std::exception& ex) {
-    BROKER_ERROR("exception:" << ex.what());
+  } catch (const std::exception& ex) {
+    log::network::error("exception", "exception in connector::run: {}",
+                        ex.what());
   }
   sub->on_shutdown();
 }
@@ -1910,14 +1957,13 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
       ::poll(fdset.data(), static_cast<nfds_t>(fdset.size()),
              mgr.next_timeout());
 #endif
-    BROKER_DEBUG("poll on" << fdset.size() << "sockets returned" << presult);
     if (presult < 0) {
       switch (caf::net::last_socket_error()) {
         case std::errc::interrupted:
           // nop
           break;
         default:
-          BROKER_ERROR("poll() failed");
+          log::network::error("poll-failed", "poll() failed");
           throw std::runtime_error("poll() failed");
       }
     } else if (presult > 0) {
@@ -1929,8 +1975,6 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
         return i != fdset.end();
       };
       do {
-        BROKER_DEBUG(BROKER_ARG2("fd", i->fd)
-                     << BROKER_ARG2("event-mask", i->revents));
         if (i->fd == pipe_rd_) {
           if (i->revents & read_mask) {
             prd.read(mgr);
@@ -1953,7 +1997,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
     mgr.handle_timeouts();
     mgr.prepare_next_cycle();
   }
-  BROKER_DEBUG("connector done");
+  log::network::debug("connector-done", "connector done");
 }
 
 } // namespace broker::internal

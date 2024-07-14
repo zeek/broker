@@ -4,8 +4,8 @@
 #include "broker/data_envelope.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/killswitch.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/ping_envelope.hh"
 #include "broker/topic.hh"
 
@@ -186,7 +186,8 @@ peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
           if (auto [payload_bytes, payload_size] = msg->raw_bytes();
               std::equal(payload_bytes, payload_bytes + payload_size,
                          token.begin(), token.end())) {
-            BROKER_DEBUG("received final PONG message during unpeering");
+            log::core::debug("final-pong-received",
+                             "received final PONG message during unpeering");
             ptr->on_bye_ack();
             ptr = nullptr;
           }

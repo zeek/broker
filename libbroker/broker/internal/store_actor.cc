@@ -54,6 +54,13 @@ void fill_vector(vector& vec, const Ts&... xs) {
 
 } // namespace
 
+void convert(const expiry_formatter& x, std::string& str) {
+  if (x.expiry)
+    str += to_string(*x.expiry);
+  else
+    str += "none";
+}
+
 store_actor_state::~store_actor_state() {
   // nop
 }
@@ -136,7 +143,7 @@ void store_actor_state::emit_expire_event(const data& key,
 void store_actor_state::on_down_msg(const caf::actor_addr& source,
                                     const caf::error& reason) {
   if (source == core) {
-    BROKER_INFO("core is down, quit");
+    log::store::info("core-down", "core is down, quit");
     self->quit(reason);
     return;
   }

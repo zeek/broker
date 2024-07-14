@@ -8,8 +8,8 @@
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/json.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/p2p_message_type.hh"
 #include "broker/ping_envelope.hh"
 #include "broker/pong_envelope.hh"
@@ -95,7 +95,8 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
   // -   T bytes: topic
   // - remainder: payload (type-specific)
   if (size < 37) {
-    BROKER_ERROR("envelope::deserialize failed: message too short");
+    log::network::error("envelope-buffersize-mismatch",
+                        "envelope::deserialize failed: message too short");
     return make_error(ec::invalid_data, "message too short");
   }
   auto advance = [&](size_t n) {
@@ -129,7 +130,8 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
   // Extract the payload by delegating to the type-specific deserializer.
   switch (msg_type) {
     default:
-      BROKER_ERROR("envelope::deserialize failed: invalid message type");
+      log::network::error("envelope-invalid-type",
+                          "envelope::deserialize failed: invalid message type");
       return make_error(ec::invalid_data, "invalid message type");
     case envelope_type::data:
       if (auto res = data_envelope::deserialize(sender, receiver, ttl,

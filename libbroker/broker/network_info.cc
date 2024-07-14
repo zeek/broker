@@ -23,9 +23,16 @@ bool operator<(const network_info& x, const network_info& y) {
   return std::tie(x.address, x.port) < std::tie(y.address, y.port);
 }
 
+void convert(const network_info& x, std::string& str) {
+  str = x.address;
+  str += ':';
+  str += std::to_string(x.port);
+}
+
 std::string to_string(const network_info& x) {
-  using std::to_string;
-  return x.address + ':' + to_string(x.port);
+  std::string result;
+  convert(x, result);
+  return result;
 }
 
 std::string to_string(const std::optional<network_info>& x) {

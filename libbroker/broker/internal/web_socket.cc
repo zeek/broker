@@ -2,8 +2,8 @@
 
 #include "broker/expected.hh"
 #include "broker/internal/connector.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
+#include "broker/logger.hh"
 
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/config_value.hpp>
@@ -82,7 +82,8 @@ public:
                                                     trait_t{cb});
     };
     auto on_error = [](const caf::error& reason) {
-      BROKER_INFO("SSL handshake on WebSocket failed: " << reason);
+      log::network::info("wss-handshake-failed",
+                         "SSL handshake on WebSocket failed: {}", reason);
     };
     return caf::net::openssl::async_accept(fd, mpx, std::move(policy),
                                            on_success, on_error);
@@ -114,9 +115,9 @@ expected<uint16_t> launch(caf::actor_system& sys,
                           uint16_t port, bool reuse_addr,
                           const std::string& allowed_path,
                           on_connect_t on_connect) {
-  BROKER_DEBUG("launch WebSocket server:"
-               << BROKER_ARG(addr) << BROKER_ARG(port) << BROKER_ARG(reuse_addr)
-               << BROKER_ARG(allowed_path));
+  log::network::debug("ws-start",
+                      "launching WebSocket server on port {} with path {}",
+                      port, allowed_path);
   using namespace std::literals;
   // Open up the port.
   caf::uri::authority_type auth;
@@ -124,14 +125,16 @@ expected<uint16_t> launch(caf::actor_system& sys,
   auth.port = port;
   auto fd = caf::net::make_tcp_accept_socket(auth, reuse_addr);
   if (!fd) {
-    BROKER_ERROR("failed to open WebSocket on port" << port << "->"
-                                                    << fd.error());
+    log::network::error("ws-start-failed",
+                        "failed to open WebSocket on port {} -> {}", port,
+                        fd.error());
     return {facade(fd.error())};
   }
   auto actual_port = caf::net::local_port(*fd);
   if (!actual_port) {
-    BROKER_ERROR("failed to retrieve actual port from socket ->"
-                 << actual_port.error());
+    log::network::error("ws-start-failed",
+                        "failed to retrieve actual port from socket ->",
+                        actual_port.error());
     return {facade(actual_port.error())};
   }
   // Callback for connecting the flows.
@@ -150,7 +153,8 @@ expected<uint16_t> launch(caf::actor_system& sys,
       cb(hdr, ev);
       return res_t{std::make_tuple(pull1, push2, trait_t{})};
     } else {
-      BROKER_INFO("rejected JSON client on invalid path" << path);
+      log::network::debug("ws-rejected",
+                          "rejected JSON client on invalid path {}", path);
       return res_t{caf::make_error(caf::sec::invalid_argument,
                                    "invalid path; try " + allowed_path)};
     }
@@ -158,13 +162,15 @@ expected<uint16_t> launch(caf::actor_system& sys,
   // Launch the WebSocket and dispatch to on_connect.
   namespace ws = caf::net::web_socket;
   if (auto ctx = ssl_context_from_cfg(ssl_cfg)) {
-    BROKER_INFO("listening on port" << caf::net::local_port(*fd)
-                                    << "for WebSocket clients (SSL)");
+    log::network::info("wss-run",
+                       "launching WebSocket server with SSL on port {}",
+                       *actual_port);
     ssl_accept(sys.network_manager().mpx(), *fd, std::move(ctx),
                std::move(on_request));
   } else {
-    BROKER_INFO("listening on port" << caf::net::local_port(*fd)
-                                    << "for WebSocket clients (no SSL)");
+    log::network::info("ws-run",
+                       "launching WebSocket server (no SSL) on port {}",
+                       *actual_port);
     ws::accept(sys.network_manager().mpx(), *fd, on_request);
   }
   return *actual_port;

@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "broker/config.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 #ifdef BROKER_HAS_STD_FILESYSTEM
 
@@ -31,11 +31,7 @@ inline bool is_file(const path& p) {
 
 inline bool mkdirs(const path& p) {
   std::error_code ec;
-  auto rval = std::filesystem::create_directories(p, ec);
-  if (!rval)
-    BROKER_ERROR("failed to make directories: " << p.native() << ":"
-                                                << ec.message());
-  return rval;
+  return std::filesystem::create_directories(p, ec);
 }
 
 inline path dirname(path p) {
@@ -45,20 +41,12 @@ inline path dirname(path p) {
 
 inline bool remove(const path& p) {
   std::error_code ec;
-  auto rval = std::filesystem::remove(p, ec);
-  if (!rval)
-    BROKER_ERROR("failed to remove path: " << p.native() << ":"
-                                           << ec.message());
-  return rval;
+  return std::filesystem::remove(p, ec);
 }
 
 inline bool remove_all(const path& p) {
   std::error_code ec;
-  auto rval = std::filesystem::remove_all(p, ec);
-  if (!rval)
-    BROKER_ERROR("failed to recursively remove path: " << p.native() << ":"
-                                                       << ec.message());
-  return rval;
+  return std::filesystem::remove_all(p, ec);
 }
 
 } // namespace broker::detail
