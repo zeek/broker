@@ -290,15 +290,6 @@ caf::behavior core_actor_state::make_behavior() {
       try_connect(addr, rp);
       return rp;
     },
-    [this](atom::peer, endpoint_id peer, const network_info& addr,
-           const filter_type& filter, node_consumer_res in_res,
-           node_producer_res out_res) -> caf::result<void> {
-      if (auto err = init_new_peer(peer, addr, filter, std::move(in_res),
-                                   std::move(out_res)))
-        return err;
-      else
-        return caf::unit;
-    },
     // -- unpeering ------------------------------------------------------------
     [this](atom::unpeer, const network_info& peer_addr) { //
       unpeer(peer_addr);
@@ -485,9 +476,6 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::shutdown, shutdown_options opts) { //
       shutdown(opts);
     },
-    [this](atom::no_events) { //
-      disable_notifications = true;
-    },
     [this](atom::await, endpoint_id peer_id) {
       auto rp = self->make_response_promise();
       if (auto i = peers.find(peer_id); i != peers.end())
@@ -580,7 +568,7 @@ void core_actor_state::finalize_shutdown() {
 template <class Info, class EnumConstant>
 void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
   // Sanity checking.
-  if (disable_notifications || !data_outputs)
+  if (!data_outputs)
     return;
   // Pick the right topic and factory based on the event type.
   using value_type = typename EnumConstant::value_type;

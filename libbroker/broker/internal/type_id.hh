@@ -108,7 +108,6 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_internal, caf::first_custom_type_id)
 
   // -- atoms for communciation with the core actor ----------------------------
 
-  BROKER_ADD_ATOM(no_events)
   BROKER_ADD_ATOM(snapshot)
   BROKER_ADD_ATOM(subscriptions)
 

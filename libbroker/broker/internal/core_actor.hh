@@ -233,9 +233,6 @@ public:
   /// node to other peers.
   bool disable_forwarding = false;
 
-  /// Turns off status and error notifications for peering events.
-  bool disable_notifications = false;
-
   /// Stores IDs of peers that we have no path to yet but some local actor is
   /// arleady waiting for. Usually for testing purposes.
   std::multimap<endpoint_id, caf::response_promise> awaited_peers;

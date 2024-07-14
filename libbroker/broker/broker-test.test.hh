@@ -7,7 +7,6 @@
 #include <caf/test/bdd_dsl.hpp>
 
 #include <caf/actor_system.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 
 #include "broker/configuration.hh"
@@ -135,46 +134,7 @@ normalize_status_log(const std::vector<broker::data_message>& xs,
 
 // -- fixtures -----------------------------------------------------------------
 
-struct empty_fixture_base {};
-
-template <class Derived, class Base = empty_fixture_base>
-class time_aware_fixture : public Base {
-public:
-  void run(caf::timespan t) {
-    auto& sched = dref().sched;
-    for (;;) {
-      sched.run();
-      auto& clk = sched.clock();
-      if (!clk.has_pending_timeout()) {
-        sched.advance_time(t);
-        sched.run();
-        return;
-      } else {
-        auto next_timeout = clk.next_timeout();
-        auto delta = next_timeout - clk.now();
-        if (delta >= t) {
-          sched.advance_time(t);
-          sched.run();
-          return;
-        } else {
-          sched.advance_time(delta);
-          t -= delta;
-        }
-      }
-    }
-  }
-
-  template <class Rep, class Period>
-  void run(std::chrono::duration<Rep, Period> t) {
-    run(std::chrono::duration_cast<caf::timespan>(t));
-  }
-
-private:
-  Derived& dref() {
-    return *static_cast<Derived*>(this);
-  }
-};
-
+/// Adds broker endpoint IDs with keys A-Z to the test environment.
 class ids_fixture {
 public:
   ids_fixture();
@@ -190,149 +150,7 @@ public:
   std::map<char, std::string> str_ids;
 };
 
-/// A fixture that hosts an endpoint configured with `test_coordinator` as
-/// scheduler as well as a `scoped_actor`.
-class base_fixture : public time_aware_fixture<base_fixture>,
-                     public ids_fixture {
-public:
-  struct endpoint_state {
-    broker::endpoint_id id;
-    broker::filter_type filter;
-    caf::actor hdl;
-  };
-
-  using super = time_aware_fixture<base_fixture>;
-
-  using scheduler_type = caf::scheduler::test_coordinator;
-
-  base_fixture();
-
-  virtual ~base_fixture();
-
-  broker::endpoint ep;
-  caf::actor_system& sys;
-  caf::scoped_actor self;
-  scheduler_type& sched;
-
-  using super::run;
-
-  void run();
-
-  void consume_message();
-
-  /// Dereferences `hdl` and downcasts it to `T`.
-  template <class T = caf::scheduled_actor, class Handle = caf::actor>
-  static T& deref(const Handle& hdl) {
-    auto ptr = caf::actor_cast<caf::abstract_actor*>(hdl);
-    if (ptr == nullptr)
-      CAF_FAIL("unable to cast handle to abstract_actor*");
-    return dynamic_cast<T&>(*ptr);
-  }
-
-  static endpoint_state ep_state(caf::actor core);
-
-  static broker::configuration make_config();
-
-  /// Establishes a peering relation between `left` and `right`.
-  static caf::actor bridge(const endpoint_state& left,
-                           const endpoint_state& right);
-
-  /// Establishes a peering relation between `left` and `right`.
-  static caf::actor bridge(const broker::endpoint& left,
-                           const broker::endpoint& right);
-
-  static caf::actor bridge(caf::actor left_core, caf::actor right_core);
-
-  /// Collect data directly at a Broker core without using a
-  /// `broker::subscriber` or other public API.
-  static std::shared_ptr<std::vector<broker::data_message>>
-  collect_data(caf::actor core, broker::filter_type filter);
-
-  static void push_data(caf::actor core, std::vector<broker::data_message> xs);
-};
-
-template <class Fixture>
-class net_fixture {
-public:
-  using planet_type = Fixture;
-
-  planet_type earth;
-  planet_type mars;
-
-  auto bridge(planet_type& left, planet_type& right) {
-    return planet_type::bridge(left.ep, right.ep);
-  }
-
-  void run() {
-    while (earth.sched.has_job() || earth.sched.has_pending_timeout()
-           || mars.sched.has_job() || mars.sched.has_pending_timeout()) {
-      earth.sched.run();
-      earth.sched.trigger_timeouts();
-      mars.sched.run();
-      mars.sched.trigger_timeouts();
-    }
-  }
-
-  void run(caf::timespan t) {
-    auto& n1 = this->earth;
-    auto& n2 = this->mars;
-    assert(n1.sched.clock().now() == n2.sched.clock().now());
-    auto advance = [](auto& n) {
-      return n.sched.try_run_once() || n.mpx.try_exec_runnable()
-             || n.mpx.read_data();
-    };
-    auto exhaust = [&] {
-      while (advance(n1) || advance(n2))
-        ; // repeat
-    };
-    auto get_next_timeout = [](auto& result, auto& node) {
-      if (node.sched.has_pending_timeout()) {
-        auto t = node.sched.clock().schedule().begin()->first;
-        if (result)
-          result = std::min(*result, t);
-        else
-          result = t;
-      }
-    };
-    for (;;) {
-      exhaust();
-      caf::optional<caf::actor_clock::time_point> next_timeout;
-      get_next_timeout(next_timeout, n1);
-      get_next_timeout(next_timeout, n2);
-      if (!next_timeout) {
-        n1.sched.advance_time(t);
-        n2.sched.advance_time(t);
-        exhaust();
-        return;
-      }
-      auto delta = *next_timeout - n1.sched.clock().now();
-      if (delta >= t) {
-        n1.sched.advance_time(t);
-        n2.sched.advance_time(t);
-        exhaust();
-        return;
-      }
-      n1.sched.advance_time(delta);
-      n2.sched.advance_time(delta);
-      t -= delta;
-    }
-  }
-
-  template <class Rep, class Period>
-  void run(std::chrono::duration<Rep, Period> t) {
-    run(std::chrono::duration_cast<caf::timespan>(t));
-  }
-};
-
 // -- utility ------------------------------------------------------------------
-
-template <class T>
-T unbox(broker::expected<T> x) {
-  if (!x)
-    FAIL(to_string(x.error()));
-  else
-    return std::move(*x);
-}
 
 inline broker::data value_of(broker::expected<broker::data> x) {
   if (!x) {
@@ -347,14 +165,4 @@ inline broker::error error_of(broker::expected<broker::data> x) {
       "cannot get error of expected<data>, contains value: " << to_string(*x));
   }
   return std::move(x.error());
-}
-
-/// Convenience function for creating a vector of events from topic and data
-/// pairs.
-inline std::vector<broker::data_message>
-data_msgs(std::initializer_list<std::pair<broker::topic, broker::data>> xs) {
-  std::vector<broker::data_message> result;
-  for (auto& x : xs)
-    result.push_back(broker::make_data_message(x.first, x.second));
-  return result;
 }
