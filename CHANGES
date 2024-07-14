@@ -1,3 +1,7 @@
+2.8.0-dev.109 | 2024-07-14 11:04:26 +0200
+
+  * Enforce TLS version 1.2 as minimum when using SSL (Dominik Charousset, Corelight)
+
 2.8.0-dev.107 | 2024-07-14 08:39:15 +0200
 
   * Add more btests to replace "unit" tests (Dominik Charousset, Corelight)
