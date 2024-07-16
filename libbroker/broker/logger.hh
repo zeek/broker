@@ -40,7 +40,7 @@ set_console_logger(event::severity_level severity,
 inline void
 set_console_logger(std::string_view severity,
                    event::component_mask mask = event::default_component_mask) {
-  logger(make_console_logger(severity,mask));
+  logger(make_console_logger(severity, mask));
 }
 
 } // namespace broker
