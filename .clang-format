@@ -37,5 +37,7 @@ SpaceBeforeParens: ControlStatements
 SpacesBeforeTrailingComments: '1'
 Standard: Cpp11
 UseTab: Never
-
+---
+Language: Json
+DisableFormat: true
 ...

@@ -559,8 +559,7 @@ caf::behavior clone_state::make_behavior() {
         rp,
         [this, rp, id]() mutable {
           auto x = keys();
-          BROKER_INFO("KEYS"
-                      << "with id" << id << "->" << x);
+          BROKER_INFO("KEYS" << "with id" << id << "->" << x);
           rp.deliver(std::move(x), id);
         },
         id);

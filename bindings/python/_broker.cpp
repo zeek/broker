@@ -333,7 +333,7 @@ PYBIND11_MODULE(_broker, m) {
   // the standard class right at that point, one cannot pass an already
   // created one in, which is unfortunate.
   struct Configuration {
-    Configuration(){};
+    Configuration() {}
     Configuration(broker::broker_options opts) : options(std::move(opts)) {}
     broker::broker_options options = {};
     std::string openssl_cafile;

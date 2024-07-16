@@ -68,14 +68,14 @@ private:
 };
 
 template <class T, class U>
-auto operator==(node_iterator<T> x, node_iterator<U> y)
-  -> decltype(x.get() == y.get()) {
+auto operator==(node_iterator<T> x,
+                node_iterator<U> y) -> decltype(x.get() == y.get()) {
   return x.get() == y.get();
 }
 
 template <class T, class U>
-auto operator!=(node_iterator<T> x, node_iterator<U> y)
-  -> decltype(x.get() != y.get()) {
+auto operator!=(node_iterator<T> x,
+                node_iterator<U> y) -> decltype(x.get() != y.get()) {
   return x.get() != y.get();
 }
 
