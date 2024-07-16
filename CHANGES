@@ -1,3 +1,7 @@
+2.8.0-dev.113 | 2024-07-16 16:45:13 +0200
+
+  * Remove obsolete test scaffolding (Dominik Charousset, Corelight)
+
 2.8.0-dev.111 | 2024-07-16 16:38:44 +0200
 
   * Switch to clang-format 18 in CI (Dominik Charousset, Corelight)
