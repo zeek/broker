@@ -100,6 +100,7 @@ if (ENABLE_SHARED)
                         VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
                         MACOSX_RPATH true
                         OUTPUT_NAME broker)
+  target_compile_features(broker PUBLIC cxx_std_17)
   target_link_libraries(broker PUBLIC ${LINK_LIBS})
   target_link_libraries(
     broker
@@ -120,6 +121,7 @@ endif ()
 if (ENABLE_STATIC)
   add_library(broker_static STATIC ${BROKER_SRC})
   set_target_properties(broker_static PROPERTIES OUTPUT_NAME broker)
+  target_compile_features(broker_static PUBLIC cxx_std_17)
   if (NOT DISABLE_PYTHON_BINDINGS)
     set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
   endif()
@@ -200,6 +202,7 @@ set(BROKER_TEST_SRC
 # endif()
 
 add_executable(broker-test ${BROKER_TEST_SRC})
+target_compile_features(broker-test PUBLIC cxx_std_17)
 target_link_libraries(
   broker-test
   PRIVATE
