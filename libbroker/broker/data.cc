@@ -5,6 +5,7 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
@@ -102,6 +103,200 @@ const vector& data::to_list() const {
   if (auto ptr = std::get_if<vector>(&data_))
     return *ptr;
   return empty_vector;
+}
+
+namespace {
+
+// Consumes events from a decoder and produces a data object.
+struct decoder_handler {
+  using kvp_t = std::pair<data, data>;
+
+  // Marker that we expect the key for a table entry next.
+  struct key_t {};
+
+  // Marker that we expect the value for a table entry next.
+  struct val_t {
+    data key;
+  };
+
+  using frame = std::variant<data, vector, set, table, key_t, val_t>;
+
+  std::vector<frame> stack;
+
+  decoder_handler() {
+    stack.emplace_back(data{});
+  }
+
+  // Assigns a value to a data object, converting as necessary.
+  template <class T>
+  static void assign(data& dst, const T& arg) {
+    if constexpr (std::is_same_v<T, std::string_view>) {
+      dst = std::string{arg};
+    } else if constexpr (std::is_same_v<T, enum_value_view>) {
+      dst = enum_value{std::string{arg.name}};
+    } else {
+      dst = arg;
+    }
+  }
+
+  template <class T>
+  bool value(const T& arg) {
+    if (stack.empty()) {
+      return false;
+    }
+    auto fn = [this, &arg](auto& dst) {
+      using dst_t = std::decay_t<decltype(dst)>;
+      if constexpr (std::is_same_v<dst_t, data>) {
+        // Assign directly to a data object.
+        assign(dst, arg);
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, vector>) {
+        auto& item = dst.emplace_back();
+        assign(item, arg);
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, set>) {
+        data item;
+        assign(item, arg);
+        dst.insert(std::move(item));
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, table>) {
+        // We expect a key-value pair on the stack, not the table itself.
+        return false;
+      } else if constexpr (std::is_same_v<dst_t, key_t>) {
+        // Assign to the key of a key-value pair.
+        stack.pop_back();
+        stack.emplace_back(val_t{});
+        assign(std::get<val_t>(stack.back()).key, arg);
+        return true;
+      } else {
+        static_assert(std::is_same_v<dst_t, val_t>);
+        // Assign to the value of a key-value pair and add it to the table (the
+        // frame below the current one).
+        data key = std::move(std::get<val_t>(stack.back()).key);
+        stack.pop_back();
+        if (stack.empty() || !std::holds_alternative<table>(stack.back())) {
+          return false;
+        }
+        data val;
+        assign(val, arg);
+        std::get<table>(stack.back()).emplace(std::move(key), std::move(val));
+        return true;
+      }
+    };
+    return std::visit(fn, stack.back());
+  }
+
+  // Pushes a list, set, or table onto the current frame.
+  template <class T>
+  bool push(T& arg) {
+    auto fn = [this, &arg](auto& dst) {
+      using dst_t = std::decay_t<decltype(dst)>;
+      if constexpr (std::is_same_v<dst_t, data>) {
+        // Assigning a container to a data object. The object must be empty,
+        // otherwise it has been assigned to before.
+        if (!dst.is_none()) {
+          return false;
+        }
+        dst = std::move(arg);
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, vector>) {
+        dst.emplace_back(std::move(arg));
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, set>) {
+        dst.insert(data{std::move(arg)});
+        return true;
+      } else if constexpr (std::is_same_v<dst_t, table>) {
+        return false;
+      } else if constexpr (std::is_same_v<dst_t, key_t>) {
+        // Assign to the key of a key-value pair.
+        stack.pop_back();
+        stack.emplace_back(val_t{});
+        std::get<val_t>(stack.back()).key = std::move(arg);
+        return true;
+      } else {
+        static_assert(std::is_same_v<dst_t, val_t>);
+        // Assign to the value of a key-value pair and add it to the table (the
+        // frame below the current one).
+        data key = std::move(std::get<val_t>(stack.back()).key);
+        stack.pop_back();
+        if (stack.empty() || !std::holds_alternative<table>(stack.back())) {
+          return false;
+        }
+        std::get<table>(stack.back())
+          .emplace(std::move(key), data{std::move(arg)});
+        return true;
+      }
+    };
+    return std::visit(fn, stack.back());
+  }
+
+  bool begin_list() {
+    stack.emplace_back(vector{});
+    return true;
+  }
+
+  bool end_list() {
+    // We must always have at least two frames on the stack: the list we have
+    // just produced and the parent frame that the list belongs to.
+    if (stack.size() < 2 || !std::holds_alternative<vector>(stack.back())) {
+      return false;
+    }
+    vector result = std::move(std::get<vector>(stack.back()));
+    stack.pop_back();
+    return push(result);
+  }
+
+  bool begin_set() {
+    stack.emplace_back(set{});
+    return true;
+  }
+
+  bool end_set() {
+    // Similar to end_list, but for sets.
+    if (stack.size() < 2 || !std::holds_alternative<set>(stack.back())) {
+      return false;
+    }
+    set result = std::move(std::get<set>(stack.back()));
+    stack.pop_back();
+    return push(result);
+  }
+
+  bool begin_table() {
+    stack.emplace_back(table{});
+    return true;
+  }
+
+  bool end_table() {
+    // Similar to end_list, but for tables.
+    if (stack.size() < 2 || !std::holds_alternative<table>(stack.back())) {
+      return false;
+    }
+    table result = std::move(std::get<table>(stack.back()));
+    stack.pop_back();
+    return push(result);
+  }
+
+  bool begin_key_value_pair() {
+    stack.emplace_back(key_t{});
+    return true;
+  }
+
+  bool end_key_value_pair() {
+    return true;
+  }
+};
+
+} // namespace
+
+bool data::deserialize(const std::byte* payload, size_t payload_size) {
+  decoder_handler handler;
+  auto payload_end = payload + payload_size;
+  auto [ok, pos] = format::bin::v1::decode(payload, payload_end, handler);
+  if (!ok || pos != payload_end || handler.stack.size() != 1) {
+    return false;
+  }
+  *this = std::move(std::get<data>(handler.stack.back()));
+  return true;
 }
 
 namespace {
