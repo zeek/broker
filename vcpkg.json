@@ -1,0 +1,7 @@
+{
+    "name": "broker",
+    "version-string": "latest",
+    "dependencies": [
+        "prometheus-cpp"
+    ]
+}

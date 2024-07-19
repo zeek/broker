@@ -108,7 +108,8 @@ if (ENABLE_SHARED)
       CAF::core
       CAF::io
       CAF::net
-      broker-prometheus-cpp)
+      prometheus-cpp::core
+      prometheus-cpp::pull)
   install(TARGETS broker
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -132,7 +133,8 @@ if (ENABLE_STATIC)
       CAF::core
       CAF::io
       CAF::net
-      broker-prometheus-cpp)
+      prometheus-cpp::core
+      prometheus-cpp::pull)
   install(TARGETS broker_static
           EXPORT BrokerTargets
           DESTINATION ${CMAKE_INSTALL_LIBDIR})
@@ -211,7 +213,8 @@ target_link_libraries(
     CAF::io
     CAF::net
     CAF::test
-    broker-prometheus-cpp)
+      prometheus-cpp::core
+      prometheus-cpp::pull)
 
 foreach(file_path ${BROKER_TEST_SRC})
   get_filename_component(test_dir ${file_path} DIRECTORY)

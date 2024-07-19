@@ -1,6 +1,21 @@
 # -- Project Setup ------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+
+# I tried to just use CMAKE_SOURCE_DIR and CMAKE_CURRENT_SOURCE_DIR
+# but it's not setting the path correctly and so the toolchain
+# variable doesn't get passed down to submodules like libkqueue
+# correctly. Instead get the absolute path to the vcpkg.cmake file
+# and use that.
+get_filename_component(_toolchain ./auxil/vcpkg/scripts/buildsystems/vcpkg.cmake ABSOLUTE)
+
+# This needs to happen before the project() call below so that it
+# doesn't need to be manually passed on the command line.
+set(CMAKE_TOOLCHAIN_FILE ${_toolchain} CACHE STRING "Vcpkg toolchain file")
+
+get_filename_component(_overlays ./auxil/vcpkg-overlays ABSOLUTE)
+set(VCPKG_OVERLAY_PORTS ${_overlays})
+
 project(broker C CXX)
 
 include(CMakePackageConfigHelpers)
@@ -210,35 +225,10 @@ function(add_bundled_caf)
   add_subdirectory(caf EXCLUDE_FROM_ALL)
 endfunction()
 
-# Bundle prometheus-cpp. This approach is currently experimental.
-if (CMAKE_MSVC_RUNTIME_LIBRARY)
-    set(msvc_zeekbundle_args
-        CMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}
-        CMAKE_MSVC_RUNTIME_LIBRARY_FLAG=${CMAKE_MSVC_RUNTIME_LIBRARY_FLAG})
-endif ()
-ZeekBundle_Add(
-  NAME prometheus-cpp
-  FETCH
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/auxil/prometheus-cpp
-  CONFIGURE
-    ${msvc_zeekbundle_args}
-    ENABLE_COMPRESSION=OFF
-    ENABLE_PUSH=OFF)
-unset(msvc_zeekbundle_args)
-
-# Bundle all prometheus-cpp libraries that we need as single interface library.
-add_library(broker-prometheus-cpp INTERFACE)
-target_link_libraries(
-  broker-prometheus-cpp
-  INTERFACE
-    $<BUILD_INTERFACE:prometheus-cpp::core>
-    $<BUILD_INTERFACE:prometheus-cpp::pull>)
-# Prometheus-cpp sets C++ 11 via CMake property, but we need C++ 17.
-target_compile_features(broker-prometheus-cpp INTERFACE cxx_std_17)
-# Must be exported to keep CMake happy, even though we only need it internally.
-install(TARGETS broker-prometheus-cpp
-        EXPORT BrokerTargets
-        DESTINATION ${CMAKE_INSTALL_LIBDIR})
+# This should come out of vcpkg
+find_package(prometheus-cpp CONFIG REQUIRED)
+set(zeekdeps ${zeekdeps} prometheus-cpp::core prometheus-cpp::pull)
+include_directories(BEFORE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
 
 # NOTE: building and linking against an external CAF version is NOT supported!
 #       This variable is FOR DEVELOPMENT ONLY. The only officially supported CAF
