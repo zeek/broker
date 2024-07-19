@@ -64,6 +64,18 @@ constexpr size_t max_varbyte_size = 10;
 /// A pointer that a sequence of bytes.
 using const_byte_pointer = const std::byte*;
 
+/// Reads a single 8-bit unsigned integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, uint8_t& result);
+
+/// Reads a single 16-bit unsigned integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, uint16_t& result);
+
+/// Reads a single 64-bit unsigned integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, uint64_t& result);
+
+/// Reads a single 64-bit floating point number from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, double& result);
+
 /// Reads a size_t from a byte sequence using varbyte encoding.
 bool read_varbyte(const_byte_pointer& first, const_byte_pointer last,
                   size_t& result);
@@ -458,6 +470,168 @@ public:
 private:
   OutIter out_;
 };
+
+template <class Handler>
+std::pair<bool, const std::byte*>
+decode(const std::byte* pos, const std::byte* end, Handler& handler) {
+  if (pos == end)
+    return {false, end};
+  switch (static_cast<variant_tag>(*pos++)) {
+    case variant_tag::none:
+      handler.value(nil);
+      return {true, pos};
+    case variant_tag::boolean:
+      if (pos == end)
+        return {false, end};
+      handler.value(*pos++ != std::byte{0});
+      return {true, pos};
+    case variant_tag::count: {
+      auto tmp = uint64_t{0};
+      if (!read(pos, end, tmp))
+        return {false, pos};
+      handler.value(broker::count{tmp});
+      return {true, pos};
+    }
+    case variant_tag::integer: {
+      auto tmp = uint64_t{0};
+      if (!read(pos, end, tmp))
+        return {false, pos};
+      handler.value(static_cast<broker::integer>(tmp));
+      return {true, pos};
+    }
+    case variant_tag::real:{
+      auto tmp = 0.0;
+      if (!read(pos, end, tmp))
+        return {false, pos};
+      handler.value(tmp);
+      return {true, pos};
+    }
+    case variant_tag::string: {
+      auto size = size_t{0};
+      if (!read_varbyte(pos, end, size))
+        return {false, pos};
+      if (end - pos < static_cast<ptrdiff_t>(size))
+        return {false, pos};
+      auto str = reinterpret_cast<const char*>(pos);
+      pos += size;
+      handler.value(std::string_view{str, size});
+      return {true, pos};
+    }
+    case variant_tag::address: {
+      if (end - pos < static_cast<ptrdiff_t>(address::num_bytes))
+        return {false, end};
+      address tmp;
+      memcpy(tmp.bytes().data(), pos, address::num_bytes);
+      pos += address::num_bytes;
+      handler.value(tmp);
+      return {true, pos};
+    }
+    case variant_tag::subnet: {
+      static constexpr size_t subnet_len = address::num_bytes + 1;
+      if (end - pos < static_cast<ptrdiff_t>(subnet_len))
+        return {false, end};
+      address tmp;
+      memcpy(tmp.bytes().data(), pos, address::num_bytes);
+      pos += address::num_bytes;
+      auto length = uint8_t{0};
+      if (!read(pos, end, length))
+        return {false, pos};
+      handler.value(subnet::unchecked(tmp, length));
+      return {true, pos};
+    }
+    case variant_tag::port: {
+      if (end - pos < 3)
+        return {false, end};
+      auto num = uint16_t{0};
+      if (!read(pos, end, num))
+        return {false, pos};
+      auto proto = uint8_t{0};
+      if (!read(pos, end, proto))
+        return {false, pos};
+      if (proto > 3) // 3 is the highest protocol number we support (ICMP).
+        return {false, end};
+      handler.value(port{num, static_cast<port::protocol>(proto)});
+      return {true, pos};
+    }
+    case variant_tag::timestamp: {
+      auto tmp = uint64_t{0};
+      if (!read(pos, end, tmp))
+        return {false, pos};
+      handler.value(timestamp{timespan{tmp}});
+      return {true, pos};
+    }
+    case variant_tag::timespan: {
+      auto tmp = uint64_t{0};
+      if (!read(pos, end, tmp))
+        return {false, pos};
+      handler.value(timespan{tmp});
+      return {true, pos};
+    }
+    case variant_tag::enum_value: {
+      size_t size = 0;
+      if (!format::bin::v1::read_varbyte(pos, end, size))
+        return {false, pos};
+      if (end - pos < static_cast<ptrdiff_t>(size))
+        return {false, pos};
+      auto str = reinterpret_cast<const char*>(pos);
+      pos += size;
+      handler.value(enum_value_view{std::string_view{str, size}});
+      return {true, pos};
+    }
+    case variant_tag::set: {
+      size_t size = 0;
+      if (!format::bin::v1::read_varbyte(pos, end, size))
+        return {false, pos};
+      handler.begin_set();
+      for (size_t i = 0; i < size; ++i) {
+        auto [ok, next] = decode(pos, end, handler);
+        if (!ok)
+          return {false, pos};
+        pos = next;
+      }
+      handler.end_set();
+      return {true, pos};
+    }
+    case variant_tag::table: {
+      size_t size = 0;
+      if (!format::bin::v1::read_varbyte(pos, end, size))
+        return {false, pos};
+      handler.begin_table();
+      for (size_t i = 0; i < size; ++i) {
+        handler.begin_key_value_pair();
+        if (auto [ok, next] = decode(pos, end, handler); ok) {
+          pos = next;
+        } else {
+          return {false, next};
+        }
+        if (auto [ok, next] = decode(pos, end, handler); ok) {
+          pos = next;
+        } else {
+          return {false, next};
+        }
+        handler.end_key_value_pair();
+      }
+      handler.end_table();
+      return {true, pos};
+    }
+    case variant_tag::list: {
+      size_t size = 0;
+      if (!format::bin::v1::read_varbyte(pos, end, size))
+        return {false, pos};
+      handler.begin_list();
+      for (size_t i = 0; i < size; ++i) {
+        auto [ok, next] = decode(pos, end, handler);
+        if (!ok)
+          return {false, next};
+        pos = next;
+      }
+      handler.end_list();
+      return {true, pos};
+    }
+    default:
+      return {false, pos};
+  }
+}
 
 template <class OutIter, class T>
 auto encode_with_tag(const T& x, OutIter out) -> decltype(encode(x, out)) {

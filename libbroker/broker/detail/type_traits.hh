@@ -252,3 +252,21 @@ inline constexpr bool is_tuple = is_tuple_oracle<T>::value;
   template <class T, class OutIter>                                            \
   inline constexpr bool has_encode_overload_v =                                \
     has_encode_overload<T, OutIter>::value
+
+#define BROKER_DEF_HAS_DECODE_IN_NS(ns_name)                                   \
+  template <class T, class OutIter>                                            \
+  class has_decode_overload {                                                  \
+  private:                                                                     \
+    template <class U>                                                         \
+    static auto                                                                \
+    sfinae(U& y) -> decltype(::ns_name::decode(y, std::declval<OutIter&>()),   \
+                             std::true_type{});                                \
+    static std::false_type sfinae(...);                                        \
+    using result_type = decltype(sfinae(std::declval<T&>()));                  \
+                                                                               \
+  public:                                                                      \
+    static constexpr bool value = result_type::value;                          \
+  };                                                                           \
+  template <class T, class OutIter>                                            \
+  inline constexpr bool has_decode_overload_v =                                \
+    has_decode_overload<T, OutIter>::value
