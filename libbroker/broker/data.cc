@@ -107,195 +107,217 @@ const vector& data::to_list() const {
 
 namespace {
 
+// Assigns a value to a data object, converting as necessary.
+template <class T>
+void do_assign(data& dst, const T& arg) {
+  if constexpr (std::is_same_v<T, std::string_view>) {
+    dst = std::string{arg};
+  } else if constexpr (std::is_same_v<T, enum_value_view>) {
+    dst = enum_value{std::string{arg.name}};
+  } else {
+    dst = arg;
+  }
+}
+
+struct decoder_handler_value;
+
+struct decoder_handler_list;
+
+struct decoder_handler_set;
+
+struct decoder_handler_table;
+
 // Consumes events from a decoder and produces a data object.
-struct decoder_handler {
-  using kvp_t = std::pair<data, data>;
+struct decoder_handler_value {
+  data result;
 
-  // Marker that we expect the key for a table entry next.
-  struct key_t {};
-
-  // Marker that we expect the value for a table entry next.
-  struct val_t {
-    data key;
-  };
-
-  using frame = std::variant<data, vector, set, table, key_t, val_t>;
-
-  std::vector<frame> stack;
-
-  decoder_handler() {
-    stack.emplace_back(data{});
+  template <class T>
+  void value(const T& arg) {
+    do_assign(result, arg);
   }
 
-  // Assigns a value to a data object, converting as necessary.
+  decoder_handler_list begin_list();
+
+  void end_list(decoder_handler_list&);
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a list of data objects.
+struct decoder_handler_list {
+  vector result;
+
   template <class T>
-  static void assign(data& dst, const T& arg) {
-    if constexpr (std::is_same_v<T, std::string_view>) {
-      dst = std::string{arg};
-    } else if constexpr (std::is_same_v<T, enum_value_view>) {
-      dst = enum_value{std::string{arg.name}};
+  void value(const T& arg) {
+    do_assign(result.emplace_back(), arg);
+  }
+
+  decoder_handler_list begin_list() {
+    return {};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    result.emplace_back() = std::move(other.result);
+  }
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a set of data objects.
+struct decoder_handler_set {
+  set result;
+
+  template <class T>
+  void value(const T& arg) {
+    data item;
+    do_assign(item, arg);
+    result.insert(std::move(item));
+  }
+
+  decoder_handler_list begin_list() {
+    return {};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    result.insert(data{std::move(other.result)});
+  }
+
+  decoder_handler_set begin_set() {
+    return {};
+  }
+
+  void end_set(decoder_handler_set& other) {
+    result.insert(data{std::move(other.result)});
+  }
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+struct decoder_handler_table {
+  table result;
+  std::optional<data> key;
+
+  void add(data&& arg) {
+    if (!key) {
+      key.emplace(std::move(arg));
     } else {
-      dst = arg;
+      result.emplace(std::move(*key), std::move(arg));
+      key.reset();
     }
   }
 
   template <class T>
-  bool value(const T& arg) {
-    if (stack.empty()) {
-      return false;
-    }
-    auto fn = [this, &arg](auto& dst) {
-      using dst_t = std::decay_t<decltype(dst)>;
-      if constexpr (std::is_same_v<dst_t, data>) {
-        // Assign directly to a data object.
-        assign(dst, arg);
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, vector>) {
-        auto& item = dst.emplace_back();
-        assign(item, arg);
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, set>) {
-        data item;
-        assign(item, arg);
-        dst.insert(std::move(item));
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, table>) {
-        // We expect a key-value pair on the stack, not the table itself.
-        return false;
-      } else if constexpr (std::is_same_v<dst_t, key_t>) {
-        // Assign to the key of a key-value pair.
-        stack.pop_back();
-        stack.emplace_back(val_t{});
-        assign(std::get<val_t>(stack.back()).key, arg);
-        return true;
-      } else {
-        static_assert(std::is_same_v<dst_t, val_t>);
-        // Assign to the value of a key-value pair and add it to the table (the
-        // frame below the current one).
-        data key = std::move(std::get<val_t>(stack.back()).key);
-        stack.pop_back();
-        if (stack.empty() || !std::holds_alternative<table>(stack.back())) {
-          return false;
-        }
-        data val;
-        assign(val, arg);
-        std::get<table>(stack.back()).emplace(std::move(key), std::move(val));
-        return true;
-      }
-    };
-    return std::visit(fn, stack.back());
+  void value(const T& arg) {
+    data val;
+    do_assign(val, arg);
+    add(std::move(val));
   }
 
-  // Pushes a list, set, or table onto the current frame.
-  template <class T>
-  bool push(T& arg) {
-    auto fn = [this, &arg](auto& dst) {
-      using dst_t = std::decay_t<decltype(dst)>;
-      if constexpr (std::is_same_v<dst_t, data>) {
-        // Assigning a container to a data object. The object must be empty,
-        // otherwise it has been assigned to before.
-        if (!dst.is_none()) {
-          return false;
-        }
-        dst = std::move(arg);
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, vector>) {
-        dst.emplace_back(std::move(arg));
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, set>) {
-        dst.insert(data{std::move(arg)});
-        return true;
-      } else if constexpr (std::is_same_v<dst_t, table>) {
-        return false;
-      } else if constexpr (std::is_same_v<dst_t, key_t>) {
-        // Assign to the key of a key-value pair.
-        stack.pop_back();
-        stack.emplace_back(val_t{});
-        std::get<val_t>(stack.back()).key = std::move(arg);
-        return true;
-      } else {
-        static_assert(std::is_same_v<dst_t, val_t>);
-        // Assign to the value of a key-value pair and add it to the table (the
-        // frame below the current one).
-        data key = std::move(std::get<val_t>(stack.back()).key);
-        stack.pop_back();
-        if (stack.empty() || !std::holds_alternative<table>(stack.back())) {
-          return false;
-        }
-        std::get<table>(stack.back())
-          .emplace(std::move(key), data{std::move(arg)});
-        return true;
-      }
-    };
-    return std::visit(fn, stack.back());
+  decoder_handler_list begin_list() {
+    return {};
   }
 
-  bool begin_list() {
-    stack.emplace_back(vector{});
-    return true;
+  void end_list(decoder_handler_list& other) {
+    add(data{std::move(other.result)});
   }
 
-  bool end_list() {
-    // We must always have at least two frames on the stack: the list we have
-    // just produced and the parent frame that the list belongs to.
-    if (stack.size() < 2 || !std::holds_alternative<vector>(stack.back())) {
-      return false;
-    }
-    vector result = std::move(std::get<vector>(stack.back()));
-    stack.pop_back();
-    return push(result);
+  decoder_handler_set begin_set() {
+    return {};
   }
 
-  bool begin_set() {
-    stack.emplace_back(set{});
-    return true;
+  void end_set(decoder_handler_set& other) {
+    add(data{std::move(other.result)});
   }
 
-  bool end_set() {
-    // Similar to end_list, but for sets.
-    if (stack.size() < 2 || !std::holds_alternative<set>(stack.back())) {
-      return false;
-    }
-    set result = std::move(std::get<set>(stack.back()));
-    stack.pop_back();
-    return push(result);
+  decoder_handler_table begin_table() {
+    return {};
   }
 
-  bool begin_table() {
-    stack.emplace_back(table{});
-    return true;
+  void end_table(decoder_handler_table& other) {
+    add(data{std::move(other.result)});
   }
 
-  bool end_table() {
-    // Similar to end_list, but for tables.
-    if (stack.size() < 2 || !std::holds_alternative<table>(stack.back())) {
-      return false;
-    }
-    table result = std::move(std::get<table>(stack.back()));
-    stack.pop_back();
-    return push(result);
+  void begin_key_value_pair() {
+    // nop
   }
 
-  bool begin_key_value_pair() {
-    stack.emplace_back(key_t{});
-    return true;
-  }
-
-  bool end_key_value_pair() {
-    return true;
+  void end_key_value_pair() {
+    // nop
   }
 };
+
+decoder_handler_list decoder_handler_value::begin_list() {
+  return {};
+}
+
+void decoder_handler_value::end_list(decoder_handler_list& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_set decoder_handler_value::begin_set() {
+  return {};
+}
+
+void decoder_handler_value::end_set(decoder_handler_set& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_table decoder_handler_value::begin_table() {
+  return {};
+}
+
+void decoder_handler_value::end_table(decoder_handler_table& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_set decoder_handler_list::begin_set() {
+  return {};
+}
+
+void decoder_handler_list::end_set(decoder_handler_set& other) {
+  result.emplace_back(std::move(other.result));
+}
+
+decoder_handler_table decoder_handler_list::begin_table() {
+  return {};
+}
+
+void decoder_handler_list::end_table(decoder_handler_table& other) {
+  result.emplace_back(std::move(other.result));
+}
+
+decoder_handler_table decoder_handler_set::begin_table() {
+  return {};
+}
+
+void decoder_handler_set::end_table(decoder_handler_table& other) {
+  result.insert(data{std::move(other.result)});
+}
 
 } // namespace
 
 bool data::deserialize(const std::byte* payload, size_t payload_size) {
-  decoder_handler handler;
+  decoder_handler_value handler;
   auto payload_end = payload + payload_size;
   auto [ok, pos] = format::bin::v1::decode(payload, payload_end, handler);
-  if (!ok || pos != payload_end || handler.stack.size() != 1) {
+  if (!ok || pos != payload_end) {
     return false;
   }
-  *this = std::move(std::get<data>(handler.stack.back()));
+  *this = std::move(handler.result);
   return true;
 }
 
