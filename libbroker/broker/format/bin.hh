@@ -582,50 +582,50 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       size_t size = 0;
       if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
-      handler.begin_set();
+      auto&& nested = handler.begin_set();
       for (size_t i = 0; i < size; ++i) {
-        auto [ok, next] = decode(pos, end, handler);
+        auto [ok, next] = decode(pos, end, nested);
         if (!ok)
           return {false, pos};
         pos = next;
       }
-      handler.end_set();
+      handler.end_set(nested);
       return {true, pos};
     }
     case variant_tag::table: {
       size_t size = 0;
       if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
-      handler.begin_table();
+      auto&& nested = handler.begin_table();
       for (size_t i = 0; i < size; ++i) {
-        handler.begin_key_value_pair();
-        if (auto [ok, next] = decode(pos, end, handler); ok) {
+        nested.begin_key_value_pair();
+        if (auto [ok, next] = decode(pos, end, nested); ok) {
           pos = next;
         } else {
           return {false, next};
         }
-        if (auto [ok, next] = decode(pos, end, handler); ok) {
+        if (auto [ok, next] = decode(pos, end, nested); ok) {
           pos = next;
         } else {
           return {false, next};
         }
-        handler.end_key_value_pair();
+        nested.end_key_value_pair();
       }
-      handler.end_table();
+      handler.end_table(nested);
       return {true, pos};
     }
     case variant_tag::list: {
       size_t size = 0;
       if (!format::bin::v1::read_varbyte(pos, end, size))
         return {false, pos};
-      handler.begin_list();
+      auto&& nested = handler.begin_list();
       for (size_t i = 0; i < size; ++i) {
-        auto [ok, next] = decode(pos, end, handler);
+        auto [ok, next] = decode(pos, end, nested);
         if (!ok)
           return {false, next};
         pos = next;
       }
-      handler.end_list();
+      handler.end_list(nested);
       return {true, pos};
     }
     default:

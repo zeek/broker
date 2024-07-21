@@ -147,37 +147,33 @@ struct dummy_decoder_handler {
   int indent = 0;
   std::string log;
 
-  bool value(none) {
+  void value(none) {
     log.insert(log.end(), indent, ' ');
     log += "value: none\n";
-    return true;
   }
 
-  bool value(bool arg) {
+  void value(bool arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg ? "true" : "false";
     log += "\n";
-    return true;
   }
 
-  bool value(broker::count arg) {
+  void value(broker::count arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
     log += " [count]\n";
-    return true;
   }
 
-  bool value(broker::integer arg) {
+  void value(broker::integer arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
     log += " [integer]\n";
-    return true;
   }
 
-  bool value(broker::real arg) {
+  void value(broker::real arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
@@ -187,119 +183,106 @@ struct dummy_decoder_handler {
     if (log.back() == '.')
       log.pop_back();
     log += " [real]\n";
-    return true;
   }
 
-  bool value(std::string_view arg) {
+  void value(std::string_view arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg;
     log += "\n";
-    return true;
   }
 
-  bool value(enum_value_view arg) {
+  void value(enum_value_view arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg.name;
     log += " [enum]\n";
-    return true;
   }
 
-  bool value(address arg) {
+  void value(address arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
-    return true;
   }
 
-  bool value(subnet arg) {
+  void value(subnet arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
-    return true;
   }
 
-  bool value(port arg) {
+  void value(port arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
-    return true;
   }
 
-  bool value(timespan arg) {
+  void value(timespan arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg.count());
     log += " [timespan]\n";
-    return true;
   }
 
-  bool value(timestamp arg) {
+  void value(timestamp arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg.time_since_epoch().count());
     log += " [timestamp]\n";
-    return true;
   }
 
-  bool begin_list() {
+  dummy_decoder_handler& begin_list() {
     log.insert(log.end(), indent, ' ');
     log += "begin list\n";
     indent += 2;
-    return true;
+    return *this;
   }
 
-  bool end_list() {
+  void end_list(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end list\n";
-    return true;
   }
 
-  bool begin_set() {
+  dummy_decoder_handler& begin_set() {
     log.insert(log.end(), indent, ' ');
     log += "begin set\n";
     indent += 2;
-    return true;
+    return *this;
   }
 
-  bool end_set() {
+  void end_set(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end set\n";
-    return true;
   }
 
-  bool begin_table() {
+  dummy_decoder_handler& begin_table() {
     log.insert(log.end(), indent, ' ');
     log += "begin table\n";
     indent += 2;
-    return true;
+    return *this;
   }
 
-  bool end_table() {
+  void end_table(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end table\n";
-    return true;
   }
 
-  bool begin_key_value_pair() {
+  void begin_key_value_pair() {
     log.insert(log.end(), indent, ' ');
     log += "begin key-value-pair\n";
     indent += 2;
-    return true;
   }
 
-  bool end_key_value_pair() {
+  void end_key_value_pair() {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end key-value-pair\n";
-    return true;
   }
 };
 
@@ -317,17 +300,6 @@ std::string do_decode(T&& arg) {
     FAIL("decoding did not consume the entire input");
   }
   return std::move(handler.log);
-}
-
-template <class T>
-data do_deserialize(T&& arg) {
-  auto input = data{std::forward<T>(arg)};
-  auto buf = apply_encoder<std::byte>(input);
-  data result;
-  if (!result.deserialize(buf.data(), buf.size())) {
-    FAIL("deserialization failed");
-  }
-  return result;
 }
 
 } // namespace
