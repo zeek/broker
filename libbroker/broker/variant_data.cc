@@ -127,200 +127,247 @@ data variant_data::to_data() const {
 namespace {
 
 template <class T>
-using mbr_allocator = broker::detail::monotonic_buffer_resource::allocator<T>;
+using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
 
-using const_byte_pointer = const std::byte*;
+struct decoder_handler_value;
 
-/// Reads a 64-bit unsigned integer from a byte sequence.
-uint64_t rd_u64(const_byte_pointer& bytes) {
-  broker::count tmp = 0;
-  memcpy(&tmp, bytes, sizeof(broker::count));
-  bytes += sizeof(broker::count);
-  return caf::detail::from_network_order(tmp);
+struct decoder_handler_list;
+
+struct decoder_handler_set;
+
+struct decoder_handler_table;
+
+// Consumes events from a decoder and produces a data object.
+struct decoder_handler_value {
+  detail::monotonic_buffer_resource* buf;
+  variant_data* result;
+
+  template <class T>
+  void value(const T& arg) {
+    result->value = arg;
+  }
+
+  decoder_handler_list begin_list();
+
+  void end_list(decoder_handler_list&);
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a list of data objects.
+struct decoder_handler_list {
+  detail::monotonic_buffer_resource* buf;
+  variant_data::list* result;
+
+  explicit decoder_handler_list(detail::monotonic_buffer_resource* res)
+    : buf(res) {
+    using vec_allocator = mbr_allocator<variant_data>;
+    using vec_type = variant_data::list;
+    mbr_allocator<vec_type> allocator{buf};
+    result = new (allocator.allocate(1)) vec_type(vec_allocator{buf});
+  }
+
+  template <class T>
+  void value(const T& arg) {
+    auto& item = result->emplace_back();
+    item.value = arg;
+  }
+
+  auto begin_list() {
+    return decoder_handler_list{buf};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    result->emplace_back().value = other.result;
+  }
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a set of data objects.
+struct decoder_handler_set {
+  detail::monotonic_buffer_resource* buf;
+  variant_data::set* result;
+
+  explicit decoder_handler_set(detail::monotonic_buffer_resource* res)
+    : buf(res) {
+    using set_allocator = mbr_allocator<variant_data>;
+    using set_type = variant_data::set;
+    mbr_allocator<set_type> allocator{buf};
+    result = new (allocator.allocate(1)) set_type(set_allocator{buf});
+  }
+
+  template <class T>
+  void value(const T& arg) {
+    variant_data item;
+    item.value = arg;
+    result->insert(std::move(item));
+  }
+
+  auto begin_list() {
+    return decoder_handler_list{buf};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    variant_data item;
+    item.value = other.result;
+    result->insert(std::move(item));
+  }
+
+  auto begin_set() {
+    return decoder_handler_set{buf};
+  }
+
+  void end_set(decoder_handler_set& other) {
+    variant_data item;
+    item.value = other.result;
+    result->insert(std::move(item));
+  }
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+struct decoder_handler_table {
+  detail::monotonic_buffer_resource* buf;
+  variant_data::table* result;
+  std::optional<variant_data> key;
+
+  explicit decoder_handler_table(detail::monotonic_buffer_resource* res)
+    : buf(res) {
+    using table_allocator = variant_data::table_allocator;
+    using table_type = variant_data::table;
+    mbr_allocator<table_type> allocator{buf};
+    result = new (allocator.allocate(1)) table_type(table_allocator{buf});
+  }
+
+  template <class T>
+  void add(T&& arg) {
+    if (!key) {
+      key.emplace();
+      key->value = arg;
+    } else {
+      variant_data val;
+      val.value = arg;
+      result->emplace(std::move(*key), std::move(val));
+      key.reset();
+    }
+  }
+
+  template <class T>
+  void value(const T& arg) {
+    add(arg);
+  }
+
+  auto begin_list() {
+    return decoder_handler_list{buf};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    add(other.result);
+  }
+
+  auto begin_set() {
+    return decoder_handler_set{buf};
+  }
+
+  void end_set(decoder_handler_set& other) {
+    add(other.result);
+  }
+
+  auto begin_table() {
+    return decoder_handler_table{buf};
+  }
+
+  void end_table(decoder_handler_table& other) {
+    add(other.result);
+  }
+
+  void begin_key_value_pair() {
+    // nop
+  }
+
+  void end_key_value_pair() {
+    // nop
+  }
+};
+
+decoder_handler_list decoder_handler_value::begin_list() {
+  return decoder_handler_list{buf};
 }
 
-/// Reads an 8-bit unsigned integer from a byte sequence.
-uint8_t rd_u8(const_byte_pointer& bytes) {
-  auto result = *bytes++;
-  return static_cast<uint8_t>(result);
+void decoder_handler_value::end_list(decoder_handler_list& other) {
+  result->value = other.result;
 }
 
-/// Reads a 16-bit unsigned integer from a byte sequence.
-uint16_t rd_u16(const_byte_pointer& bytes) {
-  uint16_t tmp = 0;
-  memcpy(&tmp, bytes, sizeof(uint16_t));
-  bytes += sizeof(uint16_t);
-  return caf::detail::from_network_order(tmp);
+decoder_handler_set decoder_handler_value::begin_set() {
+  return decoder_handler_set{buf};
 }
 
-// Like sizeof(), but returns a ptrdiff_t instead of a size_t.
-template <class T>
-ptrdiff_t ssizeof() {
-  return static_cast<ptrdiff_t>(sizeof(T));
+void decoder_handler_value::end_set(decoder_handler_set& other) {
+  result->value = other.result;
+}
+
+decoder_handler_table decoder_handler_value::begin_table() {
+  return decoder_handler_table{buf};
+}
+
+void decoder_handler_value::end_table(decoder_handler_table& other) {
+  result->value = other.result;
+}
+
+decoder_handler_set decoder_handler_list::begin_set() {
+  return decoder_handler_set{buf};
+}
+
+void decoder_handler_list::end_set(decoder_handler_set& other) {
+  auto& item = result->emplace_back();
+  item.value = other.result;
+}
+
+decoder_handler_table decoder_handler_list::begin_table() {
+  return decoder_handler_table{buf};
+}
+
+void decoder_handler_list::end_table(decoder_handler_table& other) {
+  auto& item = result->emplace_back();
+  item.value = other.result;
+}
+
+decoder_handler_table decoder_handler_set::begin_table() {
+  return decoder_handler_table{buf};
+}
+
+void decoder_handler_set::end_table(decoder_handler_table& other) {
+  variant_data item;
+  item.value = other.result;
+  result->insert(std::move(item));
 }
 
 } // namespace
 
 std::pair<bool, const std::byte*>
 variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
-                            const std::byte* pos, const std::byte* end) {
-  if (pos == end)
-    return {false, end};
-  switch (static_cast<variant_tag>(*pos++)) {
-    case variant_tag::none:
-      value = none{};
-      return {true, pos};
-    case variant_tag::boolean:
-      if (pos == end)
-        return {false, end};
-      value = *pos++ != std::byte{0};
-      return {true, pos};
-    case variant_tag::count:
-      if (end - pos < ssizeof<count>())
-        return {false, end};
-      value = rd_u64(pos);
-      return {true, pos};
-    case variant_tag::integer:
-      if (end - pos < ssizeof<count>())
-        return {false, end};
-      value = static_cast<broker::integer>(rd_u64(pos));
-      return {true, pos};
-    case variant_tag::real:
-      if (end - pos < ssizeof<real>())
-        return {false, end};
-      value = caf::detail::unpack754(rd_u64(pos));
-      return {true, pos};
-    case variant_tag::string: {
-      size_t size = 0;
-      if (!format::bin::v1::read_varbyte(pos, end, size))
-        return {false, pos};
-      if (end - pos < static_cast<ptrdiff_t>(size))
-        return {false, pos};
-      auto str = reinterpret_cast<const char*>(pos);
-      pos += size;
-      value = std::string_view{str, size};
-      return {true, pos};
-    }
-    case variant_tag::address: {
-      if (end - pos < static_cast<ptrdiff_t>(address::num_bytes))
-        return {false, end};
-      address tmp;
-      memcpy(tmp.bytes().data(), pos, address::num_bytes);
-      pos += address::num_bytes;
-      value = tmp;
-      return {true, pos};
-    }
-    case variant_tag::subnet: {
-      static constexpr size_t subnet_len = address::num_bytes + 1;
-      if (end - pos < static_cast<ptrdiff_t>(subnet_len))
-        return {false, end};
-      address tmp;
-      memcpy(tmp.bytes().data(), pos, address::num_bytes);
-      pos += address::num_bytes;
-      auto length = rd_u8(pos);
-      value = subnet::unchecked(tmp, length);
-      return {true, pos};
-    }
-    case variant_tag::port: {
-      if (end - pos < 3)
-        return {false, end};
-      auto num = rd_u16(pos);
-      auto proto = rd_u8(pos);
-      if (proto > 3) // 3 is the highest protocol number we support (ICMP).
-        return {false, end};
-      value = port{num, static_cast<port::protocol>(proto)};
-      return {true, pos};
-    }
-    case variant_tag::timestamp: {
-      if (end - pos < ssizeof<timespan>())
-        return {false, end};
-      value = timestamp{timespan{rd_u64(pos)}};
-      return {true, pos};
-    }
-    case variant_tag::timespan: {
-      if (end - pos < ssizeof<timespan>())
-        return {false, end};
-      value = timespan{rd_u64(pos)};
-      return {true, pos};
-    }
-    case variant_tag::enum_value: {
-      size_t size = 0;
-      if (!format::bin::v1::read_varbyte(pos, end, size))
-        return {false, pos};
-      if (end - pos < static_cast<ptrdiff_t>(size))
-        return {false, pos};
-      auto str = reinterpret_cast<const char*>(pos);
-      pos += size;
-      value = enum_value_view{std::string_view{str, size}};
-      return {true, pos};
-    }
-    case variant_tag::set: {
-      size_t size = 0;
-      if (!format::bin::v1::read_varbyte(pos, end, size))
-        return {false, pos};
-      using set_allocator = mbr_allocator<variant_data>;
-      using set_type = variant_data::set;
-      mbr_allocator<set_type> allocator{&buf};
-      auto res = new (allocator.allocate(1)) set_type(set_allocator{&buf});
-      for (size_t i = 0; i < size; ++i) {
-        auto tmp = variant_data{};
-        auto [ok, next] = tmp.parse_shallow(buf, pos, end);
-        if (!ok)
-          return {false, pos};
-        auto [_, added] = res->emplace(std::move(tmp));
-        if (!added)
-          return {false, pos};
-        pos = next;
-      }
-      value = res;
-      return {true, pos};
-    }
-    case variant_tag::table: {
-      size_t size = 0;
-      if (!format::bin::v1::read_varbyte(pos, end, size))
-        return {false, pos};
-      using table_allocator = variant_data::table_allocator;
-      using table_type = variant_data::table;
-      mbr_allocator<table_type> allocator{&buf};
-      auto res = new (allocator.allocate(1)) table_type(table_allocator{&buf});
-      for (size_t i = 0; i < size; ++i) {
-        auto key = variant_data{};
-        if (auto [ok, next] = key.parse_shallow(buf, pos, end); ok)
-          pos = next;
-        else
-          return {false, pos};
-        auto val = variant_data{};
-        if (auto [ok, next] = val.parse_shallow(buf, pos, end); ok)
-          pos = next;
-        else
-          return {false, pos};
-        auto [_, added] = res->emplace(std::move(key), std::move(val));
-        if (!added)
-          return {false, pos};
-      }
-      value = res;
-      return {true, pos};
-    }
-    case variant_tag::list: {
-      size_t size = 0;
-      if (!format::bin::v1::read_varbyte(pos, end, size))
-        return {false, pos};
-      using vec_allocator = mbr_allocator<variant_data>;
-      using vec_type = variant_data::list;
-      mbr_allocator<vec_type> allocator{&buf};
-      auto vec = new (allocator.allocate(1)) vec_type(vec_allocator{&buf});
-      for (size_t i = 0; i < size; ++i) {
-        auto [ok, next] = vec->emplace_back().parse_shallow(buf, pos, end);
-        if (!ok)
-          return {false, pos};
-        pos = next;
-      }
-      value = vec;
-      return {true, pos};
-    }
-    default:
-      return {false, pos};
+                            const std::byte* begin, const std::byte* end) {
+  decoder_handler_value handler{&buf, this};
+  auto [ok, pos] = format::bin::v1::decode(begin, end, handler);
+  if (!ok || pos != end) {
+    return {false, pos};
   }
+  return {true, pos};
 }
 
 // -- free functions -----------------------------------------------------------
