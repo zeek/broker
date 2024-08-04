@@ -8,7 +8,6 @@
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
-#include <caf/binary_deserializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/deep_to_string.hpp>
 
@@ -145,7 +144,7 @@ public:
 
   error parse() {
     auto [data, data_size] = this->raw_bytes();
-    caf::binary_deserializer src{nullptr, data, data_size};
+    format::bin::v1::decoder src{data, data_size};
     if (!src.apply(value_))
       return make_error(ec::invalid_data);
     return error{};

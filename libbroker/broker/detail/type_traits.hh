@@ -24,6 +24,16 @@ class topic;
 namespace broker::detail {
 
 template <class>
+struct is_duration_oracle : std::false_type {};
+
+template <class Rep, class Period>
+struct is_duration_oracle<std::chrono::duration<Rep, Period>> : std::true_type {
+};
+
+template <class T>
+inline constexpr bool is_duration = is_duration_oracle<T>::value;
+
+template <class>
 struct is_variant_oracle : std::false_type {};
 
 template <class... Ts>

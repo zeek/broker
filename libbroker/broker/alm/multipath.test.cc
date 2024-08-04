@@ -1,11 +1,9 @@
 #include "broker/alm/multipath.hh"
 
 #include "broker/broker-test.test.hh"
+#include "broker/format/bin.hh"
 
 #include <random>
-
-#include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 
 #include "broker/alm/routing_table.hh"
 
@@ -128,16 +126,16 @@ TEST(multipaths are serializable) {
     emplace(ab, 'G');
   }
   auto path = multipath{tptr};
-  caf::binary_serializer::container_type buf;
+  std::vector<std::byte> buf;
   MESSAGE("serializer the path into a buffer");
   {
-    caf::binary_serializer sink{nullptr, buf};
+    format::bin::v1::encoder sink{std::back_inserter(buf)};
     CHECK(sink.apply(path));
   }
   multipath copy;
   MESSAGE("deserializers a copy from the path from the buffer");
   {
-    caf::binary_deserializer source{nullptr, buf};
+    format::bin::v1::decoder source{buf.data(), buf.size()};
     CHECK(source.apply(copy));
   }
   MESSAGE("after a serialization roundtrip, the path is equal to its copy");
