@@ -6,7 +6,6 @@
 #include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
 
-#include <caf/binary_deserializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/byte_span.hpp>
 #include <caf/detail/append_hex.hpp>
@@ -157,11 +156,9 @@ std::string stringify(const var_msg& msg) {
   case type::tag: {                                                            \
     type tmp;                                                                  \
     if (!src.apply(tmp)) {                                                     \
-      BROKER_ERROR("decode: failed to read a" << #type << ":"                  \
-                                              << src.get_error());             \
+      BROKER_ERROR("decode: failed to read a" << #type);                       \
       return make_var_msg_error(ec::invalid_message,                           \
-                                "failed to parse " #type ":"                   \
-                                  + to_string(src.get_error()));               \
+                                "failed to parse " #type);                     \
     }                                                                          \
     if (auto [code, descr] = check(tmp); code != ec::none) {                   \
       return make_var_msg_error(code, std::string{descr});                     \
@@ -170,10 +167,10 @@ std::string stringify(const var_msg& msg) {
   }
 
 var_msg decode(caf::const_byte_span bytes) {
-  caf::binary_deserializer src{nullptr, bytes};
+  format::bin::v1::decoder src{bytes.data(), bytes.size()};
   auto msg_type = p2p_message_type{0};
   if (!src.apply(msg_type)) {
-    BROKER_ERROR("decode: failed to read the type tag:" << src.get_error());
+    BROKER_ERROR("decode: failed to read the type tag");
     return make_var_msg_error(ec::invalid_message, "invalid message type tag"s);
   }
   switch (msg_type) {

@@ -413,6 +413,32 @@ public:
     return *this;
   }
 
+  template <class T>
+  bool begin_object_t() {
+    return true;
+  }
+
+  bool end_object() {
+    return true;
+  }
+
+  bool begin_field(std::string_view) {
+    return true;
+  }
+
+  bool end_field() {
+    return true;
+  }
+
+  bool begin_sequence(size_t num_elements) {
+    out_ = write_varbyte(num_elements, out_);
+    return true;
+  }
+
+  bool end_sequence() {
+    return true;
+  }
+
   encoder& pretty_name(std::string_view) {
     return *this;
   }
@@ -656,8 +682,21 @@ class decoder {
 public:
   static constexpr bool is_loading = true;
 
-  explicit decoder(const_byte_pointer first, const_byte_pointer last)
+  decoder(const_byte_pointer first, const_byte_pointer last)
     : pos_(first), end_(last) {}
+
+  decoder(const void* data, size_t size)
+    : pos_(static_cast<const std::byte*>(data)), end_(pos_ + size) {}
+
+  void reset(const_byte_pointer first, const_byte_pointer last) {
+    pos_ = first;
+    end_ = last;
+  }
+
+  void reset(const void* data, size_t size) {
+    pos_ = static_cast<const std::byte*>(data);
+    end_ = pos_ + size;
+  }
 
   bool constexpr has_human_readable_format() const noexcept {
     return false;
@@ -666,6 +705,31 @@ public:
   template <class T>
   decoder& object(const T&) {
     return *this;
+  }
+
+  template <class T>
+  bool begin_object_t() {
+    return true;
+  }
+
+  bool end_object() {
+    return true;
+  }
+
+  bool begin_field(std::string_view) {
+    return true;
+  }
+
+  bool end_field() {
+    return true;
+  }
+
+  bool begin_sequence(size_t& num_elements) {
+    return read_varbyte(pos_, end_, num_elements);
+  }
+
+  bool end_sequence() {
+    return true;
   }
 
   decoder& pretty_name(std::string_view) {
@@ -682,12 +746,12 @@ public:
       return decode_variant<0>(value, index);
     } else if constexpr (std::is_same_v<T, none>) {
       return true;
-    } else if constexpr (std::is_same_v<T, timespan>) {
-      auto tmp = uint64_t{0};
+    } else if constexpr (detail::is_duration<T>) {
+      auto tmp = typename T::rep{0};
       if (!apply(tmp)) {
         return false;
       }
-      value = timespan{tmp};
+      value = T{tmp};
       return true;
     } else if constexpr (std::is_same_v<T, timestamp>) {
       auto tmp = timespan{0};
@@ -729,6 +793,8 @@ public:
       }
       auto& nested = value.emplace();
       return apply(nested);
+    } else if constexpr (detail::is_tuple<T>) {
+      return decode_tuple<0>(value);
     } else if constexpr (detail::is_array<T>) {
       for (auto&& item : value)
         if (!apply(item))
@@ -799,6 +865,10 @@ public:
     return fields(values...);
   }
 
+  size_t remaining() const noexcept {
+    return static_cast<size_t>(end_ - pos_);
+  }
+
 private:
   template <size_t Pos, class... Ts>
   bool decode_variant(std::variant<Ts...>& value, size_t pos) {
@@ -816,6 +886,18 @@ private:
         return true;
       }
       return decode_variant<Pos + 1>(value, pos);
+    }
+  }
+
+  template <size_t Pos, class... Ts>
+  bool decode_tuple(std::tuple<Ts...>& value) {
+    if constexpr (Pos == sizeof...(Ts)) {
+      return true;
+    } else {
+      if (!apply(std::get<Pos>(value))) {
+        return false;
+      }
+      return decode_tuple<Pos + 1>(value);
     }
   }
 
