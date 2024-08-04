@@ -70,8 +70,23 @@ bool read(const_byte_pointer& first, const_byte_pointer last, uint8_t& result);
 /// Reads a single 16-bit unsigned integer from a byte sequence.
 bool read(const_byte_pointer& first, const_byte_pointer last, uint16_t& result);
 
+/// Reads a single 16-bit unsigned integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, uint32_t& result);
+
 /// Reads a single 64-bit unsigned integer from a byte sequence.
 bool read(const_byte_pointer& first, const_byte_pointer last, uint64_t& result);
+
+/// Reads a single 8-bit signed integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, int8_t& result);
+
+/// Reads a single 16-bit signed integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, int16_t& result);
+
+/// Reads a single 32-bit signed integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, int32_t& result);
+
+/// Reads a single 64-bit signed integer from a byte sequence.
+bool read(const_byte_pointer& first, const_byte_pointer last, int64_t& result);
 
 /// Reads a single 64-bit floating point number from a byte sequence.
 bool read(const_byte_pointer& first, const_byte_pointer last, double& result);
@@ -471,6 +486,9 @@ private:
   OutIter out_;
 };
 
+/// Decodes a broker::data or broker::variant from a binary representation. The
+/// decoding functions will generate a series of events for the handler, similar
+/// to a SAX parser.
 template <class Handler>
 std::pair<bool, const std::byte*>
 decode(const std::byte* pos, const std::byte* end, Handler& handler) {
@@ -499,7 +517,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       handler.value(static_cast<broker::integer>(tmp));
       return {true, pos};
     }
-    case variant_tag::real:{
+    case variant_tag::real: {
       auto tmp = 0.0;
       if (!read(pos, end, tmp))
         return {false, pos};
@@ -632,6 +650,178 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       return {false, pos};
   }
 }
+
+/// Adapter for the `inspect` API.
+class decoder {
+public:
+  static constexpr bool is_loading = true;
+
+  explicit decoder(const_byte_pointer first, const_byte_pointer last)
+    : pos_(first), end_(last) {}
+
+  bool constexpr has_human_readable_format() const noexcept {
+    return false;
+  }
+
+  template <class T>
+  decoder& object(const T&) {
+    return *this;
+  }
+
+  decoder& pretty_name(std::string_view) {
+    return *this;
+  }
+
+  template <class T>
+  bool apply(T& value) {
+    if constexpr (detail::is_variant<T>) {
+      auto index = uint8_t{0};
+      if (!apply(index)) {
+        return false;
+      }
+      return decode_variant<0>(value, index);
+    } else if constexpr (std::is_same_v<T, none>) {
+      return true;
+    } else if constexpr (std::is_same_v<T, timespan>) {
+      auto tmp = uint64_t{0};
+      if (!apply(tmp)) {
+        return false;
+      }
+      value = timespan{tmp};
+      return true;
+    } else if constexpr (std::is_same_v<T, timestamp>) {
+      auto tmp = timespan{0};
+      if (!apply(tmp)) {
+        return false;
+      }
+      value = timestamp{tmp};
+      return true;
+    } else if constexpr (std::is_same_v<T, bool>) {
+      auto tmp = uint8_t{0};
+      if (!read(pos_, end_, tmp))
+        return false;
+      value = tmp != 0;
+      return true;
+    } else if constexpr (std::is_same_v<T, std::byte>) {
+      if (pos_ == end_)
+        return false;
+      value = *pos_++;
+      return true;
+    } else if constexpr (std::is_integral_v<T> || std::is_same_v<T, double>) {
+      return read(pos_, end_, value);
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      auto size = size_t{0};
+      if (!read_varbyte(pos_, end_, size))
+        return false;
+      if (end_ - pos_ < static_cast<ptrdiff_t>(size))
+        return false;
+      value.assign(reinterpret_cast<const char*>(pos_), size);
+      pos_ += size;
+      return true;
+    } else if constexpr (detail::is_optional<T>) {
+      uint8_t flag = 0;
+      if (!read(pos_, end_, flag)) {
+        return false;
+      }
+      if (flag == 0) {
+        value.reset();
+        return true;
+      }
+      auto& nested = value.emplace();
+      return apply(nested);
+    } else if constexpr (detail::is_array<T>) {
+      for (auto&& item : value)
+        if (!apply(item))
+          return false;
+      return true;
+    } else if constexpr (detail::is_map<T>) {
+      auto size = size_t{0};
+      if (!read_varbyte(pos_, end_, size))
+        return false;
+      for (size_t i = 0; i < size; ++i) {
+        auto key = typename T::key_type{};
+        auto val = typename T::mapped_type{};
+        if (!apply(key) || !apply(val)) {
+          return false;
+        }
+        if (!value.emplace(std::move(key), std::move(val)).second) {
+          return false;
+        }
+      }
+      return true;
+    } else if constexpr (detail::is_list<T>) {
+      auto size = size_t{0};
+      if (!read_varbyte(pos_, end_, size))
+        return false;
+      for (size_t i = 0; i < size; ++i)
+        if (!apply(value.emplace_back()))
+          return false;
+      return true;
+    } else if constexpr (detail::is_set<T>) {
+      auto size = size_t{0};
+      if (!read_varbyte(pos_, end_, size))
+        return false;
+      for (size_t i = 0; i < size; ++i) {
+        auto tmp = typename T::value_type{};
+        if (!apply(tmp) || !value.insert(std::move(tmp)).second) {
+          return false;
+        }
+      }
+      return true;
+    } else {
+      return inspect(*this, value);
+    }
+  }
+
+  template <class Getter, class Setter>
+  bool apply(Getter getter, Setter setter) {
+    using value_t = decltype(getter());
+    auto tmp = value_t{};
+    if (!apply(tmp))
+      return false;
+    setter(std::move(tmp));
+    return true;
+  }
+
+  template <class T>
+  T& field(std::string_view, T& value) {
+    return value;
+  }
+
+  bool fields() {
+    return true;
+  }
+
+  template <class T, class... Ts>
+  bool fields(T& value, Ts&... values) {
+    if (!apply(value))
+      return false;
+    return fields(values...);
+  }
+
+private:
+  template <size_t Pos, class... Ts>
+  bool decode_variant(std::variant<Ts...>& value, size_t pos) {
+    if constexpr (Pos == sizeof...(Ts)) {
+      return false;
+    } else {
+      if (pos == Pos) {
+        using variant_t = std::variant<Ts...>;
+        using value_t = std::variant_alternative_t<Pos, variant_t>;
+        auto tmp = value_t{};
+        if (!apply(tmp)) {
+          return false;
+        }
+        value.template emplace<value_t>(std::move(tmp));
+        return true;
+      }
+      return decode_variant<Pos + 1>(value, pos);
+    }
+  }
+
+  const_byte_pointer pos_;
+  const_byte_pointer end_;
+};
 
 template <class OutIter, class T>
 auto encode_with_tag(const T& x, OutIter out) -> decltype(encode(x, out)) {

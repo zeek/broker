@@ -51,12 +51,53 @@ bool read(const_byte_pointer& first, const_byte_pointer last,
 }
 
 bool read(const_byte_pointer& first, const_byte_pointer last,
+          uint32_t& result) {
+  if (first + sizeof(uint32_t) > last)
+    return false;
+  memcpy(&result, first, sizeof(uint32_t));
+  first += sizeof(uint32_t);
+  result = caf::detail::from_network_order(result);
+  return true;
+}
+
+bool read(const_byte_pointer& first, const_byte_pointer last,
           uint64_t& result) {
   if (first + sizeof(uint64_t) > last)
     return false;
   memcpy(&result, first, sizeof(uint64_t));
   first += sizeof(uint64_t);
   result = caf::detail::from_network_order(result);
+  return true;
+}
+
+bool read(const_byte_pointer& first, const_byte_pointer last, int8_t& result) {
+  if (first == last)
+    return false;
+  result = static_cast<int8_t>(*first++);
+  return true;
+}
+
+bool read(const_byte_pointer& first, const_byte_pointer last, int16_t& result) {
+  uint16_t tmp = 0;
+  if (!read(first, last, tmp))
+    return false;
+  result = static_cast<int16_t>(tmp);
+  return true;
+}
+
+bool read(const_byte_pointer& first, const_byte_pointer last, int32_t& result) {
+  uint32_t tmp = 0;
+  if (!read(first, last, tmp))
+    return false;
+  result = static_cast<int32_t>(tmp);
+  return true;
+}
+
+bool read(const_byte_pointer& first, const_byte_pointer last, int64_t& result) {
+  uint64_t tmp = 0;
+  if (!read(first, last, tmp))
+    return false;
+  result = static_cast<int64_t>(tmp);
   return true;
 }
 
