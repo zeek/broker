@@ -6,8 +6,10 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <set>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -62,6 +64,18 @@ struct is_map_oracle<std::unordered_map<Key, Val>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_map = is_map_oracle<T>::value;
+
+template <class>
+struct is_set_oracle : std::false_type {};
+
+template <class Key, class Val>
+struct is_set_oracle<std::set<Key, Val>> : std::true_type {};
+
+template <class Key, class Val>
+struct is_set_oracle<std::unordered_set<Key, Val>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_set = is_set_oracle<T>::value;
 
 template <class>
 struct is_list_oracle : std::false_type {};

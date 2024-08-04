@@ -304,7 +304,7 @@ std::string do_decode(T&& arg) {
 
 } // namespace
 
-TEST(the decoder produces a series of events) {
+TEST(decode produces a series of events) {
   CHECK_EQ(do_decode(data{}), "value: none\n");
   CHECK_EQ(do_decode(true), "value: true\n");
   CHECK_EQ(do_decode(count{42}), "value: 42 [count]\n");
@@ -350,4 +350,87 @@ TEST(the decoder produces a series of events) {
            "    value: 2 [count]\n"
            "  end key-value-pair\n"
            "end table\n");
+}
+
+namespace {
+
+template <class T>
+T apply_decoder(const std::vector<std::byte>& buf) {
+  auto first = buf.data();
+  auto last = first + buf.size();
+  format::bin::v1::decoder decoder{first, last};
+  auto result = T{};
+  if (!decoder.apply(result)) {
+    FAIL("decoding failed");
+  }
+  return result;
+}
+
+template <class T>
+T roundtrip(const T& value) {
+  return apply_decoder<T>(apply_encoder<std::byte>(value));
+}
+
+template <class T, class... Ts>
+auto make_array(T value, Ts... values) {
+  static_assert((std::is_same_v<T, Ts> && ...), "all types must be the same");
+  return std::array<T, sizeof...(Ts) + 1>{value, values...};
+}
+
+template <class T, class... Ts>
+auto make_vector(T value, Ts... values) {
+  static_assert((std::is_same_v<T, Ts> && ...), "all types must be the same");
+  return std::vector{value, values...};
+}
+
+auto make_dict(
+  std::initializer_list<std::pair<std::string, std::string>> pairs) {
+  std::map<std::string, std::string> result;
+  for (auto& [key, value] : pairs)
+    result.emplace(key, value);
+  return result;
+}
+
+} // namespace
+
+TEST(the decoder can deserialize the output of the encoder) {
+  // Check primitive types.
+  CHECK_EQ(roundtrip(true), true);
+  CHECK_EQ(roundtrip(false), false);
+  CHECK_EQ(roundtrip(int8_t{-7}), -7);
+  CHECK_EQ(roundtrip(int16_t{-518}), -518);
+  CHECK_EQ(roundtrip(int32_t{-84'777}), -84'777);
+  CHECK_EQ(roundtrip(int64_t{-4'937'239ll}), -4'937'239ll);
+  CHECK_EQ(roundtrip(uint8_t{7}), 7);
+  CHECK_EQ(roundtrip(uint16_t{518}), 518u);
+  CHECK_EQ(roundtrip(uint32_t{84'777}), 84'777u);
+  CHECK_EQ(roundtrip(uint64_t{4'937'239ull}), 4'937'239ull);
+  CHECK_EQ(roundtrip(13.2), 13.2);
+  CHECK_EQ(roundtrip("hello"s), "hello");
+  // Check optional and variant types.
+  using int_or_str = std::variant<int, std::string>;
+  CHECK_EQ(roundtrip(std::optional<int32_t>{}), std::nullopt);
+  CHECK_EQ(roundtrip(std::optional<int32_t>{123}), 123);
+  CHECK_EQ(roundtrip(int_or_str{42}), int_or_str{42});
+  CHECK_EQ(roundtrip(int_or_str{"foo"s}), int_or_str{"foo"s});
+  // Check container types.
+  CHECK_EQ(roundtrip(make_array(1, 2, 3)), make_array(1, 2, 3));
+  CHECK_EQ(roundtrip(make_vector(1, 2, 3)), make_vector(1, 2, 3));
+  CHECK_EQ(roundtrip(make_dict({{"foo", "bar"}})), make_dict({{"foo", "bar"}}));
+  // Check types with custom serialization.
+  CHECK_EQ(roundtrip(endpoint_id::random(0xF00)), endpoint_id::random(0xF00));
+  CHECK_EQ(roundtrip(broker::data{true}), broker::data{true});
+  CHECK_EQ(roundtrip(broker::data{false}), broker::data{false});
+  CHECK_EQ(roundtrip(broker::data{"hello"s}), broker::data{"hello"s});
+  auto cmd = internal_command{123,
+                              {endpoint_id::random(1), 2},
+                              {endpoint_id::random(3), 4},
+                              cumulative_ack_command{42}};
+  auto cpy = roundtrip(cmd);
+  CHECK_EQ(cpy.seq, cmd.seq);
+  CHECK_EQ(cpy.sender, cmd.sender);
+  CHECK_EQ(cpy.receiver, cmd.receiver);
+  if (CHECK(std::holds_alternative<cumulative_ack_command>(cpy.content))) {
+    CHECK_EQ(std::get<cumulative_ack_command>(cpy.content).seq, 42);
+  }
 }
