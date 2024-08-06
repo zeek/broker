@@ -29,6 +29,10 @@ bool inspect(Inspector& f, connector_event_id& x) {
   return f.apply(get, set);
 }
 
+inline std::string to_string(connector_event_id x) {
+  return std::to_string(static_cast<uint64_t>(x));
+}
+
 constexpr auto invalid_connector_event_id = connector_event_id{0};
 
 constexpr bool valid(connector_event_id id) noexcept {
