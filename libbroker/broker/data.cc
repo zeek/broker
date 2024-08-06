@@ -5,6 +5,7 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
@@ -102,6 +103,222 @@ const vector& data::to_list() const {
   if (auto ptr = std::get_if<vector>(&data_))
     return *ptr;
   return empty_vector;
+}
+
+namespace {
+
+// Assigns a value to a data object, converting as necessary.
+template <class T>
+void do_assign(data& dst, const T& arg) {
+  if constexpr (std::is_same_v<T, std::string_view>) {
+    dst = std::string{arg};
+  } else if constexpr (std::is_same_v<T, enum_value_view>) {
+    dst = enum_value{std::string{arg.name}};
+  } else {
+    dst = arg;
+  }
+}
+
+struct decoder_handler_value;
+
+struct decoder_handler_list;
+
+struct decoder_handler_set;
+
+struct decoder_handler_table;
+
+// Consumes events from a decoder and produces a data object.
+struct decoder_handler_value {
+  data result;
+
+  template <class T>
+  void value(const T& arg) {
+    do_assign(result, arg);
+  }
+
+  decoder_handler_list begin_list();
+
+  void end_list(decoder_handler_list&);
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a list of data objects.
+struct decoder_handler_list {
+  vector result;
+
+  template <class T>
+  void value(const T& arg) {
+    do_assign(result.emplace_back(), arg);
+  }
+
+  decoder_handler_list begin_list() {
+    return {};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    result.emplace_back() = std::move(other.result);
+  }
+
+  decoder_handler_set begin_set();
+
+  void end_set(decoder_handler_set&);
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+// Consumes events from a decoder and produces a set of data objects.
+struct decoder_handler_set {
+  set result;
+
+  template <class T>
+  void value(const T& arg) {
+    data item;
+    do_assign(item, arg);
+    result.insert(std::move(item));
+  }
+
+  decoder_handler_list begin_list() {
+    return {};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    result.insert(data{std::move(other.result)});
+  }
+
+  decoder_handler_set begin_set() {
+    return {};
+  }
+
+  void end_set(decoder_handler_set& other) {
+    result.insert(data{std::move(other.result)});
+  }
+
+  decoder_handler_table begin_table();
+
+  void end_table(decoder_handler_table&);
+};
+
+struct decoder_handler_table {
+  table result;
+  std::optional<data> key;
+
+  void add(data&& arg) {
+    if (!key) {
+      key.emplace(std::move(arg));
+    } else {
+      result.emplace(std::move(*key), std::move(arg));
+      key.reset();
+    }
+  }
+
+  template <class T>
+  void value(const T& arg) {
+    data val;
+    do_assign(val, arg);
+    add(std::move(val));
+  }
+
+  decoder_handler_list begin_list() {
+    return {};
+  }
+
+  void end_list(decoder_handler_list& other) {
+    add(data{std::move(other.result)});
+  }
+
+  decoder_handler_set begin_set() {
+    return {};
+  }
+
+  void end_set(decoder_handler_set& other) {
+    add(data{std::move(other.result)});
+  }
+
+  decoder_handler_table begin_table() {
+    return {};
+  }
+
+  void end_table(decoder_handler_table& other) {
+    add(data{std::move(other.result)});
+  }
+
+  void begin_key_value_pair() {
+    // nop
+  }
+
+  void end_key_value_pair() {
+    // nop
+  }
+};
+
+decoder_handler_list decoder_handler_value::begin_list() {
+  return {};
+}
+
+void decoder_handler_value::end_list(decoder_handler_list& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_set decoder_handler_value::begin_set() {
+  return {};
+}
+
+void decoder_handler_value::end_set(decoder_handler_set& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_table decoder_handler_value::begin_table() {
+  return {};
+}
+
+void decoder_handler_value::end_table(decoder_handler_table& other) {
+  result = std::move(other.result);
+}
+
+decoder_handler_set decoder_handler_list::begin_set() {
+  return {};
+}
+
+void decoder_handler_list::end_set(decoder_handler_set& other) {
+  result.emplace_back(std::move(other.result));
+}
+
+decoder_handler_table decoder_handler_list::begin_table() {
+  return {};
+}
+
+void decoder_handler_list::end_table(decoder_handler_table& other) {
+  result.emplace_back(std::move(other.result));
+}
+
+decoder_handler_table decoder_handler_set::begin_table() {
+  return {};
+}
+
+void decoder_handler_set::end_table(decoder_handler_table& other) {
+  result.insert(data{std::move(other.result)});
+}
+
+} // namespace
+
+bool data::deserialize(const std::byte* payload, size_t payload_size) {
+  decoder_handler_value handler;
+  auto payload_end = payload + payload_size;
+  auto [ok, pos] = format::bin::v1::decode(payload, payload_end, handler);
+  if (!ok || pos != payload_end) {
+    return false;
+  }
+  *this = std::move(handler.result);
+  return true;
 }
 
 namespace {

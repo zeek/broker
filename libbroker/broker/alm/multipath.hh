@@ -229,8 +229,6 @@ private:
         }
         if (!down_.emplace(child)) {
           child->shallow_delete();
-          f.field_invariant_check_failed(
-            "a multipath may not contain duplicates");
           return false;
         }
       }

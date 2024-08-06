@@ -12,6 +12,7 @@
 
 #include "broker/convert.hh"
 #include "broker/data.hh"
+#include "broker/format/bin.hh"
 #include "broker/variant_list.hh"
 #include "broker/variant_set.hh"
 #include "broker/variant_table.hh"
@@ -29,6 +30,8 @@ namespace {
 
 using byte_buffer = caf::byte_buffer;
 
+using bin_decoder = format::bin::v1::decoder;
+
 std::string to_hex(const byte_buffer& buf) {
   std::string result;
   caf::detail::append_hex(result, buf.data(), buf.size());
@@ -41,12 +44,13 @@ byte_buffer make_bytes(Ts... xs) {
 }
 
 bool convert(const byte_buffer& bytes, data& value) {
-  caf::binary_deserializer source{nullptr, bytes};
+  bin_decoder source{reinterpret_cast<const std::byte*>(bytes.data()),
+                     bytes.size()};
   return source.apply(value);
 }
 
 bool convert(const data& value, byte_buffer& bytes) {
-  caf::binary_serializer sink{nullptr, bytes};
+  format::bin::v1::encoder sink{std::back_inserter(bytes)};
   return sink.apply(value);
 }
 
