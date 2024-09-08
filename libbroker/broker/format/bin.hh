@@ -522,33 +522,28 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
     return {false, end};
   switch (static_cast<variant_tag>(*pos++)) {
     case variant_tag::none:
-      handler.value(nil);
-      return {true, pos};
+      return {handler.value(nil), pos};
     case variant_tag::boolean:
       if (pos == end)
         return {false, end};
-      handler.value(*pos++ != std::byte{0});
-      return {true, pos};
+      return {handler.value(*pos++ != std::byte{0}), pos};
     case variant_tag::count: {
       auto tmp = uint64_t{0};
       if (!read(pos, end, tmp))
         return {false, pos};
-      handler.value(broker::count{tmp});
-      return {true, pos};
+      return {handler.value(broker::count{tmp}), pos};
     }
     case variant_tag::integer: {
       auto tmp = uint64_t{0};
       if (!read(pos, end, tmp))
         return {false, pos};
-      handler.value(static_cast<broker::integer>(tmp));
-      return {true, pos};
+      return {handler.value(static_cast<broker::integer>(tmp)), pos};
     }
     case variant_tag::real: {
       auto tmp = 0.0;
       if (!read(pos, end, tmp))
         return {false, pos};
-      handler.value(tmp);
-      return {true, pos};
+      return {handler.value(tmp), pos};
     }
     case variant_tag::string: {
       auto size = size_t{0};
@@ -558,8 +553,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
         return {false, pos};
       auto str = reinterpret_cast<const char*>(pos);
       pos += size;
-      handler.value(std::string_view{str, size});
-      return {true, pos};
+      return {handler.value(std::string_view{str, size}), pos};
     }
     case variant_tag::address: {
       if (end - pos < static_cast<ptrdiff_t>(address::num_bytes))
@@ -567,8 +561,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       address tmp;
       memcpy(tmp.bytes().data(), pos, address::num_bytes);
       pos += address::num_bytes;
-      handler.value(tmp);
-      return {true, pos};
+      return {handler.value(tmp), pos};
     }
     case variant_tag::subnet: {
       static constexpr size_t subnet_len = address::num_bytes + 1;
@@ -580,8 +573,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       auto length = uint8_t{0};
       if (!read(pos, end, length))
         return {false, pos};
-      handler.value(subnet::unchecked(tmp, length));
-      return {true, pos};
+      return {handler.value(subnet::unchecked(tmp, length)), pos};
     }
     case variant_tag::port: {
       if (end - pos < 3)
@@ -594,22 +586,20 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
         return {false, pos};
       if (proto > 3) // 3 is the highest protocol number we support (ICMP).
         return {false, end};
-      handler.value(port{num, static_cast<port::protocol>(proto)});
-      return {true, pos};
+      return {handler.value(port{num, static_cast<port::protocol>(proto)}),
+              pos};
     }
     case variant_tag::timestamp: {
       auto tmp = uint64_t{0};
       if (!read(pos, end, tmp))
         return {false, pos};
-      handler.value(timestamp{timespan{tmp}});
-      return {true, pos};
+      return {handler.value(timestamp{timespan{tmp}}), pos};
     }
     case variant_tag::timespan: {
       auto tmp = uint64_t{0};
       if (!read(pos, end, tmp))
         return {false, pos};
-      handler.value(timespan{tmp});
-      return {true, pos};
+      return {handler.value(timespan{tmp}), pos};
     }
     case variant_tag::enum_value: {
       size_t size = 0;
@@ -619,8 +609,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
         return {false, pos};
       auto str = reinterpret_cast<const char*>(pos);
       pos += size;
-      handler.value(enum_value_view{std::string_view{str, size}});
-      return {true, pos};
+      return {handler.value(enum_value_view{std::string_view{str, size}}), pos};
     }
     case variant_tag::set: {
       size_t size = 0;
@@ -633,8 +622,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
           return {false, pos};
         pos = next;
       }
-      handler.end_set(nested);
-      return {true, pos};
+      return {handler.end_set(nested), pos};
     }
     case variant_tag::table: {
       size_t size = 0;
@@ -655,8 +643,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
         }
         nested.end_key_value_pair();
       }
-      handler.end_table(nested);
-      return {true, pos};
+      return {handler.end_table(nested), pos};
     }
     case variant_tag::list: {
       size_t size = 0;
@@ -669,8 +656,7 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
           return {false, next};
         pos = next;
       }
-      handler.end_list(nested);
-      return {true, pos};
+      return {handler.end_list(nested), pos};
     }
     default:
       return {false, pos};
