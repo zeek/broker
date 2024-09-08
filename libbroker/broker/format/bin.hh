@@ -584,7 +584,8 @@ decode(const std::byte* pos, const std::byte* end, Handler& handler) {
       auto proto = uint8_t{0};
       if (!read(pos, end, proto))
         return {false, pos};
-      if (proto > 3) // 3 is the highest protocol number we support (ICMP).
+      // ICMP has the highest protocol number we support
+      if (proto > static_cast<uint8_t>(port::protocol::icmp))
         return {false, end};
       return {handler.value(port{num, static_cast<port::protocol>(proto)}),
               pos};
