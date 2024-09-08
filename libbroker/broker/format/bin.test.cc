@@ -446,6 +446,6 @@ TEST(the decoder can deserialize the output of the encoder) {
   CHECK_EQ(cpy.sender, cmd.sender);
   CHECK_EQ(cpy.receiver, cmd.receiver);
   if (CHECK(std::holds_alternative<cumulative_ack_command>(cpy.content))) {
-    CHECK_EQ(std::get<cumulative_ack_command>(cpy.content).seq, 42);
+    CHECK_EQ(std::get<cumulative_ack_command>(cpy.content).seq, 42u);
   }
 }
