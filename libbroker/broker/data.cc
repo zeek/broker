@@ -132,21 +132,22 @@ struct decoder_handler_value {
   data result;
 
   template <class T>
-  void value(const T& arg) {
+  bool value(const T& arg) {
     do_assign(result, arg);
+    return true;
   }
 
   decoder_handler_list begin_list();
 
-  void end_list(decoder_handler_list&);
+  bool end_list(decoder_handler_list&);
 
   decoder_handler_set begin_set();
 
-  void end_set(decoder_handler_set&);
+  bool end_set(decoder_handler_set&);
 
   decoder_handler_table begin_table();
 
-  void end_table(decoder_handler_table&);
+  bool end_table(decoder_handler_table&);
 };
 
 // Consumes events from a decoder and produces a list of data objects.
@@ -154,25 +155,27 @@ struct decoder_handler_list {
   vector result;
 
   template <class T>
-  void value(const T& arg) {
+  bool value(const T& arg) {
     do_assign(result.emplace_back(), arg);
+    return true;
   }
 
   decoder_handler_list begin_list() {
     return {};
   }
 
-  void end_list(decoder_handler_list& other) {
+  bool end_list(decoder_handler_list& other) {
     result.emplace_back() = std::move(other.result);
+    return true;
   }
 
   decoder_handler_set begin_set();
 
-  void end_set(decoder_handler_set&);
+  bool end_set(decoder_handler_set&);
 
   decoder_handler_table begin_table();
 
-  void end_table(decoder_handler_table&);
+  bool end_table(decoder_handler_table&);
 };
 
 // Consumes events from a decoder and produces a set of data objects.
@@ -180,75 +183,76 @@ struct decoder_handler_set {
   set result;
 
   template <class T>
-  void value(const T& arg) {
+  bool value(const T& arg) {
     data item;
     do_assign(item, arg);
-    result.insert(std::move(item));
+    return result.insert(std::move(item)).second;
   }
 
   decoder_handler_list begin_list() {
     return {};
   }
 
-  void end_list(decoder_handler_list& other) {
-    result.insert(data{std::move(other.result)});
+  bool end_list(decoder_handler_list& other) {
+    return result.insert(data{std::move(other.result)}).second;
   }
 
   decoder_handler_set begin_set() {
     return {};
   }
 
-  void end_set(decoder_handler_set& other) {
-    result.insert(data{std::move(other.result)});
+  bool end_set(decoder_handler_set& other) {
+    return result.insert(data{std::move(other.result)}).second;
   }
 
   decoder_handler_table begin_table();
 
-  void end_table(decoder_handler_table&);
+  bool end_table(decoder_handler_table&);
 };
 
 struct decoder_handler_table {
   table result;
   std::optional<data> key;
 
-  void add(data&& arg) {
+  bool add(data&& arg) {
     if (!key) {
       key.emplace(std::move(arg));
-    } else {
-      result.emplace(std::move(*key), std::move(arg));
-      key.reset();
+      return true;
     }
+    auto res = result.emplace(std::move(*key), std::move(arg)).second;
+    key.reset();
+    return res;
   }
 
   template <class T>
-  void value(const T& arg) {
+  bool value(const T& arg) {
     data val;
     do_assign(val, arg);
-    add(std::move(val));
+    return add(std::move(val));
   }
 
   decoder_handler_list begin_list() {
     return {};
   }
 
-  void end_list(decoder_handler_list& other) {
-    add(data{std::move(other.result)});
+  bool end_list(decoder_handler_list& other) {
+    return add(data{std::move(other.result)});
   }
 
   decoder_handler_set begin_set() {
     return {};
   }
 
-  void end_set(decoder_handler_set& other) {
-    add(data{std::move(other.result)});
+  bool end_set(decoder_handler_set& other) {
+    return add(data{std::move(other.result)});
   }
 
   decoder_handler_table begin_table() {
     return {};
   }
 
-  void end_table(decoder_handler_table& other) {
-    add(data{std::move(other.result)});
+  bool end_table(decoder_handler_table& other) {
+    return add(data{std::move(other.result)});
   }
 
   void begin_key_value_pair() {
@@ -264,48 +268,53 @@ decoder_handler_list decoder_handler_value::begin_list() {
   return {};
 }
 
-void decoder_handler_value::end_list(decoder_handler_list& other) {
+bool decoder_handler_value::end_list(decoder_handler_list& other) {
   result = std::move(other.result);
+  return true;
 }
 
 decoder_handler_set decoder_handler_value::begin_set() {
   return {};
 }
 
-void decoder_handler_value::end_set(decoder_handler_set& other) {
+bool decoder_handler_value::end_set(decoder_handler_set& other) {
   result = std::move(other.result);
+  return true;
 }
 
 decoder_handler_table decoder_handler_value::begin_table() {
   return {};
 }
 
-void decoder_handler_value::end_table(decoder_handler_table& other) {
+bool decoder_handler_value::end_table(decoder_handler_table& other) {
   result = std::move(other.result);
+  return true;
 }
 
 decoder_handler_set decoder_handler_list::begin_set() {
   return {};
 }
 
-void decoder_handler_list::end_set(decoder_handler_set& other) {
+bool decoder_handler_list::end_set(decoder_handler_set& other) {
   result.emplace_back(std::move(other.result));
+  return true;
 }
 
 decoder_handler_table decoder_handler_list::begin_table() {
   return {};
 }
 
-void decoder_handler_list::end_table(decoder_handler_table& other) {
+bool decoder_handler_list::end_table(decoder_handler_table& other) {
   result.emplace_back(std::move(other.result));
+  return true;
 }
 
 decoder_handler_table decoder_handler_set::begin_table() {
   return {};
 }
 
-void decoder_handler_set::end_table(decoder_handler_table& other) {
-  result.insert(data{std::move(other.result)});
+bool decoder_handler_set::end_table(decoder_handler_table& other) {
+  return result.insert(data{std::move(other.result)}).second;
 }
 
 } // namespace

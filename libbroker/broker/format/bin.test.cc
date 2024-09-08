@@ -147,33 +147,37 @@ struct dummy_decoder_handler {
   int indent = 0;
   std::string log;
 
-  void value(none) {
+  bool value(none) {
     log.insert(log.end(), indent, ' ');
     log += "value: none\n";
+    return true;
   }
 
-  void value(bool arg) {
+  bool value(bool arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg ? "true" : "false";
     log += "\n";
+    return true;
   }
 
-  void value(broker::count arg) {
+  bool value(broker::count arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
     log += " [count]\n";
+    return true;
   }
 
-  void value(broker::integer arg) {
+  bool value(broker::integer arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
     log += " [integer]\n";
+    return true;
   }
 
-  void value(broker::real arg) {
+  bool value(broker::real arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg);
@@ -183,55 +187,63 @@ struct dummy_decoder_handler {
     if (log.back() == '.')
       log.pop_back();
     log += " [real]\n";
+    return true;
   }
 
-  void value(std::string_view arg) {
+  bool value(std::string_view arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg;
     log += "\n";
+    return true;
   }
 
-  void value(enum_value_view arg) {
+  bool value(enum_value_view arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += arg.name;
     log += " [enum]\n";
+    return true;
   }
 
-  void value(address arg) {
+  bool value(address arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
+    return true;
   }
 
-  void value(subnet arg) {
+  bool value(subnet arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
+    return true;
   }
 
-  void value(port arg) {
+  bool value(port arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
     log += "\n";
+    return true;
   }
 
-  void value(timespan arg) {
+  bool value(timespan arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg.count());
     log += " [timespan]\n";
+    return true;
   }
 
-  void value(timestamp arg) {
+  bool value(timestamp arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += std::to_string(arg.time_since_epoch().count());
     log += " [timestamp]\n";
+    return true;
   }
 
   dummy_decoder_handler& begin_list() {
@@ -241,10 +253,11 @@ struct dummy_decoder_handler {
     return *this;
   }
 
-  void end_list(dummy_decoder_handler&) {
+  bool end_list(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end list\n";
+    return true;
   }
 
   dummy_decoder_handler& begin_set() {
@@ -254,10 +267,11 @@ struct dummy_decoder_handler {
     return *this;
   }
 
-  void end_set(dummy_decoder_handler&) {
+  bool end_set(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end set\n";
+    return true;
   }
 
   dummy_decoder_handler& begin_table() {
@@ -267,10 +281,11 @@ struct dummy_decoder_handler {
     return *this;
   }
 
-  void end_table(dummy_decoder_handler&) {
+  bool end_table(dummy_decoder_handler&) {
     indent -= 2;
     log.insert(log.end(), indent, ' ');
     log += "end table\n";
+    return true;
   }
 
   void begin_key_value_pair() {
