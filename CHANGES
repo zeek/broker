@@ -1,3 +1,10 @@
+2.8.0-dev.117 | 2024-09-14 15:58:08 +0200
+
+  * Fix type 3 messages in broker-throughput (Dominik Charousset)
+
+    Tables and set must have unique keys. When using a builder, the calling
+    code must make sure to not violate that assumption.
+
 2.8.0-dev.115 | 2024-07-22 14:57:32 -0700
 
   * Pick up an upstream CAF fix (Dominik Charousset, Corelight)

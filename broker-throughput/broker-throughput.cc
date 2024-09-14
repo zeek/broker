@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <random>
 #include <string>
 #include <thread>
 #include <utility>
@@ -74,18 +75,17 @@ double current_time() {
 }
 
 static std::string random_string(int n) {
-  static unsigned int i = 0;
-  const char charset[] = "0123456789"
-                         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                         "abcdefghijklmnopqrstuvwxyz";
+  static std::minstd_rand rng{31337};
+  std::string_view charset = "0123456789"
+                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                             "abcdefghijklmnopqrstuvwxyz";
 
-  const size_t max_index = (sizeof(charset) - 1);
-  char buffer[11];
-  for (unsigned int j = 0; j < sizeof(buffer) - 1; j++)
-    buffer[j] = charset[++i % max_index];
-  buffer[sizeof(buffer) - 1] = '\0';
-
-  return buffer;
+  std::string result;
+  result.resize(n);
+  for (auto& c : result) {
+    c = charset[rng() % charset.size()];
+  }
+  return result;
 }
 
 static uint64_t random_count() {
@@ -132,17 +132,24 @@ list_builder createEventArgs() {
       std::vector<std::string> keys;
       std::vector<std::string> vals;
       table_builder tbl;
-      // Generate 100 random keys.
+      // Generate a sorted list of 100 different random keys.
       while (keys.size() < 100) {
-        keys.push_back(random_string(15));
+        auto str = random_string(15);
+        auto i = std::lower_bound(keys.begin(), keys.end(), str);
+        if (i == keys.end() || *i != str) {
+          keys.insert(i, std::move(str));
+        }
       }
-      std::sort(keys.begin(), keys.end());
-      // Generate 10 random values for each key.
+      // Generate a set of 10 random values for each key.
       for (auto& key : keys) {
         vals.clear();
-        while (vals.size() < 10)
-          vals.push_back(random_string(5));
-        std::sort(vals.begin(), vals.end());
+        while (vals.size() < 10) {
+          auto str = random_string(5);
+          auto i = std::lower_bound(vals.begin(), vals.end(), str);
+          if (i == vals.end() || *i != str) {
+            vals.insert(i, std::move(str));
+          }
+        }
         set_builder entry;
         for (auto& val : vals)
           entry.add(val);
