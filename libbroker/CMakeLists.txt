@@ -66,6 +66,7 @@ set(BROKER_SRC
   broker/internal_command.cc
   broker/mailbox.cc
   broker/network_info.cc
+  broker/overflow_policy.cc
   broker/p2p_message_type.cc
   broker/peer_status.cc
   broker/ping_envelope.cc
