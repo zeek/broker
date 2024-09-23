@@ -408,6 +408,7 @@ caf::behavior core_actor_state::make_behavior() {
     },
     // -- interface for publishers ---------------------------------------------
     [this](data_consumer_res src) {
+      auto consumer_id = endpoint_id::random();
       auto [in, sub] =
         self
           ->make_observable() //
@@ -418,10 +419,16 @@ caf::behavior core_actor_state::make_behavior() {
           .map([this](const data_message& msg) { return node_message{msg}; })
           .compose(local_publisher_scope_adder())
           .compose(add_killswitch_t{});
-      flow_inputs.push(in);
+      flow_inputs.push(in.do_finally([this, consumer_id] {
+                           auto i = subscriptions.find(consumer_id);
+                           if (i != subscriptions.end()) {
+                             subscriptions.erase(i);
+                           }
+                         })
+                         .as_observable());
       // TODO: next lines seems to be a false positive, but maybe there's
       //       something we can do upstream to avoid the alert.
-      subscriptions.push_back(sub); // NOLINT
+      subscriptions[consumer_id].push_back(sub); // NOLINT
     },
     // -- data store management ------------------------------------------------
     [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
@@ -525,8 +532,11 @@ void core_actor_state::shutdown(shutdown_options options) {
   // We no longer add new input flows.
   flow_inputs.close();
   // Cancel all subscriptions to local publishers.
-  for (auto& sub : subscriptions)
-    sub.dispose();
+  for (auto& [id, subs] : subscriptions) {
+    for (auto& sub : subs) {
+      sub.dispose();
+    }
+  }
   subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
   BROKER_DEBUG("cancel" << awaited_peers.size()
@@ -732,10 +742,28 @@ void core_actor_state::client_added(endpoint_id client_id,
 
 void core_actor_state::client_removed(endpoint_id client_id,
                                       const network_info& addr,
-                                      const std::string& type) {
+                                      const std::string& type,
+                                      const caf::error& reason, bool removed) {
   BROKER_TRACE(BROKER_ARG(client_id) << BROKER_ARG(addr) << BROKER_ARG(type));
-  emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_lost>(),
-       "lost connection to client");
+  auto i = subscriptions.find(client_id);
+  if (i == subscriptions.end()) {
+    return;
+  }
+  disposable_list subs;
+  i->second.swap(subs);
+  subscriptions.erase(i);
+  for (auto& sub : subs) {
+    sub.dispose();
+  }
+  metrics.web_socket_connections->Decrement();
+  if (removed) {
+    auto msg = "client removed: " + to_string(reason);
+    emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_removed>(),
+         msg.c_str());
+  } else {
+    emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_lost>(),
+         "lost connection to client");
+  }
   emit(endpoint_info{client_id, std::nullopt, type},
        sc_constant<sc::endpoint_unreachable>(), "lost the last path");
 }
@@ -853,6 +881,12 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
           return msg;
         return msg->with(id, msg->receiver());
       })
+      // Disconnect unresponsive peers.
+      .on_backpressure_buffer(peer_buffer_size(), peer_overflow_policy())
+      .do_on_error([this, ptr, peer_id](const caf::error& what) {
+       BROKER_INFO("remove peer" << peer_id << "due to:" << what);
+        ptr->force_disconnect();
+      })
       .as_observable());
   // Push messages received from the peer into the central merge point.
   flow_inputs.push( //
@@ -951,33 +985,44 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   client_added(client_id, addr, type);
   // Hook into the central merge point for forwarding the data to the client.
   if (out_res) {
-    auto sub = central_merge
-                 // Select by subscription.
-                 .filter([this, filt = std::move(filter),
-                          client_id](const node_message& msg) {
-                   if (get_type(msg) != packed_message_type::data
-                       || get_sender(msg) == client_id)
-                     return false;
-                   detail::prefix_matcher f;
-                   return f(filt, get_topic(msg));
-                 })
-                 // Deserialize payload and wrap it into a data message.
-                 .map([this](const node_message& msg) { //
-                   return msg->as_data();
-                 })
-                 // Emit values to the producer resource.
-                 .subscribe(std::move(out_res));
-    subscriptions.emplace_back(sub);
+    auto sub =
+      central_merge
+        // Select by subscription.
+        .filter(
+          [this, filt = std::move(filter), client_id](const node_message& msg) {
+            if (get_type(msg) != packed_message_type::data
+                || get_sender(msg) == client_id)
+              return false;
+            detail::prefix_matcher f;
+            return f(filt, get_topic(msg));
+          })
+        // Deserialize payload and wrap it into a data message.
+        .map([this](const node_message& msg) { //
+          return msg->as_data();
+        })
+        // Disconnect unresponsive clients.
+        .on_backpressure_buffer(web_socket_buffer_size(),
+                                web_socket_overflow_policy())
+        .do_on_error([this, client_id, addr, type](const caf::error& reason) {
+          BROKER_DEBUG("client" << addr << "disconnected");
+          client_removed(client_id, addr, type, reason, true);
+        })
+        // Emit values to the producer resource.
+        .subscribe(std::move(out_res));
+    subscriptions[client_id].emplace_back(sub);
   }
   // Push messages received from the client into the central merge point.
   auto [in, ks] =
     self->make_observable()
       .from_resource(std::move(in_res))
       // If the client closes this buffer, we assume a disconnect.
-      .do_finally([this, client_id, addr, type] {
+      .do_on_complete([this, client_id, addr, type] {
         BROKER_DEBUG("client" << addr << "disconnected");
-        client_removed(client_id, addr, type);
-        metrics.web_socket_connections->Decrement();
+        client_removed(client_id, addr, type, caf::error{}, false);
+      })
+      .do_on_error([this, client_id, addr, type](const caf::error& reason) {
+        BROKER_DEBUG("client" << addr << "disconnected");
+        client_removed(client_id, addr, type, reason, false);
       })
       .map([this, client_id](const data_message& msg) {
         metrics_for(packed_message_type::data).buffered->Increment();
@@ -992,7 +1037,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
       .on_error_complete()
       .compose(add_killswitch_t{});
   flow_inputs.push(in);
-  subscriptions.emplace_back(ks);
+  subscriptions[client_id].emplace_back(ks);
   return caf::none;
 }
 
@@ -1177,6 +1222,55 @@ bool core_actor_state::shutting_down() {
   // We call unbecome() in shutdown, which remove the behavior of the actor.
   // Hence, a core actor without behavior indicates shutdown has been called.
   return !self->has_behavior();
+}
+
+// -- properties ---------------------------------------------------------------
+
+namespace {
+
+caf::flow::backpressure_overflow_strategy
+overflow_policy_from_string(const std::string* str, overflow_policy fallback) {
+  using caf::flow::backpressure_overflow_strategy;
+  if (str != nullptr) {
+    if (*str == "drop_newest") {
+      return backpressure_overflow_strategy::drop_newest;
+    }
+    if (*str == "drop_oldest") {
+      return backpressure_overflow_strategy::drop_oldest;
+    }
+    if (*str == "disconnect") {
+      return backpressure_overflow_strategy::fail;
+    }
+  }
+  // Note: overflow_policy and backpressure_overflow_strategy have the same
+  //       values. Hence, casting one to the other is safe.
+  return static_cast<backpressure_overflow_strategy>(fallback);
+}
+
+} // namespace
+
+size_t core_actor_state::peer_buffer_size() {
+  return caf::get_or(self->config(), "broker.peer-buffer-size",
+                     defaults::peer_buffer_size);
+}
+
+caf::flow::backpressure_overflow_strategy
+core_actor_state::peer_overflow_policy() {
+  auto* str = caf::get_if<std::string>(&self->config(),
+                                       "broker.peer-overflow-policy");
+  return overflow_policy_from_string(str, defaults::peer_overflow_policy);
+}
+
+size_t core_actor_state::web_socket_buffer_size() {
+  return caf::get_or(self->config(), "broker.web-socket-buffer-size",
+                     defaults::web_socket_buffer_size);
+}
+
+caf::flow::backpressure_overflow_strategy
+core_actor_state::web_socket_overflow_policy() {
+  auto* str = caf::get_if<std::string>(&self->config(),
+                                       "broker.web-socket-overflow-policy");
+  return overflow_policy_from_string(str, defaults::web_socket_overflow_policy);
 }
 
 } // namespace broker::internal
