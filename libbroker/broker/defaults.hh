@@ -1,5 +1,6 @@
 #pragma once
 
+#include "broker/overflow_policy.hh"
 #include "broker/time.hh"
 
 #include <chrono>
@@ -21,6 +22,22 @@ constexpr timespan await_peer_timeout = std::chrono::seconds{10};
 
 /// Configures the default timeout for unpeering from another node.
 constexpr timespan unpeer_timeout = std::chrono::seconds{3};
+
+/// Configures how many items we buffer at most per peer before considering it
+/// unreseponsive and dropping the connection.
+constexpr size_t peer_buffer_size = 2048;
+
+/// Configures how Broker responds to peers that cannot keep up with the
+/// incoming message rate.
+constexpr auto peer_overflow_policy = overflow_policy::disconnect;
+
+/// Configures how many items we buffer at most per web_socket client before
+/// considering it unreseponsive and dropping the connection.
+constexpr size_t web_socket_buffer_size = 512;
+
+/// Configures how Broker responds to web_sockets that cannot keep up with the
+/// incoming message rate.
+constexpr auto web_socket_overflow_policy = overflow_policy::disconnect;
 
 } // namespace broker::defaults
 
