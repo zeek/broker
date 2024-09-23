@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/defaults.hh"
+#include "broker/overflow_policy.hh"
 
 #include <cstdint>
 #include <memory>
@@ -45,6 +46,22 @@ struct broker_options {
 
   /// How many hops we forward at the most before dropping a message.
   uint16_t ttl = defaults::ttl;
+
+  /// Configures how many items we buffer at most per peer before considering
+  /// it unreseponsive and dropping the connection.
+  size_t peer_buffer_size = defaults::peer_buffer_size;
+
+  /// Configures how Broker responds to peers that cannot keep up with the
+  /// incoming message rate.
+  overflow_policy peer_overflow_policy = overflow_policy::disconnect;
+
+  /// Configures how many items we buffer at most per web_socket client before
+  /// considering it unreseponsive and dropping the connection.
+  size_t web_socket_buffer_size = defaults::web_socket_buffer_size;
+
+  /// Configures how Broker responds to web_sockets that cannot keep up with the
+  /// incoming message rate.
+  overflow_policy web_socket_overflow_policy = overflow_policy::disconnect;
 
   broker_options() = default;
 
