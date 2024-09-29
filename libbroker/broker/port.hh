@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string>
 
-#include "broker/detail/operators.hh"
+#include "broker/detail/comparable.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -15,7 +15,7 @@ void convert(const port& p, std::string& str);
 bool convert(const std::string& str, port& p);
 
 /// A transport-layer port.
-class port : detail::totally_ordered<port> {
+class port : detail::comparable<port> {
 public:
   using number_type = uint16_t;
 
@@ -32,6 +32,8 @@ public:
   /// Construct a port from number/protocol.
   port(number_type num, protocol p);
 
+  int compare(const port& other) const;
+
   /// @return The port number.
   number_type number() const;
 
@@ -39,9 +41,6 @@ public:
   protocol type() const;
 
   size_t hash() const;
-
-  friend bool operator==(const port& lhs, const port& rhs);
-  friend bool operator<(const port& lhs, const port& rhs);
 
   template <class Inspector>
   friend bool inspect(Inspector& f, port& x) {
@@ -77,12 +76,6 @@ bool inspect(Inspector& f, port::protocol& x) {
   };
   return f.apply(get, set);
 }
-
-/// @relates port
-bool operator==(const port& lhs, const port& rhs);
-
-/// @relates port
-bool operator<(const port& lhs, const port& rhs);
 
 } // namespace broker
 
