@@ -9,8 +9,8 @@
 #include "broker/detail/peer_status_map.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/connector.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 
 namespace broker::internal {
 
@@ -25,8 +25,6 @@ public:
   void on_connection(connector_event_id event_id, endpoint_id peer,
                      network_info addr, filter_type filter,
                      pending_connection_ptr ptr) override {
-    BROKER_TRACE(BROKER_ARG(event_id)
-                 << BROKER_ARG(peer) << BROKER_ARG(addr) << BROKER_ARG(filter));
     caf::anon_send(hdl_, event_id,
                    caf::make_message(peer, addr, std::move(filter),
                                      std::move(ptr)));
@@ -34,33 +32,27 @@ public:
 
   void on_redundant_connection(connector_event_id event_id, endpoint_id peer,
                                network_info addr) override {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer) << BROKER_ARG(addr));
     caf::anon_send(hdl_, event_id, caf::make_message(peer, addr));
   }
 
   void on_drop(connector_event_id event_id,
                std::optional<endpoint_id> peer) override {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(peer));
     caf::anon_send(hdl_, event_id, caf::make_message(peer));
   }
 
   void on_listen(connector_event_id event_id, uint16_t port) override {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(port));
     caf::anon_send(hdl_, event_id, caf::make_message(port));
   }
 
   void on_error(connector_event_id event_id, caf::error reason) override {
-    BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(reason));
     caf::anon_send(hdl_, event_id, caf::make_message(std::move(reason)));
   }
 
   void on_peer_unavailable(const network_info& addr) override {
-    BROKER_TRACE(BROKER_ARG(addr));
     caf::anon_send(hdl_, invalid_connector_event_id, caf::make_message(addr));
   }
 
   void on_shutdown() override {
-    BROKER_TRACE("");
     caf::anon_send(hdl_, invalid_connector_event_id,
                    caf::make_message(atom::shutdown_v));
   }
@@ -119,10 +111,9 @@ caf::message_handler connector_adapter::message_handlers() {
   using caf::get;
   return {
     [this](connector_event_id event_id, const caf::message& msg) {
-      BROKER_TRACE(BROKER_ARG(event_id) << BROKER_ARG(msg));
       if (event_id == invalid_connector_event_id) {
         if (auto xs1 = shutdown_event(msg)) {
-          BROKER_DEBUG("lost the connector");
+          log::core::debug("lost-connector", "lost the connector");
           // TODO: implement me? Anything we could do here?
         } else if (auto xs2 = connection_event(msg)) {
           on_peering_(get<0>(xs2), get<1>(xs2), get<2>(xs2), get<3>(xs2));
@@ -131,7 +122,9 @@ caf::message_handler connector_adapter::message_handlers() {
         } else if (auto xs4 = peer_unavailable_event(msg)) {
           on_peer_unavailable_(get<0>(xs4));
         } else {
-          BROKER_ERROR("connector_adapter received unexpected message:" << msg);
+          log::core::error("unexpected-connector-message",
+                           "connector_adapter received unexpected message: {}",
+                           msg);
         }
       } else if (auto i = pending_.find(event_id); i != pending_.end()) {
         i->second(msg);
@@ -145,7 +138,6 @@ void connector_adapter::async_connect(const network_info& addr,
                                       peering_callback f,
                                       redundant_peering_callback g,
                                       error_callback h) {
-  BROKER_TRACE(BROKER_ARG(addr));
   using caf::get;
   auto cb = [f{std::move(f)}, g{std::move(g)},
              h{std::move(h)}](const caf::message& msg) {
@@ -169,7 +161,6 @@ void connector_adapter::async_listen(const std::string& host, uint16_t port,
                                      bool reuse_addr,
                                      callback<uint16_t> on_success,
                                      error_callback on_error) {
-  BROKER_TRACE(BROKER_ARG(host) << BROKER_ARG(port) << BROKER_ARG(reuse_addr));
   using caf::get;
   auto h = [f{std::move(on_success)},
             g(std::move(on_error))](const caf::message& msg) {

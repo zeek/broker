@@ -44,6 +44,7 @@ set(BROKER_SRC
   broker/entity_id.cc
   broker/envelope.cc
   broker/error.cc
+  broker/event_observer.cc
   broker/filter_type.cc
   broker/format/bin.cc
   broker/format/json.cc
@@ -64,6 +65,7 @@ set(BROKER_SRC
   broker/internal/web_socket.cc
   broker/internal/wire_format.cc
   broker/internal_command.cc
+  broker/logger.cc
   broker/mailbox.cc
   broker/network_info.cc
   broker/p2p_message_type.cc

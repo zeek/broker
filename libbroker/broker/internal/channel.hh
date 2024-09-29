@@ -11,9 +11,9 @@
 #include <caf/send.hpp>
 
 #include "broker/error.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/metric_factory.hh"
 #include "broker/lamport_timestamp.hh"
+#include "broker/logger.hh"
 #include "broker/none.hh"
 
 #include <prometheus/gauge.h>
@@ -226,7 +226,7 @@ public:
     error add(const Handle& hdl) {
       if (find_path(hdl) != paths_.end())
         return ec::consumer_exists;
-      BROKER_DEBUG("add" << hdl << "to the channel");
+      log::store::debug("producer-add", "add consumer {} to channel", hdl);
       metrics_.inc_output_channels();
       paths_.emplace_back(path{hdl, seq_, 0, tick_});
       backend_->send(this, hdl, handshake{seq_, heartbeat_interval_});
@@ -310,7 +310,6 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
-      BROKER_TRACE("");
       // Increase local time and send heartbeats.
       ++tick_;
       if (heartbeat_interval_ == 0)
@@ -325,7 +324,8 @@ public:
       size_t erased_paths = 0;
       for (auto i = paths_.begin(); i != paths_.end();) {
         if (tick_.value - i->last_seen.value >= timeout) {
-          BROKER_DEBUG("remove" << i->hdl << "from channel: consumer timeout");
+          log::store::debug("producer-remove",
+                            "remove {} from channel: consumer timeout", i->hdl);
           metrics_.dec_output_channels();
           backend_->drop(this, i->hdl, ec::connection_timeout);
           i = paths_.erase(i);
@@ -580,8 +580,6 @@ public:
     ///          handshake that got dropped by the consumer.
     bool handle_handshake(Handle producer_hdl, sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(producer_hdl)
-                   << BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       if (initialized())
         return false;
       producer_ = std::move(producer_hdl);
@@ -591,7 +589,6 @@ public:
     /// @copydoc handle_handshake
     bool handle_handshake(sequence_number_type offset,
                           tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       if (initialized())
         return false;
       return handle_handshake_impl(offset, heartbeat_interval);
@@ -599,7 +596,6 @@ public:
 
     bool handle_handshake_impl(sequence_number_type offset,
                                tick_interval_type heartbeat_interval) {
-      BROKER_TRACE(BROKER_ARG(offset) << BROKER_ARG(heartbeat_interval));
       // Initialize state.
       next_seq_ = offset + 1;
       last_seq_ = next_seq_;
@@ -632,7 +628,6 @@ public:
     }
 
     void handle_event(sequence_number_type seq, Payload payload) {
-      BROKER_TRACE(BROKER_ARG(seq) << BROKER_ARG(payload));
       if (next_seq_ == seq) {
         // Process immediately.
         backend_->consume(this, payload);
@@ -683,14 +678,13 @@ public:
     // -- time-based processing ------------------------------------------------
 
     void tick() {
-      BROKER_TRACE(BROKER_ARG2("next_seq", next_seq_)
-                   << BROKER_ARG2("last_seq", last_seq_)
-                   << BROKER_ARG2("buf.size", buf().size()));
       ++tick_;
       // Ask for repeated handshake each heartbeat interval when not fully
       // initialized yet.
       if (!initialized()) {
-        BROKER_DEBUG("not fully initialized: waiting for producer handshake");
+        log::store::debug(
+          "consumer-tick",
+          "not fully initialized: waiting for producer handshake");
         ++idle_ticks_;
         if (idle_ticks_ >= nack_timeout_) {
           idle_ticks_ = 0;
@@ -702,7 +696,7 @@ public:
       bool progressed = next_seq_ > last_tick_seq_;
       last_tick_seq_ = next_seq_;
       if (progressed) {
-        BROKER_DEBUG("made progress since last tick");
+        log::store::debug("consumer-tick", "made progress since last tick");
         if (idle_ticks_ > 0)
           idle_ticks_ = 0;
         if (heartbeat_interval_ > 0 && num_ticks() % heartbeat_interval_ == 0)
@@ -710,7 +704,8 @@ public:
         return;
       }
       ++idle_ticks_;
-      BROKER_DEBUG("made no progress for" << idle_ticks_ << "ticks");
+      log::store::debug("consumer-tick", "made no progress for {} ticks",
+                        idle_ticks_);
       if (next_seq_ < last_seq_ && idle_ticks_ >= nack_timeout_) {
         idle_ticks_ = 0;
         auto first = next_seq_;
