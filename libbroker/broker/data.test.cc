@@ -1,6 +1,7 @@
 #include "broker/data.hh"
 
 #include "broker/broker-test.test.hh"
+#include "broker/format/bin.hh"
 
 #include <chrono>
 #include <cstdint>
@@ -13,6 +14,7 @@
 #include "broker/convert.hh"
 
 using namespace broker;
+using namespace std::literals;
 
 static_assert(std::is_same_v<boolean, bool>);
 static_assert(std::is_same_v<integer, int64_t>);
@@ -137,4 +139,74 @@ TEST(data - table) {
   REQUIRE(i != t.end());
   CHECK_EQUAL(i->second, data{42});
   CHECK_EQUAL(to_string(t), "{bar -> 43, baz -> 44, foo -> 42}");
+}
+
+namespace {
+
+template <class T>
+data do_deserialize(T&& arg) {
+  auto input = data{std::forward<T>(arg)};
+  std::vector<std::byte> buf;
+  format::bin::v1::encode(input, std::back_inserter(buf));
+  data result;
+  if (!result.deserialize(buf.data(), buf.size())) {
+    FAIL("deserialization failed");
+  }
+  return result;
+}
+
+address addr(const std::string& str) {
+  address result;
+  if (!convert(str, result))
+    FAIL("conversion to address failed for " << str);
+  return result;
+}
+
+subnet snet(const std::string& str) {
+  subnet result;
+  if (!convert(str, result))
+    FAIL("conversion to subnet failed for " << str);
+  return result;
+}
+
+} // namespace
+
+#define CHECK_ROUNDTRIP(val) CHECK_EQ(do_deserialize(val), data{val})
+
+TEST(deserialization) {
+  CHECK_ROUNDTRIP(data{});
+  CHECK_ROUNDTRIP(true);
+  CHECK_ROUNDTRIP(count{42});
+  CHECK_ROUNDTRIP(integer{42});
+  CHECK_ROUNDTRIP(real{1.2});
+  CHECK_ROUNDTRIP("FooBar"s);
+  CHECK_ROUNDTRIP(addr("192.168.9.8"));
+  CHECK_ROUNDTRIP(snet("192.168.9.0/24"));
+  CHECK_ROUNDTRIP(port(8080, port::protocol::tcp));
+  CHECK_ROUNDTRIP(timestamp{timespan{12345}});
+  CHECK_ROUNDTRIP(timespan{12345});
+  CHECK_ROUNDTRIP(enum_value{"FooBar"});
+  CHECK_ROUNDTRIP(set{});
+  CHECK_ROUNDTRIP((set{data{count{1}}, data{count{2}}}));
+  CHECK_ROUNDTRIP(vector{});
+  CHECK_ROUNDTRIP((vector{data{count{1}}, data{count{2}}}));
+  CHECK_ROUNDTRIP((vector{data{vector{}}, data{count{2}}}));
+  CHECK_ROUNDTRIP((vector{
+    data{vector{data{count{1}}, data{count{2}}}},
+    data{count{2}},
+  }));
+  CHECK_ROUNDTRIP(vector{data{set{}}});
+  CHECK_ROUNDTRIP((vector{
+    data{set{data{count{1}}, data{count{2}}}},
+    data{count{2}},
+  }));
+  CHECK_ROUNDTRIP(table{});
+  CHECK_ROUNDTRIP((table{
+    {data{"a"}, data{count{1}}},
+    {data{"b"}, data{count{2}}},
+  }));
+  CHECK_ROUNDTRIP((table{
+    {vector{data{count{1}}, data{count{2}}}, vector{data{count{3}}}},
+    {data{"b"}, data{count{2}}},
+  }));
 }

@@ -6,8 +6,10 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <set>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -20,6 +22,16 @@ class topic;
 } // namespace broker
 
 namespace broker::detail {
+
+template <class>
+struct is_duration_oracle : std::false_type {};
+
+template <class Rep, class Period>
+struct is_duration_oracle<std::chrono::duration<Rep, Period>> : std::true_type {
+};
+
+template <class T>
+inline constexpr bool is_duration = is_duration_oracle<T>::value;
 
 template <class>
 struct is_variant_oracle : std::false_type {};
@@ -62,6 +74,18 @@ struct is_map_oracle<std::unordered_map<Key, Val>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_map = is_map_oracle<T>::value;
+
+template <class>
+struct is_set_oracle : std::false_type {};
+
+template <class Key, class Val>
+struct is_set_oracle<std::set<Key, Val>> : std::true_type {};
+
+template <class Key, class Val>
+struct is_set_oracle<std::unordered_set<Key, Val>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_set = is_set_oracle<T>::value;
 
 template <class>
 struct is_list_oracle : std::false_type {};
@@ -252,3 +276,21 @@ inline constexpr bool is_tuple = is_tuple_oracle<T>::value;
   template <class T, class OutIter>                                            \
   inline constexpr bool has_encode_overload_v =                                \
     has_encode_overload<T, OutIter>::value
+
+#define BROKER_DEF_HAS_DECODE_IN_NS(ns_name)                                   \
+  template <class T, class OutIter>                                            \
+  class has_decode_overload {                                                  \
+  private:                                                                     \
+    template <class U>                                                         \
+    static auto                                                                \
+    sfinae(U& y) -> decltype(::ns_name::decode(y, std::declval<OutIter&>()),   \
+                             std::true_type{});                                \
+    static std::false_type sfinae(...);                                        \
+    using result_type = decltype(sfinae(std::declval<T&>()));                  \
+                                                                               \
+  public:                                                                      \
+    static constexpr bool value = result_type::value;                          \
+  };                                                                           \
+  template <class T, class OutIter>                                            \
+  inline constexpr bool has_decode_overload_v =                                \
+    has_decode_overload<T, OutIter>::value
