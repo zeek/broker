@@ -5,13 +5,13 @@
 #include <string>
 #include <string_view>
 
-#include "broker/detail/operators.hh"
+#include "broker/detail/comparable.hh"
 
 namespace broker {
 
 /// Stores the name of an enum value.  The receiver is responsible for knowing
 /// how to map the name to the actual value if it needs that information.
-struct enum_value : detail::totally_ordered<enum_value> {
+struct enum_value : detail::comparable<enum_value> {
   /// Default construct empty enum value name.
   enum_value() = default;
 
@@ -21,17 +21,11 @@ struct enum_value : detail::totally_ordered<enum_value> {
   }
 
   std::string name;
+
+  inline auto compare(const enum_value& other) const {
+    return name.compare(other.name);
+  }
 };
-
-/// @relates enum_value
-inline bool operator==(const enum_value& lhs, const enum_value& rhs) {
-  return lhs.name == rhs.name;
-}
-
-/// @relates enum_value
-inline bool operator<(const enum_value& lhs, const enum_value& rhs) {
-  return lhs.name < rhs.name;
-}
 
 /// @relates enum_value
 template <class Inspector>
@@ -45,8 +39,8 @@ inline void convert(const enum_value& e, std::string& str) {
 }
 
 /// Like enum_value, but wraps a value of type `std::string_view` instead.
-class enum_value_view : detail::totally_ordered<enum_value_view>,
-                        detail::totally_ordered<enum_value_view, enum_value> {
+class enum_value_view : detail::comparable<enum_value_view>,
+                        detail::comparable<enum_value_view, enum_value> {
 public:
   /// Default construct empty enum value name.
   enum_value_view() = default;
@@ -57,37 +51,15 @@ public:
   }
 
   std::string_view name;
+
+  inline auto compare(const enum_value& other) const {
+    return name.compare(other.name);
+  }
+
+  inline auto compare(const enum_value_view& other) const {
+    return name.compare(other.name);
+  }
 };
-
-/// @relates enum_value
-inline bool operator==(const enum_value_view& lhs, const enum_value_view& rhs) {
-  return lhs.name == rhs.name;
-}
-
-/// @relates enum_value_view
-inline bool operator<(const enum_value_view& lhs, const enum_value_view& rhs) {
-  return lhs.name < rhs.name;
-}
-
-/// @relates enum_value
-inline bool operator==(const enum_value_view& lhs, const enum_value& rhs) {
-  return lhs.name == rhs.name;
-}
-
-/// @relates enum_value_view
-inline bool operator<(const enum_value_view& lhs, const enum_value& rhs) {
-  return lhs.name < rhs.name;
-}
-
-/// @relates enum_value
-inline bool operator==(const enum_value& lhs, const enum_value_view& rhs) {
-  return lhs.name == rhs.name;
-}
-
-/// @relates enum_value_view
-inline bool operator<(const enum_value& lhs, const enum_value_view& rhs) {
-  return lhs.name < rhs.name;
-}
 
 } // namespace broker
 

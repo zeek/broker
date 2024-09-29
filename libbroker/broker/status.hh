@@ -1,7 +1,6 @@
 #pragma once
 
 #include "broker/convert.hh"
-#include "broker/detail/operators.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/error.hh"
@@ -100,9 +99,7 @@ template <class Inspector>
 bool inspect(Inspector& f, status& x);
 
 /// Diagnostic status information.
-class status : detail::equality_comparable<status, status>,
-               detail::equality_comparable<status, sc>,
-               detail::equality_comparable<sc, status> {
+class status {
 public:
   template <sc S>
   static status make(endpoint_info ei, std::string msg) {
@@ -192,6 +189,18 @@ private:
   endpoint_info context_;
   std::string message_;
 };
+
+inline bool operator!=(const status& lhs, const status& rhs) {
+  return !(lhs == rhs);
+}
+
+inline bool operator!=(const status& lhs, sc rhs) {
+  return !(lhs == rhs);
+}
+
+inline bool operator!=(sc lhs, const status& rhs) {
+  return !(lhs == rhs);
+}
 
 /// @relates status
 std::string to_string(const status& x);

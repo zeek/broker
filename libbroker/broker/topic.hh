@@ -7,12 +7,12 @@
 #include <utility>
 #include <vector>
 
-#include "broker/detail/operators.hh"
+#include "broker/detail/comparable.hh"
 
 namespace broker {
 
 /// A hierachical topic used as pub/sub communication pattern.
-class topic : detail::totally_ordered<topic> {
+class topic : detail::comparable<topic> {
 public:
   /// The separator between topic hierarchies.
   static constexpr char sep = '/';
@@ -103,12 +103,8 @@ public:
     return f.apply(x.str_);
   }
 
-  friend bool operator==(const topic& lhs, std::string_view rhs) {
-    return lhs.str_ == rhs;
-  }
-
-  friend bool operator==(std::string_view lhs, const topic& rhs) {
-    return lhs == rhs.str_;
+  auto compare(const topic& other) const {
+    return str_.compare(other.str_);
   }
 
 private:
@@ -123,12 +119,6 @@ private:
 inline bool is_prefix(const topic& t, std::string_view prefix) noexcept {
   return topic::is_prefix(t.string(), prefix);
 }
-
-/// @relates topic
-bool operator==(const topic& lhs, const topic& rhs);
-
-/// @relates topic
-bool operator<(const topic& lhs, const topic& rhs);
 
 /// @relates topic
 topic operator/(const topic& lhs, const topic& rhs);

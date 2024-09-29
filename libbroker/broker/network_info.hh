@@ -4,13 +4,13 @@
 #include <optional>
 #include <string>
 
-#include "broker/detail/operators.hh"
+#include "broker/detail/comparable.hh"
 #include "broker/timeout.hh"
 
 namespace broker {
 
 /// Represents an IP address and TCP port combination.
-struct network_info : detail::totally_ordered<network_info> {
+struct network_info : detail::comparable<network_info> {
   network_info() = default;
   network_info(std::string addr, uint16_t port,
                timeout::seconds retry = timeout::seconds());
@@ -21,13 +21,9 @@ struct network_info : detail::totally_ordered<network_info> {
   bool has_retry_time() const noexcept {
     return retry.count() != 0;
   }
+
+  int compare(const network_info& other) const;
 };
-
-/// @relates network_info
-bool operator==(const network_info& x, const network_info& y);
-
-/// @relates network_info
-bool operator<(const network_info& x, const network_info& y);
 
 /// @relates network_info
 template <class Inspector>
