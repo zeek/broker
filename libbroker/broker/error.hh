@@ -276,22 +276,22 @@ struct can_convert_predicate<ec> {
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.
-bool convertible_to_error(const data& src) noexcept;
+bool convertible_to_error(const data& src);
+
+/// @copydoc convertible_to_error
+bool convertible_to_error(const vector& xs);
 
 /// Checks whethter `src` is convertible to a `caf::error` with
 /// `category() == caf::atom("broker")`.
 bool convertible_to_error(const variant& src) noexcept;
 
-/// @copydoc convertible_to_error
-bool convertible_to_error(const vector& xs) noexcept;
-
 template <>
 struct can_convert_predicate<error> {
-  static bool check(const data& src) noexcept {
+  static bool check(const data& src) {
     return convertible_to_error(src);
   }
 
-  static bool check(const vector& src) noexcept {
+  static bool check(const vector& src) {
     return convertible_to_error(src);
   }
 

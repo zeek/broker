@@ -50,7 +50,7 @@ public:
     if (deregister_cb_) {
       try {
         deregister_cb_(stats_);
-      } catch (...) {
+      } catch (...) { // NOLINT
         // The callbacks may not throw. However, we can't specify them noexcept
         // because std::function does not support noexcept signatures. Hence,
         // this catch-all to silence tool warnings.
