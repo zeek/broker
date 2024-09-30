@@ -78,8 +78,8 @@ bool convert(const std::string& str, subnet& sn) {
         sn = subnet{addr, static_cast<uint8_t>(len)};
         return true;
       }
-    } catch (std::exception&) {
-      // nop
+    } catch (const std::exception&) {
+      return false;
     }
   }
   return false;

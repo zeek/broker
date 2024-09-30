@@ -76,7 +76,7 @@ master_state::master_state(
     detail::die("failed to get master expiries while initializing");
   }
   if (auto entries = backend->size(); entries && *entries > 0) {
-    metrics.entries->Set(*entries);
+    metrics.entries->Set(static_cast<double>(*entries));
   }
   BROKER_INFO("attached master" << id << "to" << store_name);
 }

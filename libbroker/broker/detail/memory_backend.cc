@@ -109,7 +109,7 @@ expected<expirables> memory_backend::expiries() const {
 
   for (auto& p : store_) {
     if (p.second.second)
-      rval.emplace_back(expirable(p.first, *p.second.second));
+      rval.emplace_back(p.first, *p.second.second);
   }
 
   return {std::move(rval)};
