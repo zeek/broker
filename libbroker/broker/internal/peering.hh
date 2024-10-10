@@ -38,7 +38,7 @@ public:
 
   /// Forces the peering to shut down its connection without performing the BYE
   /// handshake.
-  void force_disconnect();
+  void force_disconnect(const std::string& reason = "");
 
   void schedule_bye_timeout(caf::scheduled_actor* self);
 
@@ -61,6 +61,11 @@ public:
   /// Queries whether `remove` was called.
   bool removed() const noexcept {
     return removed_;
+  }
+
+  /// Returns the removal reason, which may be empty.
+  std::string removed_reason() const noexcept {
+    return removed_reason_;
   }
 
   /// Tag this peering as removed and send a BYE message on the `snk` for a
@@ -116,6 +121,8 @@ private:
   /// Indicates whether we have explicitly removed this connection by sending a
   /// BYE message to the peer.
   bool removed_ = false;
+
+  std::string removed_reason_;
 
   /// Network address as reported from the transport (usually TCP).
   network_info addr_;

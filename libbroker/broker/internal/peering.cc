@@ -94,9 +94,12 @@ public:
 
   node_message first() override {
     if (ptr_->removed()) {
+      std::string msg{"removed connection to remote peer"};
+      std::string reason = ptr_->removed_reason();
+      if (! reason.empty())
+        msg += " (" + reason + ")";
       return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
-                             sc_constant<sc::peer_removed>(),
-                             "removed connection to remote peer");
+                             sc_constant<sc::peer_removed>(), msg.c_str());
     } else {
       return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
                              sc_constant<sc::peer_lost>(),
@@ -119,9 +122,10 @@ void peering::on_bye_ack() {
   bye_timeout_.dispose();
 }
 
-void peering::force_disconnect() {
+void peering::force_disconnect(const std::string& reason) {
   if (!removed_) {
     removed_ = true;
+    removed_reason_ = reason;
   }
   on_bye_ack();
 }
