@@ -20,6 +20,7 @@
 #include "broker/address.hh"
 #include "broker/alm/multipath.hh"
 #include "broker/config.hh"
+#include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/configuration_access.hh"
@@ -113,6 +114,10 @@ struct configuration::impl : public caf::actor_system_config {
       .add(options.disable_forwarding, "disable-forwarding",
            "disables forwarding of incoming data to peers")
       .add(options.ttl, "ttl", "drop messages after traversing TTL hops")
+      .add(options.peer_buffer_size, "peer-buffer-size",
+           "maximum number of items we buffer per peer before dropping it")
+      .add(options.web_socket_buffer_size, "web_socket-buffer-size",
+           "maximum number of items we buffer per web_socket")
       .add<string>("recording-directory",
                    "path for storing recorded meta information")
       .add<size_t>(
@@ -174,6 +179,8 @@ struct configuration::impl : public caf::actor_system_config {
     auto& grp = result["broker"].as_dictionary();
     put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
+    put_missing(grp, "peer-buffer-size", options.peer_buffer_size);
+    put_missing(grp, "web_socket-buffer-size", options.web_socket_buffer_size);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
       put_missing(grp, "recording-directory", std::move(*path));
@@ -199,6 +206,12 @@ configuration::configuration(skip_init_t) {
 configuration::configuration(broker_options opts) : configuration(skip_init) {
   impl_->options = opts;
   impl_->set("broker.ttl", opts.ttl);
+  impl_->set("broker.peer-buffer-size", opts.peer_buffer_size);
+  caf::put(impl_->content, "broker.peer-overflow-policy",
+           broker::to_string(opts.peer_overflow_policy));
+  impl_->set("broker.web_socket-buffer-size", opts.web_socket_buffer_size);
+  caf::put(impl_->content, "broker.web_socket-overflow-policy",
+           broker::to_string(opts.web_socket_overflow_policy));
   caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
   impl_->config_file_path = "broker.conf";
