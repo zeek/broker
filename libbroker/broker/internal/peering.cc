@@ -11,6 +11,8 @@
 
 #include <caf/scheduled_actor/flow.hpp>
 
+using namespace std::literals;
+
 namespace broker::internal {
 
 namespace {
@@ -94,9 +96,14 @@ public:
 
   node_message first() override {
     if (ptr_->removed()) {
+      auto msg = "removed connection to remote peer"s;
+      if (const auto& reason = ptr_->removed_reason(); !reason.empty()) {
+        msg += " (";
+        msg += reason;
+        msg += ')';
+      }
       return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
-                             sc_constant<sc::peer_removed>(),
-                             "removed connection to remote peer");
+                             sc_constant<sc::peer_removed>(), msg.c_str());
     } else {
       return make_status_msg(endpoint_info{ptr_->peer_id(), ptr_->addr()},
                              sc_constant<sc::peer_lost>(),
@@ -119,9 +126,10 @@ void peering::on_bye_ack() {
   bye_timeout_.dispose();
 }
 
-void peering::force_disconnect() {
+void peering::force_disconnect(std::string reason) {
   if (!removed_) {
     removed_ = true;
+    removed_reason_ = std::move(reason);
   }
   on_bye_ack();
 }
@@ -129,8 +137,9 @@ void peering::force_disconnect() {
 void peering::schedule_bye_timeout(caf::scheduled_actor* self) {
   bye_timeout_.dispose();
   bye_timeout_ =
-    self->run_delayed(defaults::unpeer_timeout,
-                      [ptr = shared_from_this()] { ptr->force_disconnect(); });
+    self->run_delayed(defaults::unpeer_timeout, [ptr = shared_from_this()] {
+      ptr->force_disconnect("timeout during graceful disconnect");
+    });
 }
 
 void peering::assign_bye_token(std::array<std::byte, bye_token_size>& buf) {
