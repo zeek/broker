@@ -3,12 +3,11 @@
 #include "broker/endpoint_id.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal_command.hh"
 #include "broker/topic.hh"
 
-#include <caf/binary_deserializer.hpp>
-#include <caf/binary_serializer.hpp>
 #include <caf/byte_buffer.hpp>
 #include <caf/deep_to_string.hpp>
 
@@ -65,14 +64,16 @@ public:
       receiver_(receiver),
       topic_(std::move(topic_str)),
       value_(std::move(cmd)) {
-    caf::binary_serializer sink{nullptr, buf_};
+    auto out = std::back_inserter(buf_);
+    format::bin::v1::encoder sink{out};
     if (!sink.apply(value_))
       throw std::logic_error("failed to serialize command");
   }
 
   default_command_envelope(std::string&& topic_str, internal_command&& cmd)
     : topic_(topic_str), value_(std::move(cmd)) {
-    caf::binary_serializer sink{nullptr, buf_};
+    auto out = std::back_inserter(buf_);
+    format::bin::v1::encoder sink{out};
     if (!sink.apply(value_))
       throw std::logic_error("failed to serialize command");
   }
@@ -143,7 +144,7 @@ public:
 
   error parse() {
     auto [data, data_size] = this->raw_bytes();
-    caf::binary_deserializer src{nullptr, data, data_size};
+    format::bin::v1::decoder src{data, data_size};
     if (!src.apply(value_))
       return make_error(ec::invalid_data);
     return error{};
