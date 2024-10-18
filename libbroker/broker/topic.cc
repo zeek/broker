@@ -61,14 +61,6 @@ std::string_view topic::suffix() const noexcept {
   }
 }
 
-bool operator==(const topic& lhs, const topic& rhs) {
-  return lhs.string() == rhs.string();
-}
-
-bool operator<(const topic& lhs, const topic& rhs) {
-  return lhs.string() < rhs.string();
-}
-
 topic operator/(const topic& lhs, const topic& rhs) {
   topic result{lhs};
   return result /= rhs;
