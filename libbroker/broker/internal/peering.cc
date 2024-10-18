@@ -120,7 +120,9 @@ void peering::on_bye_ack() {
 }
 
 void peering::force_disconnect() {
-  assert(removed_);
+  if (!removed_) {
+    removed_ = true;
+  }
   on_bye_ack();
 }
 
