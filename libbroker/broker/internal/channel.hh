@@ -198,9 +198,10 @@ public:
       }
 
       void shipped(int64_t num) {
+        auto dbl_num = static_cast<double>(num);
         if (unacknowledged) {
-          unacknowledged->Decrement(num);
-          processed->Increment(num);
+          unacknowledged->Decrement(dbl_num);
+          processed->Increment(dbl_num);
         }
       }
     };
@@ -844,8 +845,9 @@ public:
     void try_consume_buffer() {
       auto i = buf_.begin();
       for (; i != buf_.end() && i->seq == next_seq_; ++i) {
-        if (i->content) {
-          backend_->consume(this, *i->content);
+        auto& content = i->content;
+        if (content) {
+          backend_->consume(this, *content);
         } else {
           if (auto err = backend_->consume_nil(this)) {
             buf_.erase(buf_.begin(), i);

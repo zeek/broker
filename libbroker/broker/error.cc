@@ -216,7 +216,8 @@ bool convertible_to_ec(uint8_t src) noexcept {
 }
 
 template <class List>
-bool convertible_to_error_impl(const List& xs) noexcept {
+bool convertible_to_error_impl(const List& xs) noexcept(
+  std::is_same_v<List, variant_list>) {
   if (!contains<std::string, ec, any_type>(xs)) {
     // There is one special case: default errors with enum value "none" fail to
     // convert to ec but are still legal.
@@ -234,11 +235,11 @@ bool convertible_to_error_impl(const List& xs) noexcept {
          || contains<endpoint_info, std::string>(args);
 }
 
-bool convertible_to_error(const vector& xs) noexcept {
+bool convertible_to_error(const vector& xs) {
   return convertible_to_error_impl(xs);
 }
 
-bool convertible_to_error(const data& src) noexcept {
+bool convertible_to_error(const data& src) {
   return convertible_to_error_impl(src.to_list());
 }
 

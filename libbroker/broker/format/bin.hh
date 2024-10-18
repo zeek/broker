@@ -203,7 +203,7 @@ std::enable_if_t<std::is_arithmetic_v<T>, OutIter> encode(T value,
   } else if constexpr (std::is_unsigned_v<T>) {
     return write_unsigned(value, out);
   } else {
-    static_assert(std::is_signed<T>::value);
+    static_assert(std::is_signed_v<T>);
     using unsigned_t = std::make_unsigned_t<T>;
     return write_unsigned(static_cast<unsigned_t>(value), out);
   }
@@ -435,8 +435,8 @@ public:
   }
 
   template <class T>
-  const T& field(std::string_view, const T& value) {
-    return value;
+  decltype(auto) field(std::string_view, T&& value) {
+    return std::forward<T>(value);
   }
 
   bool fields() {
