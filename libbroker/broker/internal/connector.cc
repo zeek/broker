@@ -13,7 +13,6 @@
 #include "broker/message.hh"
 
 #include <caf/async/spsc_buffer.hpp>
-#include <caf/binary_deserializer.hpp>
 #include <caf/config.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/expected.hpp>
@@ -369,7 +368,7 @@ caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
 }
 
 template <class... Ts>
-std::tuple<Ts...> from_source(caf::binary_deserializer& src) {
+std::tuple<Ts...> from_source(format::bin::v1::decoder& src) {
   std::tuple<Ts...> result;
   if (!src.apply(result) || src.remaining() != 0)
     throw std::runtime_error{"error while parsing pipe input"};
@@ -429,7 +428,7 @@ private:
   void invoke_from_buf(Manager& mgr) {
     BROKER_TRACE(BROKER_ARG2("buf.size", buf_.size()));
     while (!buf_.empty()) {
-      caf::binary_deserializer src{nullptr, buf_};
+      format::bin::v1::decoder src{buf_.data(), buf_.size()};
       uint8_t tag = 0;
       if (!src.apply(tag))
         throw std::runtime_error{"error while parsing pipe input"};
@@ -449,7 +448,7 @@ private:
                      << len << "with" << src.remaining() << "already received");
         return; // Try again later.
       }
-      src.reset({buf_.data() + 5, len});
+      src.reset(buf_.data() + 5, len);
       switch (msg_type) {
         case connector_msg::connect: {
           BROKER_DEBUG("received connect event");
@@ -810,7 +809,7 @@ public:
         read_pos += ures;
         if (read_pos == 4) {
           BROKER_ASSERT(payload_size == 0);
-          caf::binary_deserializer src{nullptr, rd_buf};
+          format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
           [[maybe_unused]] auto ok = src.apply(payload_size);
           BROKER_ASSERT(ok);
           if (payload_size == 0) {
@@ -824,7 +823,7 @@ public:
         } else if (read_pos == read_size) {
           // Double check the payload size.
           uint32_t pl_size = 0;
-          caf::binary_deserializer src{nullptr, rd_buf};
+          format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
           [[maybe_unused]] auto ok = src.apply(pl_size);
           BROKER_ASSERT(ok);
           if (pl_size != payload_size) {

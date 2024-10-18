@@ -325,6 +325,9 @@ public:
     return data_;
   }
 
+  /// Deserializes the data from a binary representation.
+  bool deserialize(const std::byte* payload, size_t payload_size);
+
 private:
   data_variant data_;
 };

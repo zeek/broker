@@ -1,3 +1,23 @@
+2.8.0-dev.131 | 2024-10-18 16:57:55 -0700
+
+  * Integrate review feedback (Dominik Charousset)
+
+  * Fix regression in the new decoding logic (Dominik Charousset)
+
+  * Fix build on FreeBSD (Dominik Charousset, Corelight)
+
+  * Replace CAF deserializers with Broker decoders (Dominik Charousset, Corelight)
+
+  * Implement a decoder with inspect API support (Dominik Charousset, Corelight)
+
+  * Use Broker's own serialization over CAF serializer (Dominik Charousset, Corelight)
+
+  * Use the new binary decoder for Broker's variant (Dominik Charousset, Corelight)
+
+  * Iterate on the new decoding API (Dominik Charousset, Corelight)
+
+  * Implement new decoding logic for the binary format (Dominik Charousset, Corelight)
+
 2.8.0-dev.121 | 2024-10-18 10:12:55 -0700
 
   * Fix bugprone and modernize clang-tidy findings (Dominik Charousset)

@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include <caf/binary_deserializer.hpp>
 #include <caf/detail/scope_guard.hpp>
 
 #include "broker/config.hh"
@@ -41,7 +40,7 @@ auto to_blob(const data& x) {
 }
 
 expected<data> from_blob(const void* buf, size_t size) {
-  caf::binary_deserializer sink{nullptr, buf, size};
+  format::bin::v1::decoder sink{buf, size};
   data result;
   if (sink.apply(result))
     return {std::move(result)};
