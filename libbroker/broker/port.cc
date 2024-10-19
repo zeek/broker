@@ -15,20 +15,20 @@ port::port() : num_{0}, proto_{protocol::unknown} {}
 
 port::port(number_type n, protocol p) : num_{n}, proto_{p} {}
 
+int port::compare(const port& other) const {
+  auto res = static_cast<int>(num_) - static_cast<int>(other.num_);
+  if (res == 0) {
+    return static_cast<int>(proto_) - static_cast<int>(other.proto_);
+  }
+  return res;
+}
+
 port::number_type port::number() const {
   return num_;
 }
 
 port::protocol port::type() const {
   return proto_;
-}
-
-bool operator==(const port& lhs, const port& rhs) {
-  return lhs.proto_ == rhs.proto_ && lhs.num_ == rhs.num_;
-}
-
-bool operator<(const port& lhs, const port& rhs) {
-  return std::tie(lhs.num_, lhs.proto_) < std::tie(rhs.num_, rhs.proto_);
 }
 
 void convert(const port& p, std::string& str) {

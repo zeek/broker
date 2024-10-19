@@ -1,3 +1,7 @@
+2.8.0-dev.133 | 2024-10-18 17:42:01 -0700
+
+  * Remove obsolete operators.hh utility (Dominik Charousset)
+
 2.8.0-dev.131 | 2024-10-18 16:57:55 -0700
 
   * Integrate review feedback (Dominik Charousset)

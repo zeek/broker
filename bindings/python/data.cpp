@@ -17,7 +17,6 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
-#include "broker/detail/operators.hh"
 
 namespace py = pybind11;
 using namespace pybind11::literals;

@@ -21,6 +21,14 @@ subnet::subnet(const address& addr, uint8_t length) noexcept
   len_ = 0;
 }
 
+int subnet::compare(const subnet& other) const {
+  auto res = net_.compare(other.net_);
+  if (res == 0) {
+    return static_cast<int>(len_) - static_cast<int>(other.len_);
+  }
+  return res;
+}
+
 bool subnet::init() {
   if (net_.is_v4()) {
     if (len_ > 32)
@@ -49,14 +57,6 @@ uint8_t subnet::length() const {
 
 size_t subnet::hash() const {
   return caf::hash::fnv<size_t>::compute(net_, len_);
-}
-
-bool operator==(const subnet& lhs, const subnet& rhs) {
-  return lhs.len_ == rhs.len_ && lhs.net_ == rhs.net_;
-}
-
-bool operator<(const subnet& lhs, const subnet& rhs) {
-  return std::tie(lhs.net_, lhs.len_) < std::tie(rhs.net_, lhs.len_);
 }
 
 void convert(const subnet& sn, std::string& str) {

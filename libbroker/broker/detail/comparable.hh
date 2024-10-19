@@ -5,6 +5,9 @@ namespace broker::detail {
 /// Barton–Nackman trick implementation.
 template <class Derived, class T = Derived>
 class comparable {
+public:
+  friend Derived;
+
   friend bool operator==(const Derived& lhs, const T& rhs) noexcept {
     return lhs.compare(rhs) == 0;
   }
@@ -52,6 +55,9 @@ class comparable {
   friend bool operator>=(const T& lhs, const Derived& rhs) noexcept {
     return rhs <= lhs;
   }
+
+private:
+  comparable() = default;
 };
 
 template <class Derived>

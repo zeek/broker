@@ -1,7 +1,7 @@
 #pragma once
 
 #include "broker/address.hh"
-#include "broker/detail/operators.hh"
+#include "broker/detail/comparable.hh"
 #include "broker/fwd.hh"
 
 namespace broker {
@@ -13,7 +13,7 @@ void convert(const subnet& sn, std::string& str);
 bool convert(const std::string& str, subnet& sn);
 
 /// An IPv4 or IPv6 subnet (an address prefix).
-class subnet : detail::totally_ordered<subnet> {
+class subnet : detail::comparable<subnet> {
 public:
   /// Default construct empty subnet ::/0.
   subnet() noexcept;
@@ -40,8 +40,7 @@ public:
     return len_;
   }
 
-  friend bool operator==(const subnet& lhs, const subnet& rhs);
-  friend bool operator<(const subnet& lhs, const subnet& rhs);
+  int compare(const subnet& other) const;
 
   template <class Inspector>
   friend bool inspect(Inspector& f, subnet& x) {
@@ -71,12 +70,6 @@ private:
   address net_;
   uint8_t len_;
 };
-
-/// @relates subnet
-bool operator==(const subnet& lhs, const subnet& rhs);
-
-/// @relates subnet
-bool operator<(const subnet& lhs, const subnet& rhs);
 
 } // namespace broker
 
