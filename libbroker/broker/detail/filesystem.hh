@@ -31,7 +31,13 @@ inline bool is_file(const path& p) {
 
 inline bool mkdirs(const path& p) {
   std::error_code ec;
-  return std::filesystem::create_directories(p, ec);
+  if (!std::filesystem::create_directories(p, ec)) {
+    log::core::error("cannot-create-directory",
+                     "failed to create directory {}: {}", p.native(),
+                     ec.message());
+    return false;
+  }
+  return true;
 }
 
 inline path dirname(path p) {
@@ -41,12 +47,22 @@ inline path dirname(path p) {
 
 inline bool remove(const path& p) {
   std::error_code ec;
-  return std::filesystem::remove(p, ec);
+  if (!std::filesystem::remove(p, ec)) {
+    log::core::error("cannot-remove-path", "failed to remove {}: {}",
+                     p.native(), ec.message());
+    return false;
+  }
+  return true;
 }
 
 inline bool remove_all(const path& p) {
   std::error_code ec;
-  return std::filesystem::remove_all(p, ec);
+  if (!std::filesystem::remove_all(p, ec)) {
+    log::core::error("cannot-remove-path", "failed to remove {}: {}",
+                     p.native(), ec.message());
+    return false;
+  }
+  return true;
 }
 
 } // namespace broker::detail
