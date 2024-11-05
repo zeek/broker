@@ -217,8 +217,8 @@ subscriber::~subscriber() {
 }
 
 subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
-  log::endpoint::info("creating-subscriber", "creating subscriber for topic(s)",
-                      filter);
+  log::endpoint::info("creating-subscriber",
+                      "creating subscriber for topic(s): {}", filter);
   using caf::async::make_spsc_buffer_resource;
   auto fptr = std::make_shared<filter_type>(std::move(filter));
   auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();

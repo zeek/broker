@@ -133,7 +133,7 @@ expected<uint16_t> launch(caf::actor_system& sys,
   auto actual_port = caf::net::local_port(*fd);
   if (!actual_port) {
     log::network::error("ws-start-failed",
-                        "failed to retrieve actual port from socket ->",
+                        "failed to retrieve actual port from socket: {}",
                         actual_port.error());
     return {facade(actual_port.error())};
   }

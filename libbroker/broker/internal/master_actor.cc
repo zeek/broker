@@ -351,8 +351,8 @@ void master_state::consume(subtract_command& x) {
   if (!old_value) {
     // Unlike `add`, `subtract` fails if the key didn't exist previously.
     log::store::warning("subtract-command-invalid-key",
-                        "master failed to subtract {} from key {}: no such key",
-                        x.value, x.key, old_value.error());
+                        "master failed to subtract {} from key {}: {}", x.value,
+                        x.key, old_value.error());
     return; // TODO: propagate failure? to all clones? as status msg?
   }
   if (auto res = backend->subtract(x.key, x.value, et); !res) {
