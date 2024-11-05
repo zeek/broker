@@ -107,7 +107,7 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
           }
           return fmt_to(out, fmt.substr(index + 2), args...);
         }
-        throw std::invalid_argument("invalid format string");
+        return out; // stop: invalid format string
       // Must be "}}" (escaped '}'), because the use as placeholder was
       // handled in the previous case.
       case '}':
@@ -116,7 +116,7 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
           next(); // consume two characters
           break;
         }
-        throw std::invalid_argument("invalid format string");
+        return out; // stop: invalid format string
       // Other characters are copied verbatim.
       default:
         *out++ = ch;
@@ -124,7 +124,7 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
     }
     next();
   }
-  throw std::invalid_argument("format string ended unexpectedly");
+  return out; // stop: invalid format string
 }
 
 template <class... Ts>
