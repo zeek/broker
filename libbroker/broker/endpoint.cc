@@ -429,7 +429,7 @@ endpoint::endpoint(configuration config, endpoint_id id,
     clock_ = std::make_unique<real_time_clock>(ctx_.get());
   else
     clock_ = std::make_unique<sim_clock>(ctx_.get());
-  log::endpoint::info("start-endpoint", "creating endpoint {}");
+  log::endpoint::info("start-endpoint", "creating endpoint {}", id);
   // TODO: the core actor may end up running basically nonstop in case it has a
   //       lot of incoming traffic to manage. CAF *should* suspend actors based
   //       on the 'caf.scheduler.max-throughput' setting. However, this is
@@ -478,7 +478,7 @@ void endpoint::shutdown() {
   // Destroying a destroyed endpoint is a no-op.
   if (!ctx_)
     return;
-  log::endpoint::info("shutdown-endpoint", "shutting down endpoint {}");
+  log::endpoint::info("shutdown-endpoint", "shutting down endpoint {}", id_);
   if (!await_stores_on_shutdown_) {
     log::endpoint::debug("signal-store-shutdown",
                          "tell core actor to terminate stores");
@@ -532,8 +532,7 @@ void endpoint::shutdown() {
 uint16_t endpoint::listen(const std::string& address, uint16_t port,
                           error* err_ptr, bool reuse_addr) {
   log::endpoint::info("try-listen", "try listening on {}:{} ({})", address,
-                      port,
-                      ctx_->cfg.options().disable_ssl ? "(no SSL)" : "(SSL)");
+                      port, ctx_->cfg.options().disable_ssl ? "no SSL" : "SSL");
   uint16_t result = 0;
   caf::scoped_actor self{ctx_->sys};
   self
