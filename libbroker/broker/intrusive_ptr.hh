@@ -224,15 +224,15 @@ bool operator!=(const T* x, const intrusive_ptr<T>& y) {
 
 /// @relates intrusive_ptr
 template <class T, class U>
-auto operator==(const intrusive_ptr<T>& x,
-                const intrusive_ptr<U>& y) -> decltype(x.get() == y.get()) {
+auto operator==(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y)
+  -> decltype(x.get() == y.get()) {
   return x.get() == y.get();
 }
 
 /// @relates intrusive_ptr
 template <class T, class U>
-auto operator!=(const intrusive_ptr<T>& x,
-                const intrusive_ptr<U>& y) -> decltype(x.get() != y.get()) {
+auto operator!=(const intrusive_ptr<T>& x, const intrusive_ptr<U>& y)
+  -> decltype(x.get() != y.get()) {
   return x.get() != y.get();
 }
 

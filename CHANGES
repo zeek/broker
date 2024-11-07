@@ -1,3 +1,7 @@
+2.8.0-dev.137 | 2024-11-07 19:06:35 +0100
+
+  * Update `clang-format` on CI (Dominik Charousset)
+
 2.8.0-dev.135 | 2024-11-07 16:48:29 +0100
 
   * Bump dockerfiles for Fedora 39 and 40 (Dominik Charousset)

@@ -272,8 +272,8 @@ PYBIND11_MODULE(_broker, m) {
                                                           "StatusSubscriber");
   status_subscriber
     .def("get",
-         (broker::status_subscriber::value_type(broker::status_subscriber::*)())
-           & broker::status_subscriber::get)
+         (broker::status_subscriber::value_type(
+           broker::status_subscriber::*)()) &broker::status_subscriber::get)
     .def("get",
          [](broker::status_subscriber& ep, double secs)
            -> std::optional<broker::status_subscriber::value_type> {

@@ -208,9 +208,9 @@ public:
     };
     for (size_t index = 0; index < 10; ++index)
       fill_tbl(topologies[index], g, {}, 0, index, on_new_node);
-      // for (size_t index = 0; index < 10; ++index)
-      //   fill_tbl(v2_topologies[index], g, {}, 0, index, [](auto&&...) {});
-      // Sanity checking
+    // for (size_t index = 0; index < 10; ++index)
+    //   fill_tbl(v2_topologies[index], g, {}, 0, index, [](auto&&...) {});
+    // Sanity checking
 #ifndef NDEBUG
     for (size_t index = 0; index < 10; ++index)
       assert(ids[index].size() == (1 << (index + 1)));
