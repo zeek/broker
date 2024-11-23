@@ -33,7 +33,7 @@ inline bool mkdirs(const path& p) {
   std::error_code ec;
   if (!std::filesystem::create_directories(p, ec)) {
     log::core::error("cannot-create-directory",
-                     "failed to create directory {}: {}", p.native(),
+                     "failed to create directory {}: {}", p.string(),
                      ec.message());
     return false;
   }
@@ -49,7 +49,7 @@ inline bool remove(const path& p) {
   std::error_code ec;
   if (!std::filesystem::remove(p, ec)) {
     log::core::error("cannot-remove-path", "failed to remove {}: {}",
-                     p.native(), ec.message());
+                     p.string(), ec.message());
     return false;
   }
   return true;
@@ -59,7 +59,7 @@ inline bool remove_all(const path& p) {
   std::error_code ec;
   if (!std::filesystem::remove_all(p, ec)) {
     log::core::error("cannot-remove-path", "failed to remove {}: {}",
-                     p.native(), ec.message());
+                     p.string(), ec.message());
     return false;
   }
   return true;
