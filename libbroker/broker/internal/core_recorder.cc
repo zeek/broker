@@ -7,7 +7,7 @@
 
 #include "broker/defaults.hh"
 #include "broker/detail/filesystem.hh"
-#include "broker/internal/logger.hh"
+#include "broker/logger.hh"
 
 namespace broker::internal {
 
@@ -27,9 +27,11 @@ core_recorder::core_recorder(caf::local_actor* self) {
     auto messages_file_name = meta_dir + "/messages.dat";
     writer_ = make_generator_file_writer(messages_file_name);
     if (writer_ == nullptr) {
-      BROKER_WARNING("cannot open recording file" << messages_file_name);
+      log::core::warning("cannot-open-recording-file",
+                         "cannot open recording file {}", messages_file_name);
     } else {
-      BROKER_DEBUG("opened file for recording:" << messages_file_name);
+      log::core::debug("opened-recording-file", "opened file for recording: {}",
+                       messages_file_name);
       remaining_records_ = get_or(cfg, "broker.output-generator-file-cap",
                                   defaults::output_generator_file_cap);
     }
@@ -37,14 +39,14 @@ core_recorder::core_recorder(caf::local_actor* self) {
 }
 
 void core_recorder::record_subscription(const filter_type& what) {
-  BROKER_TRACE(BROKER_ARG(what));
   if (!topics_file_)
     return;
   // Simply append to topics without de-duplication.
   if (topics_file_.is_open()) {
     for (const auto& x : what) {
       if (!(topics_file_ << x.string() << '\n')) {
-        BROKER_WARNING("failed to write to topics file");
+        log::core::warning("failed-to-write-to-topics-file",
+                           "failed to write to topics file");
         topics_file_.close();
         break;
       }
@@ -61,10 +63,12 @@ void core_recorder::record_peer(const endpoint_id& peer_id) {
 bool core_recorder::open_file(std::ofstream& fs, std::string file_name) {
   fs.open(file_name);
   if (fs.is_open()) {
-    BROKER_DEBUG("opened file for recording:" << file_name);
+    log::core::debug("opened-recording-file", "opened file for recording: {}",
+                     file_name);
     return true;
   }
-  BROKER_WARNING("cannot open recording file:" << file_name);
+  log::core::warning("cannot-open-recording-file",
+                     "cannot open recording file {}", file_name);
   return false;
 }
 
