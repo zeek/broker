@@ -46,7 +46,7 @@ std::string to_string(envelope_type x) {
 }
 
 bool from_string(std::string_view str, envelope_type& x) {
-  auto tmp = p2p_message_type{0};
+  auto tmp = p2p_message_type::data;
   if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 5) {
     x = static_cast<envelope_type>(tmp);
     return true;
@@ -57,7 +57,7 @@ bool from_string(std::string_view str, envelope_type& x) {
 
 bool from_integer(uint8_t val, envelope_type& x) {
   if (val <= 0x04) {
-    auto tmp = p2p_message_type{0};
+    auto tmp = p2p_message_type::data;
     if (from_integer(val, tmp)) {
       x = static_cast<envelope_type>(tmp);
       return true;
