@@ -4,6 +4,7 @@
           clang-analyzer-*,
           modernize-*,
           performance-*,
+          -performance-enum-size,
           -bugprone-easily-swappable-parameters,
           -bugprone-forward-declaration-namespace,
           -clang-analyzer-cplusplus.NewDeleteLeaks,

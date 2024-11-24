@@ -125,7 +125,7 @@ struct retriever {
 
   template <class T>
   result_type operator()(const T& x) const {
-    return x;
+    return data{x};
   }
 
   static result_type at_index(const vector& v, count index) {
@@ -149,7 +149,7 @@ struct retriever {
   }
 
   result_type operator()(const set& s) const {
-    return s.count(aspect) == 1;
+    return data{s.count(aspect) == 1};
   }
 
   result_type operator()(const table& t) const {

@@ -85,8 +85,9 @@ expected<envelope_ptr> pong_envelope::deserialize(
   const endpoint_id& sender, const endpoint_id& receiver, uint16_t ttl,
   std::string_view topic_str, const std::byte* payload, size_t payload_size) {
   using impl_ptr = intrusive_ptr<envelope::deserialized<pong_envelope>>;
-  return impl_ptr::make(sender, receiver, ttl, topic_str, payload,
-                        payload_size);
+  auto ptr = impl_ptr::make(sender, receiver, ttl, topic_str, payload,
+                            payload_size);
+  return envelope_ptr{std::move(ptr)};
 }
 
 } // namespace broker

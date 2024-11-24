@@ -134,7 +134,7 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
     case envelope_type::data:
       if (auto res = data_envelope::deserialize(sender, receiver, ttl,
                                                 topic_str, data, size))
-        return *res;
+        return envelope_ptr{std::move(*res)};
       else
         return res.error();
     case envelope_type::command:
@@ -180,7 +180,7 @@ expected<envelope_ptr> envelope::deserialize_json(const char* data,
   // Note: must manually "unbox" the expected to convert from
   // expected<data_envelope_ptr> to expected<envelope_ptr>.
   if (res)
-    return *res;
+    return envelope_ptr{std::move(*res)};
   else
     return res.error();
 }

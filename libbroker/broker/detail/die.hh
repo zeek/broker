@@ -21,7 +21,7 @@ void render(T&& x, Ts&&... xs) {
 template <class... Ts>
 [[noreturn]] void die(Ts&&... xs) {
   render(std::forward<Ts>(xs)...);
-  std::cerr << std::endl;
+  std::cerr << '\n';
   std::abort();
 }
 
