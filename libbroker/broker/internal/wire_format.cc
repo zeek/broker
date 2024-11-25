@@ -168,7 +168,7 @@ std::string stringify(const var_msg& msg) {
 
 var_msg decode(caf::const_byte_span bytes) {
   format::bin::v1::decoder src{bytes.data(), bytes.size()};
-  auto msg_type = p2p_message_type{0};
+  auto msg_type = p2p_message_type::data;
   if (!src.apply(msg_type)) {
     BROKER_ERROR("decode: failed to read the type tag");
     return make_var_msg_error(ec::invalid_message, "invalid message type tag"s);

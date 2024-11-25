@@ -1,3 +1,22 @@
+2.8.0-dev.140 | 2024-11-25 19:00:28 +0100
+
+  * Fix invalid range clang-tidy findings (Dominik Charousset, Corelight)
+
+    Fix occurrences of "The value '0' provided to the cast expression is not
+    in the valid range of values for 'p2p_message_type'."
+
+  * Fix clang-tidy performance warnings (Dominik Charousset, Corelight)
+
+    Addressed warnings:
+
+    - parameter is copied for each invocation but only used as a const
+      reference
+    - do not use 'std::endl' with streams; use '\\n' instead
+
+    Furthermore, `performance-enum-size` warnings have been disabled. Broker
+    uses several enum types in types that are exchanged over the network.
+    Changing the enum types would be a breaking change on the wire format.
+
 2.8.0-dev.137 | 2024-11-07 19:06:35 +0100
 
   * Update `clang-format` on CI (Dominik Charousset)

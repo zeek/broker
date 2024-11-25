@@ -46,7 +46,7 @@ std::string to_string(envelope_type x) {
 }
 
 bool from_string(std::string_view str, envelope_type& x) {
-  auto tmp = p2p_message_type{0};
+  auto tmp = p2p_message_type::data;
   if (from_string(str, tmp) && static_cast<uint8_t>(tmp) <= 5) {
     x = static_cast<envelope_type>(tmp);
     return true;
@@ -57,7 +57,7 @@ bool from_string(std::string_view str, envelope_type& x) {
 
 bool from_integer(uint8_t val, envelope_type& x) {
   if (val <= 0x04) {
-    auto tmp = p2p_message_type{0};
+    auto tmp = p2p_message_type::data;
     if (from_integer(val, tmp)) {
       x = static_cast<envelope_type>(tmp);
       return true;
@@ -134,7 +134,7 @@ expected<envelope_ptr> envelope::deserialize(const std::byte* data,
     case envelope_type::data:
       if (auto res = data_envelope::deserialize(sender, receiver, ttl,
                                                 topic_str, data, size))
-        return *res;
+        return envelope_ptr{std::move(*res)};
       else
         return res.error();
     case envelope_type::command:
@@ -180,7 +180,7 @@ expected<envelope_ptr> envelope::deserialize_json(const char* data,
   // Note: must manually "unbox" the expected to convert from
   // expected<data_envelope_ptr> to expected<envelope_ptr>.
   if (res)
-    return *res;
+    return envelope_ptr{std::move(*res)};
   else
     return res.error();
 }

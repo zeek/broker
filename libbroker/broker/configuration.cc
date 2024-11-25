@@ -57,7 +57,7 @@ bool openssl_options::authentication_enabled() const noexcept {
 namespace {
 
 template <class... Ts>
-auto concat(Ts... xs) {
+auto concat(const Ts&... xs) {
   std::string result;
   ((result += xs), ...);
   return result;
