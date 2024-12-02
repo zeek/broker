@@ -1944,7 +1944,8 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
           } else {
             mgr.abort(*i);
           }
-          while ((i->revents & read_mask) && mgr.must_read_more(*i))
+          while ((i->revents & read_mask) && (i->events & read_mask)
+                 && mgr.must_read_more(*i))
             mgr.continue_reading(*i);
         }
       } while (--presult > 0 && advance());
