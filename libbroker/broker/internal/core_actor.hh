@@ -140,7 +140,8 @@ public:
 
   /// Called whenever a client disconnected.
   void client_removed(endpoint_id client_id, const network_info& addr,
-                      const std::string& type);
+                      const std::string& type, const caf::error& reason,
+                      bool removed);
 
   // -- connection management --------------------------------------------------
 
@@ -212,6 +213,14 @@ public:
   void unpeer(const network_info& peer_addr);
 
   // -- properties -------------------------------------------------------------
+
+  size_t peer_buffer_size();
+
+  caf::flow::backpressure_overflow_strategy peer_overflow_policy();
+
+  size_t web_socket_buffer_size();
+
+  caf::flow::backpressure_overflow_strategy web_socket_overflow_policy();
 
   /// Points to the actor itself.
   caf::event_based_actor* self;
@@ -285,8 +294,10 @@ public:
   /// memory regions over and over again.
   caf::byte_buffer buf;
 
+  using disposable_list = std::vector<caf::disposable>;
+
   /// Stores the subscriptions for our input sources to allow us to cancel them.
-  std::vector<caf::disposable> subscriptions;
+  std::map<endpoint_id, disposable_list> subscriptions;
 
   /// Bundles state for a subscriber that does not integrate into the flows.
   struct legacy_subscriber {

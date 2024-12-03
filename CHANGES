@@ -1,3 +1,11 @@
+2.8.0-dev.144 | 2024-12-02 23:59:25 -0800
+
+  * Fix log statement when disconnecting stalled peers (Dominik Charousset)
+
+  * Disconnect slow peers and WS clients by default (Dominik Charousset)
+
+  * Pick up backport for on_backpressure_buffer (Dominik Charousset)
+
 2.8.0-dev.140 | 2024-11-25 19:00:28 +0100
 
   * Fix invalid range clang-tidy findings (Dominik Charousset, Corelight)
