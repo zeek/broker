@@ -12,7 +12,7 @@ RUN apt-get update && apt-get -y install \
     git \
     libssl-dev \
     make \
-    python3 \
+    python3.9 \
     python3-dev \
   && apt autoclean \
   && rm -rf /var/lib/apt/lists/*

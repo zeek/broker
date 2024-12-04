@@ -1,3 +1,7 @@
+2.8.0-dev.146 | 2024-12-04 14:36:30 -0700
+
+  * CI: Require python 3.9 on ubuntu 20 (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.144 | 2024-12-02 23:59:25 -0800
 
   * Fix log statement when disconnecting stalled peers (Dominik Charousset)
