@@ -1,3 +1,11 @@
+2.8.0-dev.150 | 2024-12-06 00:02:47 -0800
+
+  * CI: add Ubuntu 24.10 (Christian Kreibich, Corelight)
+
+  * CI: bump FreeBSD to 14.1 and 13.4, respectively (Christian Kreibich, Corelight)
+
+  * CI: drop Fedora 39, add 41 (Christian Kreibich, Corelight)
+
 2.8.0-dev.146 | 2024-12-04 14:36:30 -0700
 
   * CI: Require python 3.9 on ubuntu 20 (Tim Wojtulewicz, Corelight)
