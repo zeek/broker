@@ -32,31 +32,32 @@ DAMAGE.
 from docutils import nodes
 import sphinx.domains.std
 
-class CustomStandardDomain(sphinx.domains.std.StandardDomain):
 
+class CustomStandardDomain(sphinx.domains.std.StandardDomain):
     def __init__(self, env):
-        env.settings['footnote_references'] = 'superscript'
+        env.settings["footnote_references"] = "superscript"
         sphinx.domains.std.StandardDomain.__init__(self, env)
 
-    def resolve_xref(self, env, fromdocname, builder,
-                     typ, target, node, contnode):
-        res = super(CustomStandardDomain, self).resolve_xref(env, fromdocname, builder,
-                                                            typ, target, node, contnode)
+    def resolve_xref(self, env, fromdocname, builder, typ, target, node, contnode):
+        res = super(CustomStandardDomain, self).resolve_xref(
+            env, fromdocname, builder, typ, target, node, contnode
+        )
 
         if res is None:
             return res
 
-        if typ == 'ref' and not node['refexplicit']:
-            docname, labelid, sectname = self.data['labels'].get(target, ('','',''))
-            res['refdocname'] = docname
+        if typ == "ref" and not node["refexplicit"]:
+            docname, labelid, sectname = self.data["labels"].get(target, ("", "", ""))
+            res["refdocname"] = docname
 
         return res
+
 
 def doctree_resolved(app, doctree, docname):
     secnums = app.builder.env.toc_secnumbers
     for node in doctree.traverse(nodes.reference):
-        if 'refdocname' in node:
-            refdocname = node['refdocname']
+        if "refdocname" in node:
+            refdocname = node["refdocname"]
             if refdocname in secnums:
                 secnum = secnums[refdocname]
                 toclist = app.builder.env.tocs[refdocname]
@@ -66,14 +67,15 @@ def doctree_resolved(app, doctree, docname):
                         anchorname = None
                         for refnode in toclist.traverse(nodes.reference):
                             if refnode.astext() == text:
-                                anchorname = refnode['anchorname']
+                                anchorname = refnode["anchorname"]
                         if anchorname is None:
                             continue
-                        num = '.'.join(map(str, secnum[anchorname]))
-                        prefix = 'Section '
+                        num = ".".join(map(str, secnum[anchorname]))
+                        prefix = "Section "
                         linktext = prefix + num
                         child.parent.replace(child, nodes.Text(linktext))
 
+
 def setup(app):
     app.add_domain(CustomStandardDomain, override=True)
-    app.connect('doctree-resolved', doctree_resolved)
+    app.connect("doctree-resolved", doctree_resolved)

@@ -40,11 +40,10 @@ event Broker::peer_lost(endpoint: Broker::EndpointInfo, msg: string)
     }
 """
 
+
 class TestCommunication(unittest.TestCase):
     def test_regular(self):
-        with broker.Endpoint() as ep, \
-             ep.make_subscriber("/test") as sub:
-
+        with broker.Endpoint() as ep, ep.make_subscriber("/test") as sub:
             port = ep.listen("127.0.0.1", 0)
 
             p = multiprocessing.Process(target=run_zeek, args=(ZeekHello, port))
@@ -59,9 +58,7 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(str(ctx.exception), "unhashable type: 'dict'")
 
     def test_safe(self):
-        with broker.Endpoint() as ep, \
-             ep.make_safe_subscriber("/test") as sub:
-
+        with broker.Endpoint() as ep, ep.make_safe_subscriber("/test") as sub:
             port = ep.listen("127.0.0.1", 0)
 
             p = multiprocessing.Process(target=run_zeek, args=(ZeekHello, port))
@@ -85,5 +82,6 @@ class TestCommunication(unittest.TestCase):
             ev = broker.zeek.SafeEvent(msg)
             args = ev.args()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

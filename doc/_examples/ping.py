@@ -4,10 +4,11 @@ import sys
 import broker
 
 # Setup endpoint and connect to Zeek.
-with broker.Endpoint() as ep, \
-     ep.make_subscriber("/topic/test") as sub, \
-     ep.make_status_subscriber(True) as ss:
-
+with (
+    broker.Endpoint() as ep,
+    ep.make_subscriber("/topic/test") as sub,
+    ep.make_status_subscriber(True) as ss,
+):
     ep.peer("127.0.0.1", 9999)
 
     # Wait until connection is established.
@@ -19,9 +20,8 @@ with broker.Endpoint() as ep, \
 
     for n in range(5):
         # Send event "ping(n)".
-        ping = broker.zeek.Event("ping", n);
-        ep.publish("/topic/test", ping);
-
+        ping = broker.zeek.Event("ping", n)
+        ep.publish("/topic/test", ping)
         # Wait for "pong" reply event.
         (t, d) = sub.get()
         pong = broker.zeek.Event(d)

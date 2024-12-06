@@ -1,7 +1,7 @@
-
 import unittest
 
 import broker
+
 
 class TestTopic(unittest.TestCase):
     def test_string(self):
@@ -18,5 +18,6 @@ class TestTopic(unittest.TestCase):
         self.assertEqual(t3.string(), "/a//b/c")
         self.assertEqual(t2.string(), "/b/c/a")
 
-if __name__ == '__main__':
-  unittest.main(verbosity=3)
+
+if __name__ == "__main__":
+    unittest.main(verbosity=3)

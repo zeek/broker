@@ -56,11 +56,10 @@ event pong(s: string, n: int)
     }
 """
 
+
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
-        with broker.Endpoint() as ep, \
-             ep.make_subscriber("/test") as sub:
-
+        with broker.Endpoint() as ep, ep.make_subscriber("/test") as sub:
             port = ep.listen("127.0.0.1", 0)
 
             p = multiprocessing.Process(target=run_zeek, args=(ZeekPing, port))
@@ -74,7 +73,7 @@ class TestCommunication(unittest.TestCase):
                 expected_arg = "x" + "Xx" * i
 
                 if i == 5:
-                    expected_arg = expected_arg.encode('utf-8') + b'\x82'
+                    expected_arg = expected_arg.encode("utf-8") + b"\x82"
 
                 # Extract metadata.
                 ev_metadata = ev.metadata()
@@ -96,11 +95,14 @@ class TestCommunication(unittest.TestCase):
                 if i < 3:
                     ev = broker.zeek.Event("pong", s + "X", c, metadata=metadata)
                 elif i < 5:
-                    ev = broker.zeek.Event("pong", s.encode('utf-8') + b'X', c, metadata=metadata)
+                    ev = broker.zeek.Event(
+                        "pong", s.encode("utf-8") + b"X", c, metadata=metadata
+                    )
                 else:
-                    ev = broker.zeek.Event("pong", 'done', c)
+                    ev = broker.zeek.Event("pong", "done", c)
 
                 ep.publish("/test", ev)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

@@ -1,4 +1,3 @@
-
 import unittest
 import sys
 import time
@@ -7,17 +6,19 @@ import broker
 
 from inspect import currentframe, getframeinfo
 
+
 def create_stores(self):
     ep0 = broker.Endpoint()
     ep1 = broker.Endpoint()
     ep2 = broker.Endpoint()
 
-    with ep0.make_subscriber("/test") as s0, \
-         ep1.make_subscriber("/test") as s1, \
-         ep1.make_status_subscriber() as es1, \
-         ep2.make_subscriber("/test") as s2, \
-         ep2.make_status_subscriber() as es2:
-
+    with (
+        ep0.make_subscriber("/test") as s0,
+        ep1.make_subscriber("/test") as s1,
+        ep1.make_status_subscriber() as es1,
+        ep2.make_subscriber("/test") as s2,
+        ep2.make_status_subscriber() as es2,
+    ):
         p = ep0.listen("127.0.0.1", 0)
         ep1.peer("127.0.0.1", p)
         ep2.peer("127.0.0.1", p)
@@ -36,16 +37,18 @@ def create_stores(self):
 
         return (ep0, ep1, ep2, m, c1, c2)
 
+
 # Runs a test with one master and two clones
 # --tri-setup-start
 def run_tri_setup(self, f):
-    with broker.Endpoint() as ep0, \
-         broker.Endpoint() as ep1, \
-         broker.Endpoint() as ep2, \
-         ep0.attach_master("test", broker.Backend.Memory) as m, \
-         ep1.attach_clone("test") as c1, \
-         ep2.attach_clone("test") as c2:
-
+    with (
+        broker.Endpoint() as ep0,
+        broker.Endpoint() as ep1,
+        broker.Endpoint() as ep2,
+        ep0.attach_master("test", broker.Backend.Memory) as m,
+        ep1.attach_clone("test") as c1,
+        ep2.attach_clone("test") as c2,
+    ):
         # connect the nodes
         port = ep0.listen("127.0.0.1", 0)
         self.assertTrue(ep1.peer("127.0.0.1", port))
@@ -62,18 +65,23 @@ def run_tri_setup(self, f):
         self.assertTrue(c2.await_idle())
 
         f(m, c1, c2)
+
+
 # --tri-setup-end
+
 
 def await_idle(self, *argv):
     for store in argv:
-        self.assertTrue(store.await_idle());
+        self.assertTrue(store.await_idle())
+
 
 class TestStore(unittest.TestCase):
     def test_basic(self):
         # --master-start
-        with broker.Endpoint() as ep1, \
-             ep1.attach_master("test", broker.Backend.Memory) as m:
-
+        with (
+            broker.Endpoint() as ep1,
+            ep1.attach_master("test", broker.Backend.Memory) as m,
+        ):
             m.put("key", "value")
             x = m.get("key")
             # x == "value"
@@ -95,7 +103,7 @@ class TestStore(unittest.TestCase):
             self.assertEqual(c2.put_unique("e", "first"), True)
             self.assertEqual(c2.put_unique("e", "second"), False)
             self.assertEqual(c2.put_unique("e", "third"), False)
-            time.sleep(.5)
+            time.sleep(0.5)
 
             def checkAccessors(x):
                 self.assertEqual(x.get("a"), v1)
@@ -112,7 +120,7 @@ class TestStore(unittest.TestCase):
                 self.assertEqual(x.get_index_from_value("c", 10), None)
                 self.assertEqual(x.get_index_from_value("d", 1), "B")
                 self.assertEqual(x.get_index_from_value("d", 10), None)
-                self.assertEqual(x.keys(), {'a', 'b', 'c', 'd', 'e'})
+                self.assertEqual(x.keys(), {"a", "b", "c", "d", "e"})
 
             checkAccessors(m)
             checkAccessors(c1)
@@ -141,15 +149,15 @@ class TestStore(unittest.TestCase):
             m.pop("vec")
             # --ops-end
 
-            time.sleep(0.15) # Make sure 'g' expires.
+            time.sleep(0.15)  # Make sure 'g' expires.
 
             await_idle(self, c2, c1, m)
 
             def checkModifiers(x):
                 self.assertEqual(x.get("e"), v5 + 1)
                 self.assertEqual(x.get("f"), v5 - 1)
-                self.assertEqual(x.get("g"), None) # Expired
-                self.assertEqual(x.get("h"), v5) # Not Expired
+                self.assertEqual(x.get("g"), None)  # Expired
+                self.assertEqual(x.get("h"), v5)  # Not Expired
                 self.assertEqual(x.get("str"), "bar")
                 self.assertEqual(x.get("set"), set([2, 3]))
                 self.assertEqual(x.get("table"), {3: "D", "2": "C"})
@@ -170,11 +178,12 @@ class TestStore(unittest.TestCase):
         run_tri_setup(self, impl)
 
     def test_from_one_clone(self):
-        with broker.Endpoint() as ep0, \
-             broker.Endpoint() as ep1, \
-             ep0.attach_master("test", broker.Backend.Memory) as m, \
-             ep1.attach_clone("test") as c1:
-
+        with (
+            broker.Endpoint() as ep0,
+            broker.Endpoint() as ep1,
+            ep0.attach_master("test", broker.Backend.Memory) as m,
+            ep1.attach_clone("test") as c1,
+        ):
             port = ep0.listen("127.0.0.1", 0)
 
             self.assertTrue(ep1.peer("127.0.0.1", port))
@@ -194,10 +203,8 @@ class TestStore(unittest.TestCase):
 
             self.assertEqual(c1.put_unique("e", "first"), True)
 
-
     def test_from_two_clones(self):
         def impl(m, c1, c2):
-
             v1 = "A"
             v2 = {"A", "B", "C"}
             v3 = {1: "A", 2: "B", 3: "C"}
@@ -228,7 +235,7 @@ class TestStore(unittest.TestCase):
                 self.assertEqual(x.get_index_from_value("c", 10), None)
                 self.assertEqual(x.get_index_from_value("d", 1), "B")
                 self.assertEqual(x.get_index_from_value("d", 10), None)
-                self.assertEqual(x.keys(), {'a', 'b', 'c', 'd', 'e'})
+                self.assertEqual(x.keys(), {"a", "b", "c", "d", "e"})
 
             checkAccessors(m)
             checkAccessors(c1)
@@ -265,8 +272,8 @@ class TestStore(unittest.TestCase):
             def checkModifiers(x):
                 self.assertEqual(x.get("e"), v5 + 1)
                 self.assertEqual(x.get("f"), v5 - 1)
-                self.assertEqual(x.get("g"), None) # Expired
-                self.assertEqual(x.get("h"), v5) # Not Expired
+                self.assertEqual(x.get("g"), None)  # Expired
+                self.assertEqual(x.get("h"), v5)  # Not Expired
                 self.assertEqual(x.get("str"), "bar")
                 self.assertEqual(x.get("set"), set([2, 3]))
                 self.assertEqual(x.get("table"), {3: "D", "2": "C"})
@@ -286,5 +293,6 @@ class TestStore(unittest.TestCase):
 
         run_tri_setup(self, impl)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

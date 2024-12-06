@@ -8,43 +8,43 @@ from datetime import date
 import sys, os
 
 # Add custom extensions directory to search path.
-sys.path.insert(0, os.path.abspath('./extensions'))
+sys.path.insert(0, os.path.abspath("./extensions"))
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'numsec',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.todo',
+    "numsec",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.todo",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # General information about the project.
-project = u'Broker'
-author = u'The Zeek Project'
-copyright = str(date.today().year) + ', ' + author
+project = "Broker"
+author = "The Zeek Project"
+copyright = str(date.today().year) + ", " + author
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-with open('../VERSION', 'r') as f:
+with open("../VERSION", "r") as f:
     version = f.readline().strip()
 
 # The full version, including alpha/beta/rc tags.
@@ -69,7 +69,7 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', '.DS_Store']
+exclude_patterns = ["_build", ".DS_Store"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -91,9 +91,9 @@ exclude_patterns = ['_build', '.DS_Store']
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
-highlight_language = 'C++'
+highlight_language = "C++"
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []
@@ -110,21 +110,21 @@ todo_emit_warnings = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 
 html_theme_options = {
-    'collapse_navigation': False,
-    'display_version': True,
+    "collapse_navigation": False,
+    "display_version": True,
 }
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-html_title = u'Broker User Manual'
+html_title = "Broker User Manual"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
@@ -142,7 +142,7 @@ html_favicon = None
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -152,9 +152,9 @@ html_static_path = ['_static']
 # Custom sidebar templates, maps document names to template names.
 #
 # html_sidebars = {}
-#html_sidebars = {
+# html_sidebars = {
 #   '**': ['custom-sidebar.html']
-#}
+# }
 
 # If true, "Created using Sphinx" is shown in the HTML footer. Default is True.
 html_show_sphinx = False
@@ -163,12 +163,12 @@ html_show_sphinx = False
 html_show_copyright = True
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'broker-doc'
+htmlhelp_basename = "broker-doc"
 
 # -- Options for PDF output -----------------------------------------------
 
 pdf_documents = [
-    ('index', u'user-manual', u'Broker', u'The Zeek Project'),
+    ("index", "user-manual", "Broker", "The Zeek Project"),
 ]
 
-pdf_stylesheets = ['sphinx', 'kerning', 'letter']
+pdf_stylesheets = ["sphinx", "kerning", "letter"]

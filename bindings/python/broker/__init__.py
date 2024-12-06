@@ -1,4 +1,3 @@
-
 try:
     from . import _broker
 except ImportError:
@@ -13,11 +12,11 @@ import collections
 
 try:
     from datetime import timezone
+
     utc = timezone.utc
 except:
     # Only Python 3.2+ has a datetime.timezone.utc we can re-use
     class UTC(datetime.tzinfo):
-
         def utcoffset(self, dt):
             return datetime.timedelta(0)
 
@@ -49,7 +48,7 @@ except:
     utc = UTC()
 
 Version = _broker.Version
-Version.string = lambda: '%u.%u.%u' % (Version.MAJOR, Version.MINOR, Version.PATCH)
+Version.string = lambda: "%u.%u.%u" % (Version.MAJOR, Version.MINOR, Version.PATCH)
 
 now = _broker.now
 
@@ -72,11 +71,14 @@ BrokerOptions = _broker.BrokerOptions
 # Broker's (or better: CAF's) EC code is an integer. Add support
 # for comparision against the enum.
 _EC_eq = _broker.EC.__eq__
+
+
 def _our_EC_eq(self, other):
     if isinstance(other, int):
         return other == int(self)
     else:
         return _EC_eq(self, other)
+
 
 _broker.EC.__eq__ = _our_EC_eq
 
@@ -91,8 +93,10 @@ Timespan = _broker.Timespan
 Timestamp = _broker.Timestamp
 Vector = _broker.Vector
 
+
 def _make_topic(t):
-    return (Topic(t) if not isinstance(t, Topic) else t)
+    return Topic(t) if not isinstance(t, Topic) else t
+
 
 def _make_topics(ts):
     if isinstance(ts, Topic):
@@ -105,6 +109,7 @@ def _make_topics(ts):
         ts = [Topic(ts)]
 
     return _broker.VectorTopic(ts)
+
 
 # This class does not derive from the internal class because we
 # need to pass in existing instances. That means we need to
@@ -161,6 +166,7 @@ class Subscriber:
     def remove_topic(self, topic, block=False):
         return self._subscriber.remove_topic(_make_topic(topic), block)
 
+
 class SafeSubscriber(Subscriber):
     """Subscriber subclass that makes returnes messages safe to process.
 
@@ -191,7 +197,8 @@ class SafeSubscriber(Subscriber):
 
         assert False
 
-class StatusSubscriber():
+
+class StatusSubscriber:
     def __init__(self, internal_subscriber):
         self._subscriber = internal_subscriber
 
@@ -234,6 +241,7 @@ class StatusSubscriber():
             return x.get_status()
 
         assert False
+
 
 class Publisher:
     # This class does not derive from the internal class because we
@@ -279,6 +287,7 @@ class Publisher:
     def publish_batch(self, *batch):
         batch = [Data.from_py(d) for d in batch]
         return self._publisher.publish_batch(_broker.Vector(batch))
+
 
 class Store:
     # This class does not derive from the internal class because we
@@ -370,7 +379,7 @@ class Store:
         key = Data.from_py(key)
         s = Data.from_py(s)
         expiry = self._to_expiry(expiry)
-        return  self._store.append(key, s, expiry)
+        return self._store.append(key, s, expiry)
 
     def insert_into(self, key, index, value=None, expiry=None):
         key = Data.from_py(key)
@@ -387,7 +396,7 @@ class Store:
         key = Data.from_py(key)
         index = Data.from_py(index)
         expiry = self._to_expiry(expiry)
-        return  self._store.remove_from(key, index, expiry)
+        return self._store.remove_from(key, index, expiry)
 
     def push(self, key, value, expiry=None):
         key = Data.from_py(key)
@@ -401,7 +410,11 @@ class Store:
         return self._store.pop(key, expiry)
 
     def _to_expiry(self, e):
-        return (_broker.OptionalTimespan(_broker.Timespan(float(e))) if e is not None else _broker.OptionalTimespan())
+        return (
+            _broker.OptionalTimespan(_broker.Timespan(float(e)))
+            if e is not None
+            else _broker.OptionalTimespan()
+        )
 
     def await_idle(self, timeout=None):
         if timeout:
@@ -413,18 +426,21 @@ class Store:
     # before destroying the endpoint.
     _parent = None
 
+
 class Endpoint(_broker.Endpoint):
-    def make_subscriber(self, topics, qsize = 20, subscriber_class=Subscriber):
+    def make_subscriber(self, topics, qsize=20, subscriber_class=Subscriber):
         topics = _make_topics(topics)
         s = _broker.Endpoint.make_subscriber(self, topics, qsize)
         return subscriber_class(s)
 
-    def make_safe_subscriber(self, topics, qsize = 20):
+    def make_safe_subscriber(self, topics, qsize=20):
         """A variant of make_subscriber that returns a SafeSubscriber instance. In
         contrast to the Subscriber class, messages retrieved from
         SafeSubscribers use immutable, hashable values to ensure Python can
         represent them. When in doubt, use make_safe_subscriber()."""
-        return self.make_subscriber(topics=topics, qsize=qsize, subscriber_class=SafeSubscriber)
+        return self.make_subscriber(
+            topics=topics, qsize=qsize, subscriber_class=SafeSubscriber
+        )
 
     def make_status_subscriber(self, receive_statuses=False):
         s = _broker.Endpoint.make_status_subscriber(self, receive_statuses)
@@ -441,7 +457,7 @@ class Endpoint(_broker.Endpoint):
 
     def publish(self, topic, data):
         topic = _make_topic(topic)
-        data =  Data.from_py(data)
+        data = Data.from_py(data)
         return _broker.Endpoint.publish(self, topic, data)
 
     def publish_batch(self, *batch):
@@ -449,8 +465,8 @@ class Endpoint(_broker.Endpoint):
         return _broker.Endpoint.publish_batch(self, _broker.VectorPairTopicData(batch))
 
     def attach_master(self, name, type=None, opts={}):
-        bopts = _broker.MapBackendOptions() # Generator expression doesn't work here.
-        for (k, v) in opts.items():
+        bopts = _broker.MapBackendOptions()  # Generator expression doesn't work here.
+        for k, v in opts.items():
             bopts[k] = Data.from_py(v)
         s = _broker.Endpoint.attach_master(self, name, type, bopts)
         if not s.is_valid():
@@ -473,9 +489,11 @@ class Endpoint(_broker.Endpoint):
 
     def await_peer(self, node, timeout=None):
         if timeout:
-            return  _broker.Endpoint.await_peer(self, node, _broker.Timespan(float(timeout)))
+            return _broker.Endpoint.await_peer(
+                self, node, _broker.Timespan(float(timeout))
+            )
         else:
-            return  _broker.Endpoint.await_peer(self, node)
+            return _broker.Endpoint.await_peer(self, node)
 
     def __enter__(self):
         return self
@@ -483,14 +501,17 @@ class Endpoint(_broker.Endpoint):
     def __exit__(self, type, value, traceback):
         self.shutdown()
 
+
 class Message:
     def to_broker(self):
         assert False and "method not overridden"
 
+
 from . import zeek
 
+
 class Data(_broker.Data):
-    def __init__(self, x = None):
+    def __init__(self, x=None):
         if x is None:
             _broker.Data.__init__(self)
 
@@ -500,8 +521,26 @@ class Data(_broker.Data):
         elif isinstance(x, _broker.Data):
             _broker.Data.__init__(self, x)
 
-        elif isinstance(x, (bool, int, float, str, bytes,
-                            Address, Count, Enum, Port, Set, Subnet, Table, Timespan, Timestamp, Vector)):
+        elif isinstance(
+            x,
+            (
+                bool,
+                int,
+                float,
+                str,
+                bytes,
+                Address,
+                Count,
+                Enum,
+                Port,
+                Set,
+                Subnet,
+                Table,
+                Timespan,
+                Timestamp,
+                Vector,
+            ),
+        ):
             _broker.Data.__init__(self, x)
 
         elif isinstance(x, datetime.timedelta):
@@ -539,7 +578,7 @@ class Data(_broker.Data):
 
         elif isinstance(x, dict) or isinstance(x, types.MappingProxyType):
             t = _broker.Table()
-            for (k, v) in x.items():
+            for k, v in x.items():
                 t[Data(k)] = Data(v)
 
             _broker.Data.__init__(self, t)
@@ -563,9 +602,13 @@ class Data(_broker.Data):
             # Python < 3.5 does not have a nicer way of setting the prefixlen
             # when creating from packed data.
             if s.network().is_v4():
-                return ipaddress.IPv4Network(to_ipaddress(s.network())).supernet(new_prefix=s.length())
+                return ipaddress.IPv4Network(to_ipaddress(s.network())).supernet(
+                    new_prefix=s.length()
+                )
             else:
-                return ipaddress.IPv6Network(to_ipaddress(s.network())).supernet(new_prefix=s.length())
+                return ipaddress.IPv6Network(to_ipaddress(s.network())).supernet(
+                    new_prefix=s.length()
+                )
 
         def to_set(s):
             return set([Data.to_py(i) for i in s])
@@ -578,7 +621,7 @@ class Data(_broker.Data):
 
         def _try_bytes_decode(b):
             try:
-                return b.decode('utf-8')
+                return b.decode("utf-8")
             except:
                 return b
 
@@ -596,8 +639,10 @@ class Data(_broker.Data):
             Data.Type.Subnet: lambda: to_subnet(d.as_subnet()),
             Data.Type.Table: lambda: to_table(d.as_table()),
             Data.Type.Timespan: lambda: datetime.timedelta(seconds=d.as_timespan()),
-            Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(d.as_timestamp(), utc),
-            Data.Type.Vector: lambda: to_vector(d.as_vector())
+            Data.Type.Timestamp: lambda: datetime.datetime.fromtimestamp(
+                d.as_timestamp(), utc
+            ),
+            Data.Type.Vector: lambda: to_vector(d.as_vector()),
         }
 
         try:
@@ -605,17 +650,19 @@ class Data(_broker.Data):
         except KeyError:
             raise TypeError("unsupported data type: " + str(d.get_type()))
 
+
 class ImmutableData(Data):
     """A Data specialization that uses immutable complex types for returned Python
     objects. For sets, the return type is frozenset, for tables it's a hashable,
     read-only derivative of dict, and for vectors it's Python tuples.
     """
+
     class HashableReadOnlyDict(dict):
         def __hash__(self):
             return hash(frozenset(self.items()))
 
         def __readonly__(self, *args, **kwargs):
-            raise TypeError('cannot modify this dict')
+            raise TypeError("cannot modify this dict")
 
         # https://stackoverflow.com/a/31049908
         __setitem__ = __readonly__
@@ -633,7 +680,9 @@ class ImmutableData(Data):
             return frozenset([ImmutableData.to_py(i) for i in s])
 
         def to_table(t):
-            tmp = {ImmutableData.to_py(k): ImmutableData.to_py(v) for (k, v) in t.items()}
+            tmp = {
+                ImmutableData.to_py(k): ImmutableData.to_py(v) for (k, v) in t.items()
+            }
             # It's tempting here to use types.MappingProxyType here, but it is
             # not hashable, so doesn't solve our main problem, and cannot be
             # derived from.
@@ -645,7 +694,7 @@ class ImmutableData(Data):
         converters = {
             Data.Type.Set: lambda: to_set(d.as_set()),
             Data.Type.Table: lambda: to_table(d.as_table()),
-            Data.Type.Vector: lambda: to_vector(d.as_vector())
+            Data.Type.Vector: lambda: to_vector(d.as_vector()),
         }
 
         try:
@@ -653,6 +702,7 @@ class ImmutableData(Data):
         except KeyError:
             # Fall back on the Data class for types we handle identically.
             return Data.to_py(d)
+
 
 ####### TODO: Updated to new Broker API until here.
 

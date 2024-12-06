@@ -1,4 +1,3 @@
-
 import unittest
 import multiprocessing
 import sys
@@ -7,13 +6,16 @@ import ipaddress
 
 import broker
 
+
 class TestCommunication(unittest.TestCase):
     def test_ping(self):
         # --peer-start
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_subscriber("/test") as s1, \
-             ep2.make_subscriber("/test") as s2:
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_subscriber("/test") as s1,
+            ep2.make_subscriber("/test") as s2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
 
@@ -39,7 +41,7 @@ class TestCommunication(unittest.TestCase):
                 if msgs:
                     self.assertEqual(len(msgs), 1)
                     (t, d) = msgs[0]
-                    break;
+                    break
 
                 time.sleep(0.1)
 
@@ -47,10 +49,11 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(d[0], "pong")
 
     def test_messages(self):
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_subscriber("/test") as s1:
-
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_subscriber("/test") as s1,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
 
@@ -62,7 +65,10 @@ class TestCommunication(unittest.TestCase):
 
             # --messages-start
             msg1 = ("/test/2", (1, 2, 3))
-            msg2 = ("/test/3", (42, "foo", {"a": "A", "b": ipaddress.IPv4Address('1.2.3.4')}))
+            msg2 = (
+                "/test/3",
+                (42, "foo", {"a": "A", "b": ipaddress.IPv4Address("1.2.3.4")}),
+            )
             ep2.publish_batch(msg1, msg2)
             # --messages-end
 
@@ -81,14 +87,15 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(len(dict_data), 3)
 
     def test_immutable_messages(self):
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_safe_subscriber("/test") as s1:
-
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_safe_subscriber("/test") as s1,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             ep2.peer("127.0.0.1", port, 1.0)
 
-            msg = ("/test/1", ({"a": "A"}, set([1,2,3]), ('a', 'b', 'c')))
+            msg = ("/test/1", ({"a": "A"}, set([1, 2, 3]), ("a", "b", "c")))
             ep2.publish(*msg)
 
             topic, (dict_data, set_data, tuple_data) = s1.get()
@@ -103,14 +110,15 @@ class TestCommunication(unittest.TestCase):
                 set_data.add(4)
             with self.assertRaises(TypeError):
                 # 'tuple' object does not support item assignment
-                tuple_data[3] = 'd'
+                tuple_data[3] = "d"
 
     def test_publisher(self):
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_subscriber("/test") as s1, \
-             ep2.make_publisher("/test") as p2:
-
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_subscriber("/test") as s1,
+            ep2.make_publisher("/test") as p2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
 
@@ -129,11 +137,12 @@ class TestCommunication(unittest.TestCase):
 
     def test_status_subscriber(self):
         # --status-start
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_status_subscriber(True) as es1, \
-             ep2.make_status_subscriber(True) as es2:
-
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_status_subscriber(True) as es1,
+            ep2.make_status_subscriber(True) as es2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             self.assertEqual(ep2.peer("127.0.0.1", port, 1.0), True)
 
@@ -156,10 +165,9 @@ class TestCommunication(unittest.TestCase):
 
     def test_status_subscriber_error(self):
         # --error-start
-        with broker.Endpoint() as ep1, \
-             ep1.make_status_subscriber() as es1:
-            r = ep1.peer("127.0.0.1", 1947, 0.0) # Try unavailable port, no retry
-            self.assertEqual(r, False) # Not shown in docs.
+        with broker.Endpoint() as ep1, ep1.make_status_subscriber() as es1:
+            r = ep1.peer("127.0.0.1", 1947, 0.0)  # Try unavailable port, no retry
+            self.assertEqual(r, False)  # Not shown in docs.
             st1 = es1.get()
             # s1.code() == broker.EC.PeerUnavailable
             # --error-end
@@ -174,11 +182,13 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(st1.code(), broker.EC.PeerUnavailable)
 
     def test_idle_endpoint(self):
-        with broker.Endpoint() as ep1, \
-             ep1.make_status_subscriber() as es1, \
-             ep1.make_subscriber("/test") as s1:
-
+        with (
+            broker.Endpoint() as ep1,
+            ep1.make_status_subscriber() as es1,
+            ep1.make_subscriber("/test") as s1,
+        ):
             pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

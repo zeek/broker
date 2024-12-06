@@ -1,10 +1,10 @@
-
 import unittest
 import multiprocessing
 import sys
 import time
 
 import broker
+
 
 def cleanup(es, ss):
     for s in ss:
@@ -14,9 +14,24 @@ def cleanup(es, ss):
     for e in es:
         e.shutdown()
 
-def setup_peers(opts1=None, opts2=None, opts3=None, opts4=None, create_s1=True, create_s2=True, create_s3=True, create_s4=True):
+
+def setup_peers(
+    opts1=None,
+    opts2=None,
+    opts3=None,
+    opts4=None,
+    create_s1=True,
+    create_s2=True,
+    create_s3=True,
+    create_s4=True,
+):
     def cfg(opts):
-        return broker.Configuration(opts) if opts else broker.Configuration(broker.BrokerOptions())
+        return (
+            broker.Configuration(opts)
+            if opts
+            else broker.Configuration(broker.BrokerOptions())
+        )
+
     ep1 = broker.Endpoint(cfg(opts1))
     ep2 = broker.Endpoint(cfg(opts2))
     ep3 = broker.Endpoint(cfg(opts3))
@@ -38,6 +53,7 @@ def setup_peers(opts1=None, opts2=None, opts3=None, opts4=None, create_s1=True, 
 
     return ((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
+
 class TestCommunication(unittest.TestCase):
     def test_two_subscribed_hops(self):
         # Two hops that are subscribed.
@@ -50,10 +66,11 @@ class TestCommunication(unittest.TestCase):
         ep4.publish("/test/bar", "Bar!")
 
         x = s4.get()
-        self.assertEqual(x, ('/test/foo', 'Foo!'))
+        self.assertEqual(x, ("/test/foo", "Foo!"))
         x = s1.get()
-        self.assertEqual(x, ('/test/bar', 'Bar!'))
+        self.assertEqual(x, ("/test/bar", "Bar!"))
         cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
+
 
 #### Note: disabled until we switch back to source-routing.
 #
@@ -74,6 +91,6 @@ class TestCommunication(unittest.TestCase):
 #        self.assertEqual(x, ('/test/bar', 'Bar!'))
 #        cleanup((ep1, ep2, ep3, ep4), (s1, s2, s3, s4))
 
-if __name__ == '__main__':
-    #TestCommunication().test_two_hops()
+if __name__ == "__main__":
+    # TestCommunication().test_two_hops()
     unittest.main(verbosity=3)
