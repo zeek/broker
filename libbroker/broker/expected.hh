@@ -40,6 +40,12 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
+  template <class U>
+  expected(U x, std::enable_if_t<std::is_convertible_v<U, T>>* = nullptr)
+    : engaged_(true) {
+    new (std::addressof(value_)) T(std::move(x));
+  }
+
   expected(T&& x) noexcept(nothrow_move) : engaged_(true) {
     new (std::addressof(value_)) T(std::move(x));
   }

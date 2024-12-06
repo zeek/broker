@@ -1,3 +1,11 @@
+2.8.0-dev.154 | 2024-12-06 15:14:02 -0800
+
+  * Fix potential connector infinite loop in read_result::stop scenarios (Christian Kreibich, Corelight)
+
+  * Add reason strings to a peering's force_disconnect() (Christian Kreibich, Corelight)
+
+  * Revert part of 4d9aa3bd that currently breaks Zeek build (Christian Kreibich, Corelight)
+
 2.8.0-dev.150 | 2024-12-06 00:02:47 -0800
 
   * CI: add Ubuntu 24.10 (Christian Kreibich, Corelight)
