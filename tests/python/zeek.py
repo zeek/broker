@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 
 import broker
-from zeek_common import run_zeek, run_zeek_path
+from zeek_common import run_zeek
 
 ZeekPing = """
 redef Broker::default_connect_retry=1secs;

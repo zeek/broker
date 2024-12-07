@@ -2,7 +2,7 @@ import multiprocessing
 import unittest
 
 import broker
-from zeek_common import run_zeek, run_zeek_path
+from zeek_common import run_zeek
 
 ZeekHello = """
 redef Broker::default_connect_retry=1secs;
@@ -79,7 +79,9 @@ class TestCommunication(unittest.TestCase):
             # broker.zeek.SafeEvent uses broker.ImmutableData, so can access
             # the arguments safely:
             ev = broker.zeek.SafeEvent(msg)
-            args = ev.args()
+
+            # TODO: should this test inspect the args somehow?
+            args = ev.args()  # noqa: F841
 
 
 if __name__ == "__main__":

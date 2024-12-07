@@ -1,7 +1,5 @@
-import sys
 import time
 import unittest
-from inspect import currentframe, getframeinfo
 
 import broker
 
@@ -12,11 +10,11 @@ def create_stores(self):
     ep2 = broker.Endpoint()
 
     with (
-        ep0.make_subscriber("/test") as s0,
+        ep0.make_subscriber("/test") as s0,  # noqa: F841
         ep1.make_subscriber("/test") as s1,
-        ep1.make_status_subscriber() as es1,
+        ep1.make_status_subscriber() as es1,  # noqa: F841
         ep2.make_subscriber("/test") as s2,
-        ep2.make_status_subscriber() as es2,
+        ep2.make_status_subscriber() as es2,  # noqa: F841
     ):
         p = ep0.listen("127.0.0.1", 0)
         ep1.peer("127.0.0.1", p)
@@ -192,8 +190,10 @@ class TestStore(unittest.TestCase):
 
             v1 = "A"
             v2 = {"A", "B", "C"}
-            v3 = {1: "A", 2: "B", 3: "C"}
-            v4 = ("A", "B", "C")
+
+            # TODO: These are untested, should they be?
+            #            v3 = {1: "A", 2: "B", 3: "C"}
+            #            v4 = ("A", "B", "C")
 
             c1.put("a", v1)
             c1.put("b", v2)

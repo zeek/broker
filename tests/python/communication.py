@@ -1,6 +1,4 @@
 import ipaddress
-import multiprocessing
-import sys
 import time
 import unittest
 
@@ -184,8 +182,8 @@ class TestCommunication(unittest.TestCase):
     def test_idle_endpoint(self):
         with (
             broker.Endpoint() as ep1,
-            ep1.make_status_subscriber() as es1,
-            ep1.make_subscriber("/test") as s1,
+            ep1.make_status_subscriber() as es1,  # noqa: F841
+            ep1.make_subscriber("/test") as s1,  # noqa: F841
         ):
             pass
 

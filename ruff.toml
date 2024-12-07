@@ -11,4 +11,4 @@ exclude = ["auxil",
            "tests/btest//store"]
 
 [lint]
-select = ["C4", "I", "ISC", "UP"]
+select = ["C4", "F", "I", "ISC", "UP"]

@@ -6,8 +6,6 @@ except ImportError:
 import collections
 import datetime
 import ipaddress
-import sys
-import time
 import types
 
 try:
@@ -299,14 +297,6 @@ class Store:
         # Points to the "owning" Endpoint to make sure Python cleans this object up
         # before destroying the endpoint.
         self._parent = None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self._store.reset()
-        self._parent = None
-        self._store = None
 
     def __enter__(self):
         return self

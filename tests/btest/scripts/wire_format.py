@@ -2,6 +2,7 @@ import socket
 import struct
 import sys
 import time
+import traceback
 import uuid
 from collections import namedtuple
 from enum import IntEnum

@@ -7,7 +7,6 @@
 import datetime
 import ipaddress
 import math
-import sys
 import time
 import types
 import unittest
@@ -117,7 +116,7 @@ class TestDataConstruction(unittest.TestCase):
         )
 
     def test_count_overflow(self):
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(Exception) as context:  # noqa: F841
             # I've seen this raise either OverflowError or SystemError
             # depending on Python version is seems.
             self.check_to_broker(broker.Count(-1), "-1", broker.Data.Type.Count)
