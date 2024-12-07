@@ -95,7 +95,7 @@ class TestCommunication(unittest.TestCase):
             port = ep1.listen("127.0.0.1", 0)
             ep2.peer("127.0.0.1", port, 1.0)
 
-            msg = ("/test/1", ({"a": "A"}, set([1, 2, 3]), ("a", "b", "c")))
+            msg = ("/test/1", ({"a": "A"}, {1, 2, 3}, ("a", "b", "c")))
             ep2.publish(*msg)
 
             topic, (dict_data, set_data, tuple_data) = s1.get()

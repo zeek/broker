@@ -611,7 +611,7 @@ class Data(_broker.Data):
                 )
 
         def to_set(s):
-            return set([Data.to_py(i) for i in s])
+            return {Data.to_py(i) for i in s}
 
         def to_table(t):
             return {Data.to_py(k): Data.to_py(v) for (k, v) in t.items()}

@@ -132,7 +132,7 @@ class TestStore(unittest.TestCase):
             m.put("h", v5, 2)
             m.put("str", "b")
             m.put("vec", (1, 2))
-            m.put("set", set([1, 2]))
+            m.put("set", {1, 2})
             m.put("table", {1: "A", "2": "C"})
 
             # --ops-start
@@ -158,7 +158,7 @@ class TestStore(unittest.TestCase):
                 self.assertEqual(x.get("g"), None)  # Expired
                 self.assertEqual(x.get("h"), v5)  # Not Expired
                 self.assertEqual(x.get("str"), "bar")
-                self.assertEqual(x.get("set"), set([2, 3]))
+                self.assertEqual(x.get("set"), {2, 3})
                 self.assertEqual(x.get("table"), {3: "D", "2": "C"})
                 self.assertEqual(x.get("vec"), (1, 2, 3))
 
@@ -247,7 +247,7 @@ class TestStore(unittest.TestCase):
             c2.put("h", v5, 20)
             m.put("str", "b")
             m.put("vec", [1, 2])
-            m.put("set", set([1, 2]))
+            m.put("set", {1, 2})
             m.put("table", {1: "A", "2": "C"})
 
             await_idle(self, c1, c2, m)
@@ -274,7 +274,7 @@ class TestStore(unittest.TestCase):
                 self.assertEqual(x.get("g"), None)  # Expired
                 self.assertEqual(x.get("h"), v5)  # Not Expired
                 self.assertEqual(x.get("str"), "bar")
-                self.assertEqual(x.get("set"), set([2, 3]))
+                self.assertEqual(x.get("set"), {2, 3})
                 self.assertEqual(x.get("table"), {3: "D", "2": "C"})
                 self.assertEqual(x.get("vec"), (1, 2, 3))
 
