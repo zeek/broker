@@ -1,10 +1,9 @@
-import unittest
 import sys
 import time
+import unittest
+from inspect import currentframe, getframeinfo
 
 import broker
-
-from inspect import currentframe, getframeinfo
 
 
 def create_stores(self):

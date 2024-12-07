@@ -1,0 +1,14 @@
+target-version = "py39"
+
+# The btest directories skipped below contain python code embedding in btest
+# wrappers. Ruff complains about them not being real python files, so just
+# exclude them.
+exclude = ["auxil",
+           "bindings/python/3rdparty",
+           "tests/btest/handshake",
+           "tests/btest/endpoint",
+           "tests/btest/web-socket",
+           "tests/btest//store"]
+
+[lint]
+select = ["I", "ISC"]

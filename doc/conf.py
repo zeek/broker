@@ -4,8 +4,9 @@
 #
 # needs_sphinx = '1.0'
 
+import os
+import sys
 from datetime import date
-import sys, os
 
 # Add custom extensions directory to search path.
 sys.path.insert(0, os.path.abspath("./extensions"))

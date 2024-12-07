@@ -1,8 +1,9 @@
 # sqlite-connect.py
 
-import broker
 import sys
 import time
+
+import broker
 
 with (
     broker.Endpoint() as ep,

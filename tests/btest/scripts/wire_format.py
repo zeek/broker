@@ -1,5 +1,8 @@
-import struct, uuid, sys, socket, time
-
+import socket
+import struct
+import sys
+import time
+import uuid
 from collections import namedtuple
 from enum import IntEnum
 from inspect import getframeinfo, stack

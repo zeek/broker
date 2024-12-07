@@ -1,5 +1,8 @@
-import os, sys, zipfile, subprocess, shutil
-
+import os
+import shutil
+import subprocess
+import sys
+import zipfile
 from subprocess import PIPE
 
 # -- setup and cleanup --------------------------------------------------------

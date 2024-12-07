@@ -1,9 +1,8 @@
-import unittest
 import multiprocessing
+import unittest
 
 import broker
-
-from zeek_common import run_zeek_path, run_zeek
+from zeek_common import run_zeek, run_zeek_path
 
 ZeekHello = """
 redef Broker::default_connect_retry=1secs;

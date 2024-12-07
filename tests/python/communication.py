@@ -1,8 +1,8 @@
-import unittest
+import ipaddress
 import multiprocessing
 import sys
 import time
-import ipaddress
+import unittest
 
 import broker
 

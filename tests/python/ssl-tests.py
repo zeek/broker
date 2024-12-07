@@ -1,8 +1,8 @@
-import unittest
 import multiprocessing
+import os.path
 import sys
 import time
-import os.path
+import unittest
 
 import broker
 

@@ -29,8 +29,8 @@ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 """
 
-from docutils import nodes
 import sphinx.domains.std
+from docutils import nodes
 
 
 class CustomStandardDomain(sphinx.domains.std.StandardDomain):

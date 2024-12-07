@@ -1,11 +1,11 @@
 from __future__ import print_function
-import unittest
+
 import multiprocessing
+import unittest
+from datetime import datetime
 
 import broker
-
-from zeek_common import run_zeek_path, run_zeek
-from datetime import datetime
+from zeek_common import run_zeek, run_zeek_path
 
 ZeekPing = """
 redef Broker::default_connect_retry=1secs;

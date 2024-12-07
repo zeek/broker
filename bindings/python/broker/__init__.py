@@ -3,12 +3,12 @@ try:
 except ImportError:
     import _broker
 
-import sys
+import collections
 import datetime
+import ipaddress
+import sys
 import time
 import types
-import ipaddress
-import collections
 
 try:
     from datetime import timezone

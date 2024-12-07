@@ -1,6 +1,7 @@
 # ping.py
 
 import sys
+
 import broker
 
 # Setup endpoint and connect to Zeek.

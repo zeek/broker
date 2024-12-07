@@ -9,7 +9,8 @@
 #   whereas <key list> is either a comma-separated list or a file path prefixed
 #   with an '@'.
 
-import sys, json
+import json
+import sys
 
 keys = []
 
