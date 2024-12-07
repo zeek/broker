@@ -268,7 +268,7 @@ def write_op_msg(fd, src, dst, tag, topic, buf):
     fd.send(src.bytes)  # sender UUID
     fd.send(dst.bytes)  # receiver UUID
     fd.send(int(tag).to_bytes(1, byteorder="big", signed=False))  # msg type
-    fd.send(int(1).to_bytes(2, byteorder="big", signed=False))  # ttl
+    fd.send((1).to_bytes(2, byteorder="big", signed=False))  # ttl
     fd.send(len(topic).to_bytes(2, byteorder="big", signed=False))
     fd.send(topic.encode())
     fd.send(buf)

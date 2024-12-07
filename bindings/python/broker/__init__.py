@@ -48,7 +48,7 @@ except:
     utc = UTC()
 
 Version = _broker.Version
-Version.string = lambda: "%u.%u.%u" % (Version.MAJOR, Version.MINOR, Version.PATCH)
+Version.string = lambda: f"{Version.MAJOR}.{Version.MINOR}.{Version.PATCH}"
 
 now = _broker.now
 
@@ -573,7 +573,7 @@ class Data(_broker.Data):
             _broker.Data.__init__(self, v)
 
         elif isinstance(x, set) or isinstance(x, frozenset):
-            s = _broker.Set(([Data(i) for i in x]))
+            s = _broker.Set([Data(i) for i in x])
             _broker.Data.__init__(self, s)
 
         elif isinstance(x, dict) or isinstance(x, types.MappingProxyType):

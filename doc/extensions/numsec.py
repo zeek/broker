@@ -39,7 +39,7 @@ class CustomStandardDomain(sphinx.domains.std.StandardDomain):
         sphinx.domains.std.StandardDomain.__init__(self, env)
 
     def resolve_xref(self, env, fromdocname, builder, typ, target, node, contnode):
-        res = super(CustomStandardDomain, self).resolve_xref(
+        res = super().resolve_xref(
             env, fromdocname, builder, typ, target, node, contnode
         )
 

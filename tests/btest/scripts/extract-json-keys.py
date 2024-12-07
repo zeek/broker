@@ -20,7 +20,7 @@ def rec_scan_keys(xs, prefix):
         if not prefix:
             full_key = key
         else:
-            full_key = "{}.{}".format(prefix, key)
+            full_key = f"{prefix}.{key}"
         keys.append(full_key)
         if type(val) is dict:
             rec_scan_keys(val, full_key)
@@ -47,7 +47,7 @@ if len(sys.argv) == 3:
     else:
         required_keys.split(",")
     # Check that each required key exists in the input.
-    print("required_keys: {}".format(required_keys))
+    print(f"required_keys: {required_keys}")
     for key in required_keys:
         if not key in keys:
             sys.exit(1)

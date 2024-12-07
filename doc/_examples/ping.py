@@ -26,4 +26,4 @@ with (
         # Wait for "pong" reply event.
         (t, d) = sub.get()
         pong = broker.zeek.Event(d)
-        print("received {}{}".format(pong.name(), pong.args()))
+        print(f"received {pong.name()}{pong.args()}")

@@ -45,7 +45,7 @@ copyright = str(date.today().year) + ", " + author
 # built documents.
 #
 # The short X.Y version.
-with open("../VERSION", "r") as f:
+with open("../VERSION") as f:
     version = f.readline().strip()
 
 # The full version, including alpha/beta/rc tags.

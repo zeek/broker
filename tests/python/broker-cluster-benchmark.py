@@ -35,7 +35,7 @@ class Environment:
         file_path = os.path.join(self.test_dir, "integration", file_name)
         with zipfile.ZipFile(file_path, "r") as zip_ref:
             zip_ref.extractall(self.input_dir)
-        with open(os.path.join(self.recording_dir, "expected-tpl.conf"), mode="r") as f:
+        with open(os.path.join(self.recording_dir, "expected-tpl.conf")) as f:
             format_vars = {"path": self.recording_dir}
             self.expected = f.read() % format_vars
 

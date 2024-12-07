@@ -26,23 +26,17 @@ def printStats(stats):
     global last_t, last_sent_ev1
     now = time.time()
     # rate = "sending at {:.2f} ev/s, receiving at {:.2f} ev/s".format(total_sent_ev1 / (now - first_t) , total_recv_ev1 / (now - first_t))
-    rate = "sending at {:.2f} ev/s, receiving at {:.2f} ev/s".format(
-        (total_sent_ev1 - last_sent_ev1) / (now - last_t), ev1 / dt.total_seconds()
-    )
+    rate = f"sending at {(total_sent_ev1 - last_sent_ev1) / (now - last_t):.2f} ev/s, receiving at {ev1 / dt.total_seconds():.2f} ev/s"
     last_t = now
     last_sent_ev1 = total_sent_ev1
 
     print(
-        "{} dt={} ev{}={} (total {} of {}) {}".format(
-            t, dt, event, ev1, total_recv_ev1, total_sent_ev1, rate
-        )
+        f"{t} dt={dt} ev{event}={ev1} (total {total_recv_ev1} of {total_sent_ev1}) {rate}"
     )
 
 
 def sendBatch(p, num):
-    event_1s = [
-        broker.zeek.Event("event_{}".format(event), [i, "test"]) for i in range(num)
-    ]
+    event_1s = [broker.zeek.Event(f"event_{event}", [i, "test"]) for i in range(num)]
     for e in event_1s:
         p.publish(e)
 
