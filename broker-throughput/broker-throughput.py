@@ -14,6 +14,7 @@ first_t = float(time.time())
 last_t = first_t
 last_sent_ev1 = 0
 
+
 def printStats(stats):
     t = stats[0]
     dt = stats[1]
@@ -25,19 +26,23 @@ def printStats(stats):
     global last_t, last_sent_ev1
     now = time.time()
     # rate = "sending at {:.2f} ev/s, receiving at {:.2f} ev/s".format(total_sent_ev1 / (now - first_t) , total_recv_ev1 / (now - first_t))
-    rate = "sending at {:.2f} ev/s, receiving at {:.2f} ev/s".format((total_sent_ev1 - last_sent_ev1) / (now - last_t), ev1 / dt.total_seconds())
+    rate = f"sending at {(total_sent_ev1 - last_sent_ev1) / (now - last_t):.2f} ev/s, receiving at {ev1 / dt.total_seconds():.2f} ev/s"
     last_t = now
     last_sent_ev1 = total_sent_ev1
 
-    print("{} dt={} ev{}={} (total {} of {}) {}".format(t, dt, event, ev1, total_recv_ev1, total_sent_ev1, rate))
+    print(
+        f"{t} dt={dt} ev{event}={ev1} (total {total_recv_ev1} of {total_sent_ev1}) {rate}"
+    )
+
 
 def sendBatch(p, num):
-    event_1s = [broker.zeek.Event("event_{}".format(event), [i, "test"]) for i in range(num)]
+    event_1s = [broker.zeek.Event(f"event_{event}", [i, "test"]) for i in range(num)]
     for e in event_1s:
         p.publish(e)
 
     global total_sent_ev1
     total_sent_ev1 += len(event_1s)
+
 
 def wait(s, t):
     waited = 0
@@ -55,9 +60,10 @@ def wait(s, t):
         if waited >= t:
             break
 
+
 ep = broker.Endpoint()
 s = ep.make_subscriber("/benchmark/stats")
-ss = ep.make_status_subscriber(True);
+ss = ep.make_status_subscriber(True)
 ep.peer("127.0.0.1", 9999)
 
 # Wait until connection is established.
@@ -71,7 +77,7 @@ p = ep.make_publisher("/benchmark/events")
 
 while True:
     sendBatch(p, 5000)
-    wait(s, .001)
+    wait(s, 0.001)
 
     if ss.available():
         print(ss.get())

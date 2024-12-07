@@ -13,6 +13,6 @@ RUN apt-get update && apt-get -y install \
     libssl-dev \
     make \
     python3.9 \
-    python3-dev \
+    python3.9-dev \
   && apt autoclean \
   && rm -rf /var/lib/apt/lists/*

@@ -1,6 +1,7 @@
 """
 Test the broker.zeek module without involving Zeek because speed.
 """
+
 import datetime
 import unittest
 
@@ -9,8 +10,8 @@ import broker.zeek
 
 NetworkTimestamp = broker.zeek.MetadataType.NetworkTimestamp
 
-class TestEventMetadata(unittest.TestCase):
 
+class TestEventMetadata(unittest.TestCase):
     dt = datetime.datetime(2023, 5, 3, 9, 27, 57, tzinfo=broker.utc)
 
     def test_event_no_metadata(self):
@@ -40,15 +41,16 @@ class TestEventMetadata(unittest.TestCase):
         e = broker.zeek.Event("a", [42, "a"], metadata=[(NetworkTimestamp, 1.234)])
         self.assertFalse(e.valid())
 
-class TestCommunication(unittest.TestCase):
 
+class TestCommunication(unittest.TestCase):
     dt = datetime.datetime(2023, 5, 3, 9, 27, 57, tzinfo=broker.utc)
 
     def test_event_metadata(self):
-        with broker.Endpoint() as ep1, \
-             broker.Endpoint() as ep2, \
-             ep1.make_subscriber("/test") as s1:
-
+        with (
+            broker.Endpoint() as ep1,
+            broker.Endpoint() as ep2,
+            ep1.make_subscriber("/test") as s1,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             self.assertTrue(ep2.peer("127.0.0.1", port, 1.0))
 
@@ -73,5 +75,5 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(metadata_dict[broker.Count(1234)], "custom")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main(verbosity=3)
