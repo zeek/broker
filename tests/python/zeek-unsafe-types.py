@@ -1,10 +1,8 @@
-from __future__ import print_function
-import unittest
 import multiprocessing
+import unittest
 
 import broker
-
-from zeek_common import run_zeek_path, run_zeek
+from zeek_common import run_zeek
 
 ZeekHello = """
 redef Broker::default_connect_retry=1secs;
@@ -41,11 +39,10 @@ event Broker::peer_lost(endpoint: Broker::EndpointInfo, msg: string)
     }
 """
 
+
 class TestCommunication(unittest.TestCase):
     def test_regular(self):
-        with broker.Endpoint() as ep, \
-             ep.make_subscriber("/test") as sub:
-
+        with broker.Endpoint() as ep, ep.make_subscriber("/test") as sub:
             port = ep.listen("127.0.0.1", 0)
 
             p = multiprocessing.Process(target=run_zeek, args=(ZeekHello, port))
@@ -60,9 +57,7 @@ class TestCommunication(unittest.TestCase):
             self.assertEqual(str(ctx.exception), "unhashable type: 'dict'")
 
     def test_safe(self):
-        with broker.Endpoint() as ep, \
-             ep.make_safe_subscriber("/test") as sub:
-
+        with broker.Endpoint() as ep, ep.make_safe_subscriber("/test") as sub:
             port = ep.listen("127.0.0.1", 0)
 
             p = multiprocessing.Process(target=run_zeek, args=(ZeekHello, port))
@@ -84,7 +79,10 @@ class TestCommunication(unittest.TestCase):
             # broker.zeek.SafeEvent uses broker.ImmutableData, so can access
             # the arguments safely:
             ev = broker.zeek.SafeEvent(msg)
-            args = ev.args()
 
-if __name__ == '__main__':
+            # TODO: should this test inspect the args somehow?
+            args = ev.args()  # noqa: F841
+
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

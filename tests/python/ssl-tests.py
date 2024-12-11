@@ -1,14 +1,13 @@
-import unittest
-import multiprocessing
-import sys
-import time
 import os.path
+import unittest
 
 import broker
+
 
 def data_path(file):
     base = os.path.realpath(__file__)
     return os.path.join(os.path.join(os.path.dirname(base), "certs"), file)
+
 
 class TestSSL(unittest.TestCase):
     def check_ping(self, ep1, s1, ep2, s2):
@@ -28,11 +27,12 @@ class TestSSL(unittest.TestCase):
         cfg.openssl_key = data_path("key.1.pem")
         cfg.openssl_cafile = data_path("ca.pem")
 
-        with broker.Endpoint(cfg) as ep1, \
-             broker.Endpoint(cfg) as ep2, \
-             ep1.make_subscriber("/test") as s1, \
-             ep2.make_subscriber("/test") as s2:
-
+        with (
+            broker.Endpoint(cfg) as ep1,
+            broker.Endpoint(cfg) as ep2,
+            ep1.make_subscriber("/test") as s1,
+            ep2.make_subscriber("/test") as s2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, True)
@@ -46,11 +46,12 @@ class TestSSL(unittest.TestCase):
         cfg.openssl_cafile = data_path("ca.pem")
         cfg.openssl_passphrase = "12345"
 
-        with broker.Endpoint(cfg) as ep1, \
-             broker.Endpoint(cfg) as ep2, \
-             ep1.make_subscriber("/test") as s1, \
-             ep2.make_subscriber("/test") as s2:
-
+        with (
+            broker.Endpoint(cfg) as ep1,
+            broker.Endpoint(cfg) as ep2,
+            ep1.make_subscriber("/test") as s1,
+            ep2.make_subscriber("/test") as s2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, True)
@@ -63,11 +64,12 @@ class TestSSL(unittest.TestCase):
         cfg.openssl_key = data_path("key.self-signed.pem")
         cfg.openssl_cafile = data_path("cert.self-signed.pem")
 
-        with broker.Endpoint(cfg) as ep1, \
-             broker.Endpoint(cfg) as ep2, \
-             ep1.make_subscriber("/test") as s1, \
-             ep2.make_subscriber("/test") as s2:
-
+        with (
+            broker.Endpoint(cfg) as ep1,
+            broker.Endpoint(cfg) as ep2,
+            ep1.make_subscriber("/test") as s1,
+            ep2.make_subscriber("/test") as s2,
+        ):
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, True)
@@ -85,20 +87,15 @@ class TestSSL(unittest.TestCase):
         cfg2.openssl_key = data_path("key.self-signed.pem")
         cfg2.openssl_cafile = data_path("cert.self-signed.pem")
 
-        with broker.Endpoint(cfg1) as ep1, \
-             broker.Endpoint(cfg2) as ep2:
-
+        with broker.Endpoint(cfg1) as ep1, broker.Endpoint(cfg2) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
 
-        with broker.Endpoint(cfg2) as ep1, \
-             broker.Endpoint(cfg1) as ep2:
-
+        with broker.Endpoint(cfg2) as ep1, broker.Endpoint(cfg1) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
-
 
     def test_ssl_auth_failure_no_auth(self):
         cfg1 = broker.Configuration(broker.BrokerOptions())
@@ -108,16 +105,12 @@ class TestSSL(unittest.TestCase):
 
         cfg2 = broker.Configuration(broker.BrokerOptions())
 
-        with broker.Endpoint(cfg1) as ep1, \
-             broker.Endpoint(cfg2) as ep2:
-
+        with broker.Endpoint(cfg1) as ep1, broker.Endpoint(cfg2) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
 
-        with broker.Endpoint(cfg2) as ep1, \
-             broker.Endpoint(cfg1) as ep2:
-
+        with broker.Endpoint(cfg2) as ep1, broker.Endpoint(cfg1) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
@@ -130,16 +123,12 @@ class TestSSL(unittest.TestCase):
 
         cfg2 = broker.Configuration(broker.BrokerOptions())
 
-        with broker.Endpoint(cfg1) as ep1, \
-             broker.Endpoint(cfg2) as ep2:
-
+        with broker.Endpoint(cfg1) as ep1, broker.Endpoint(cfg2) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
 
-        with broker.Endpoint(cfg2) as ep1, \
-             broker.Endpoint(cfg1) as ep2:
-
+        with broker.Endpoint(cfg2) as ep1, broker.Endpoint(cfg1) as ep2:
             port = ep1.listen("127.0.0.1", 0)
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
@@ -151,9 +140,7 @@ class TestSSL(unittest.TestCase):
         cfg.openssl_cafile = data_path("ca.pem")
         cfg.openssl_passphrase = "WRONG PASSWORD"
 
-        with broker.Endpoint(cfg) as ep1, \
-             broker.Endpoint(cfg) as ep2:
-
+        with broker.Endpoint(cfg) as ep1, broker.Endpoint(cfg) as ep2:
             port = ep1.listen("127.0.0.1", 0)
 
             # TODO: This correctly generates an exception in CAF, for which I
@@ -161,5 +148,6 @@ class TestSSL(unittest.TestCase):
             r = ep2.peer("127.0.0.1", port, 0)
             self.assertEqual(r, False)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main(verbosity=3)

@@ -1,3 +1,21 @@
+2.8.0-dev.163 | 2024-12-10 17:27:21 -0700
+
+  * Fix ruff F findings (Tim Wojtulewicz, Corelight)
+
+  * Fix ruff UP findings (Tim Wojtulewicz, Corelight)
+
+  * Fix ruff C4 findings (Tim Wojtulewicz, Corelight)
+
+  * Add ruff linting for python, fix I/ISC issues (Tim Wojtulewicz, Corelight)
+
+  * Add pre-commit run ruff-format, fix findings (Tim Wojtulewicz, Corelight)
+
+  * Remove long-obsolete travis.yml file (Tim Wojtulewicz, Corelight)
+
+  * CI: Install python3.9-dev on ubuntu 20 (Tim Wojtulewicz, Corelight)
+
+  * Require Python 3.9 in CMakeLists.txt (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.154 | 2024-12-06 15:14:02 -0800
 
   * Fix potential connector infinite loop in read_result::stop scenarios (Christian Kreibich, Corelight)

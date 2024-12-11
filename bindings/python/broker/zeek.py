@@ -1,4 +1,3 @@
-
 try:
     from . import _broker
 except ImportError:
@@ -6,10 +5,12 @@ except ImportError:
 
 import broker
 
+
 # Keep this in sync with zeek.hh
 class MetadataType:
     NetworkTimestamp = broker.Count(1)
     UserMetadataStart = broker.Count(200)
+
 
 class Event(_broker.zeek.Event):
     def __init__(self, *args, metadata=None):
@@ -22,7 +23,9 @@ class Event(_broker.zeek.Event):
             if metadata is not None:
                 # Convert dicts to lists and make a copy so we don't
                 # modify the callers argument.
-                metadata = list(metadata.items() if hasattr(metadata, "items") else metadata)
+                metadata = list(
+                    metadata.items() if hasattr(metadata, "items") else metadata
+                )
                 # Convert non-counts to counts for convencience.
                 for i, m in enumerate(metadata):
                     if not isinstance(m[0], broker.Count):
@@ -30,8 +33,9 @@ class Event(_broker.zeek.Event):
 
                 broker_metadata = broker.Data.from_py(metadata)
 
-            _broker.zeek.Event.__init__(self, args[0], broker.Data.from_py(args[1:]),
-                                        metadata=broker_metadata)
+            _broker.zeek.Event.__init__(
+                self, args[0], broker.Data.from_py(args[1:]), metadata=broker_metadata
+            )
 
     def args(self):
         return [broker.Data.to_py(a) for a in _broker.zeek.Event.args(self)]
@@ -42,6 +46,7 @@ class Event(_broker.zeek.Event):
         if metadata is not None:
             metadata = [broker.Data.to_py(m) for m in metadata]
         return metadata
+
 
 # Similar to the Subscriber vs SafeSubscriber specialization, this is an event
 # specialization that is robust to Python's limitations regarding hashable
