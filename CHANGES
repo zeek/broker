@@ -1,3 +1,11 @@
+2.8.0-dev.169 | 2024-12-13 12:02:08 -0700
+
+  * CI: Add '=' to ENV commands to silence 'docker build' warnings (Tim Wojtulewicz, Corelight)
+
+  * CI: Add python3-distuils to ubuntu 20 image (Tim Wojtulewicz)
+
+  * CI: Require newer gcc and python on opensuse-leap builds (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.163 | 2024-12-10 17:27:21 -0700
 
   * Fix ruff F findings (Tim Wojtulewicz, Corelight)
