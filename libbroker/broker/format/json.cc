@@ -56,6 +56,12 @@ error decode(std::string_view str, variant& result) {
   if (!val)
     return error{ec::invalid_json};
   auto obj = val->to_object();
+
+  std::string_view topic = topic::reserved;
+  if (auto maybe_topic = obj.value("topic"); maybe_topic.is_string())
+    topic = std::string_view{maybe_topic.to_string().data(),
+                             maybe_topic.to_string().size()};
+
   // Try to convert the JSON structure into our binary serialization format.
   std::vector<std::byte> buf;
   buf.reserve(512); // Allocate some memory to avoid small allocations.
@@ -64,8 +70,8 @@ error decode(std::string_view str, variant& result) {
   // Turn the binary data into a data envelope. TTL and sender/receiver are
   // not part of the JSON representation, so we use defaults values.
   auto res = data_envelope::deserialize(endpoint_id::nil(), endpoint_id::nil(),
-                                        defaults::ttl, topic::reserved,
-                                        buf.data(), buf.size());
+                                        defaults::ttl, topic, buf.data(),
+                                        buf.size());
   if (!res)
     return res.error();
   result = (*res)->value();
