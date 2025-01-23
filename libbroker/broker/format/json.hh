@@ -2,6 +2,7 @@
 
 #include "broker/config.hh"
 #include "broker/data.hh"
+#include "broker/error.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
@@ -389,7 +390,9 @@ OutIter encode(const data_message& msg, OutIter out) {
 /// Tries to decode a JSON object from `str`. On success, the result is stored
 /// in `result` and the functions a default-constructed `error`. Otherwise, the
 /// function returns a non-empty error and leaves `result` in an unspecified
-/// state.
-error decode(std::string_view str, variant& result);
+/// state. If `topic` is not NULL and the top-level object contains a topic
+/// key, it is stored into the string instance pointed to.
+error decode(std::string_view str, variant& result,
+             std::string* topic = nullptr);
 
 } // namespace broker::format::json::v1
