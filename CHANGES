@@ -1,3 +1,7 @@
+2.8.0-dev.171 | 2025-01-27 07:37:10 -0700
+
+  * Add sphinx configuration key for readthedocs (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.169 | 2024-12-13 12:02:08 -0700
 
   * CI: Add '=' to ENV commands to silence 'docker build' warnings (Tim Wojtulewicz, Corelight)
