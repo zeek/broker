@@ -40,6 +40,9 @@ public:
     /// @param s The store to create a proxy for.
     explicit proxy(store& s);
 
+    /// Checks whether the proxy object is valid.
+    bool valid() const noexcept;
+
     /// Performs a request to check existence of a value.
     /// @returns A unique identifier for this request to correlate it with a
     /// response.

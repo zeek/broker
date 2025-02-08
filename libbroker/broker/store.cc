@@ -233,6 +233,10 @@ store::proxy::proxy(store& s) {
   });
 }
 
+bool store::proxy::valid() const noexcept {
+  return frontend_ && proxy_;
+}
+
 request_id store::proxy::exists(data key) {
   if (frontend_) {
     send_as(native(proxy_), native(frontend_), atom::exists_v, std::move(key),
