@@ -898,7 +898,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
       // Disconnect unresponsive peers.
       .on_backpressure_buffer(peer_buffer_size(), peer_overflow_policy())
       .do_on_error([this, ptr, peer_id](const caf::error& what) {
-        BROKER_INFO("remove peer" << peer_id << "due to:" << what);
+        log::core::debug("remove-peer", "remove peer {} due to: {}", peer_id,
+                         what);
         ptr->force_disconnect(to_string(what));
       })
       .as_observable());
@@ -1020,7 +1021,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
         .on_backpressure_buffer(web_socket_buffer_size(),
                                 web_socket_overflow_policy())
         .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-          BROKER_DEBUG("client" << addr << "disconnected");
+          log::core::debug("client-disconnected", "client {} disconnected",
+                           addr);
           client_removed(client_id, addr, type, reason, true);
         })
         // Emit values to the producer resource.
