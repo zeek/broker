@@ -180,7 +180,7 @@ struct configuration::impl : public caf::actor_system_config {
     put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
     put_missing(grp, "peer-buffer-size", options.peer_buffer_size);
-    put_missing(grp, "web_socket-buffer-size", options.web_socket_buffer_size);
+    put_missing(grp, "web-socket-buffer-size", options.web_socket_buffer_size);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
       put_missing(grp, "recording-directory", std::move(*path));
