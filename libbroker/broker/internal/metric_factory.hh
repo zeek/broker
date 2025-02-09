@@ -71,23 +71,6 @@ public:
     /// Returns all instances of `broker.processed-messages`.
     processed_messages_t processed_messages_instances();
 
-    /// Counts how many messages Broker has buffered in total per message type.
-    ///
-    /// Label dimensions: `type` ('data', 'command', 'routing-update', 'ping',
-    /// or 'pong').
-    gauge_family* buffered_messages_family();
-
-    struct buffered_messages_t {
-      gauge* data;
-      gauge* command;
-      gauge* routing_update;
-      gauge* ping;
-      gauge* pong;
-    };
-
-    /// Returns all instances of `broker.buffered-messages`.
-    buffered_messages_t buffered_messages_instances();
-
   private:
     prometheus::Registry* reg_;
   };
