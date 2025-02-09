@@ -28,6 +28,7 @@
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
+#include "broker/logger.hh"
 
 using namespace std::literals;
 
@@ -848,6 +849,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   }
   // All sanity checks have passed, update our state.
   metrics.native_connections->Increment();
+  if (auto* lptr = logger()) {
+    lptr->on_peer_connect(peer_id, addr);
+  }
   // Hook into the central merge point for forwarding the data to the peer.
   auto filter_ptr = std::make_shared<filter_type>(filter);
   auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
@@ -873,10 +877,30 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
           return msg;
         return msg->with(id, msg->receiver());
       })
-      // Disconnect unresponsive peers.
+      .do_on_next([this, peer_id](const node_message& msg) {
+        // Record messages that are pushed into the backpressure buffer.
+        if (auto* lptr = logger()) {
+          lptr->on_peer_buffer_push(peer_id, msg);
+        }
+      })
+      // Handle unresponsive peers.
       .on_backpressure_buffer(peer_buffer_size(), peer_overflow_policy())
+      .do_on_next([this, peer_id](const node_message& msg) {
+        // Record messages that leave the backpressure buffer.
+        if (auto* lptr = logger()) {
+          lptr->on_peer_buffer_pull(peer_id, msg);
+        }
+      })
+      .do_on_complete([this, peer_id] {
+        if (auto* lptr = logger()) {
+          lptr->on_peer_disconnect(peer_id, error{});
+        }
+      })
       .do_on_error([this, ptr, peer_id](const caf::error& what) {
         BROKER_INFO("remove peer" << peer_id << "due to:" << what);
+        if (auto* lptr = logger()) {
+          lptr->on_peer_disconnect(peer_id, facade(what));
+        }
         ptr->force_disconnect(to_string(what));
       })
       .as_observable());
