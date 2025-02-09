@@ -5,7 +5,6 @@
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/fwd.hh"
 #include "broker/internal/peering.hh"
-#include "broker/lamport_timestamp.hh"
 #include "broker/message.hh"
 
 #include <caf/disposable.hpp>
@@ -15,7 +14,6 @@
 
 #include <array>
 #include <optional>
-#include <string_view>
 #include <unordered_map>
 
 namespace broker::internal {
@@ -33,13 +31,8 @@ public:
     /// Counts how many messages were processed since starting the core.
     prometheus::Counter* processed = nullptr;
 
-    /// Keeps track of how many messages are currently buffered at the core.
-    prometheus::Gauge* buffered = nullptr;
-
-    void assign(prometheus::Counter* processed_instance,
-                prometheus::Gauge* buffered_instance) noexcept {
+    void assign(prometheus::Counter* processed_instance) noexcept {
       processed = processed_instance;
-      buffered = buffered_instance;
     }
   };
 
