@@ -20,12 +20,10 @@
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
 
-#include "broker/detail/assert.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
-#include "broker/format/bin.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
@@ -126,12 +124,11 @@ core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   web_socket_connections = ws;
   // Initialize message metrics, indexes are according to packed_message_type.
   auto proc = factory.core.processed_messages_instances();
-  auto buf = factory.core.buffered_messages_instances();
-  message_metric_sets[1].assign(proc.data, buf.data);
-  message_metric_sets[2].assign(proc.command, buf.command);
-  message_metric_sets[3].assign(proc.routing_update, buf.routing_update);
-  message_metric_sets[4].assign(proc.ping, buf.ping);
-  message_metric_sets[5].assign(proc.pong, buf.pong);
+  message_metric_sets[1].assign(proc.data);
+  message_metric_sets[2].assign(proc.command);
+  message_metric_sets[3].assign(proc.routing_update);
+  message_metric_sets[4].assign(proc.ping);
+  message_metric_sets[5].assign(proc.pong);
 }
 
 core_actor_state::core_actor_state(caf::event_based_actor* self, //
@@ -192,7 +189,6 @@ caf::behavior core_actor_state::make_behavior() {
       // Update metrics.
       auto& metrics = metrics_for(get_type(msg));
       metrics.processed->Increment();
-      metrics.buffered->Decrement();
       // Ignore our own outputs.
       if (is_local(msg))
         return;
@@ -410,9 +406,6 @@ caf::behavior core_actor_state::make_behavior() {
         self
           ->make_observable() //
           .from_resource(std::move(src))
-          .do_on_next([this](const data_message&) {
-            metrics_for(packed_message_type::data).buffered->Increment();
-          })
           .map([this](const data_message& msg) { return node_message{msg}; })
           .compose(local_publisher_scope_adder())
           .compose(add_killswitch_t{});
@@ -633,7 +626,6 @@ table core_actor_state::message_metrics_snapshot() const {
     auto& msg_metrics = metrics.message_metric_sets[msg_type];
     table vals;
     vals.emplace("processed"s, msg_metrics.processed->Value());
-    vals.emplace("buffered"s, msg_metrics.buffered->Value());
     auto key = static_cast<packed_message_type>(msg_type);
     result.emplace(to_string(key), std::move(vals));
   }
@@ -906,10 +898,6 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   // Push messages received from the peer into the central merge point.
   flow_inputs.push( //
     in
-      // Add instrumentation for metrics.
-      .do_on_next([this](const node_message& msg) {
-        metrics_for(get_type(msg)).buffered->Increment();
-      })
       // Handle peer disconnect events.
       .do_on_complete([this, peer_id, ptr]() mutable {
         if (!ptr)
@@ -1047,7 +1035,6 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
         client_removed(client_id, addr, type, reason, false);
       })
       .map([this, client_id](const data_message& msg) {
-        metrics_for(packed_message_type::data).buffered->Increment();
         node_message result;
         if (msg->sender() == client_id)
           result = msg;
@@ -1137,8 +1124,7 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   auto in = self
               ->make_observable() //
               .from_resource(con2)
-              .map([this](const command_message& msg) {
-                metrics_for(packed_message_type::command).buffered->Increment();
+              .map([this](const command_message& msg) { //
                 return node_message{msg};
               })
               .as_observable();
@@ -1191,8 +1177,7 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   auto in = self
               ->make_observable() //
               .from_resource(con2)
-              .map([this](const command_message& msg) {
-                metrics_for(packed_message_type::command).buffered->Increment();
+              .map([this](const command_message& msg) { //
                 return node_message{msg};
               })
               .as_observable();
@@ -1218,7 +1203,6 @@ void core_actor_state::shutdown_stores() {
 // -- dispatching of messages to peers regardless of subscriptions ------------
 
 void core_actor_state::dispatch(const node_message& msg) {
-  metrics_for(get_type(msg)).buffered->Increment();
   unsafe_inputs.push(msg);
 }
 
