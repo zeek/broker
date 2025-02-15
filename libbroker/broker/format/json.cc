@@ -50,12 +50,20 @@ size_t encode_to_buf(timestamp value, std::array<char, 32>& buf) {
   return pos;
 }
 
-error decode(std::string_view str, variant& result) {
+error decode(std::string_view str, variant& result, std::string* topic) {
   // Parse the JSON text into a JSON object.
   auto val = caf::json_value::parse_shallow(str);
   if (!val)
     return error{ec::invalid_json};
   auto obj = val->to_object();
+
+  if (topic) {
+    auto maybe_topic = obj.value("topic");
+    if (maybe_topic.is_string())
+      *topic = std::string{maybe_topic.to_string().data(),
+                           maybe_topic.to_string().size()};
+  }
+
   // Try to convert the JSON structure into our binary serialization format.
   std::vector<std::byte> buf;
   buf.reserve(512); // Allocate some memory to avoid small allocations.
