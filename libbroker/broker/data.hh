@@ -232,6 +232,10 @@ public:
 
   // -- conversions ------------------------------------------------------------
 
+  void convert_to(std::string& str) const;
+
+  bool convert_to(endpoint_id& node) const;
+
   /// Retrieves the @c boolean value or returns @p fallback if this object does
   /// not contain a @c boolean.
   bool to_boolean(bool fallback = false) const noexcept {
@@ -476,10 +480,18 @@ bool inspect(Inspector& f, broker::table& tbl) {
 }
 
 /// @relates data
-void convert(const data& x, std::string& str);
+template <class Data>
+std::enable_if_t<std::is_same_v<Data, data>> convert(const Data& x,
+                                                     std::string& str) {
+  x.convert_to(str);
+}
 
 /// @relates data
-bool convert(const data& x, endpoint_id& node);
+template <class Data>
+std::enable_if_t<std::is_same_v<Data, data>, bool> convert(const Data& x,
+                                                           endpoint_id& node) {
+  return x.convert_to(node);
+}
 
 /// @relates data
 bool convert(const endpoint_id& node, data& x);

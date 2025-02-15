@@ -1,5 +1,3 @@
-#include "broker/internal/logger.hh"
-
 #include <cstdint>
 #include <cstdio> // std::snprintf
 #include <optional>
@@ -20,6 +18,7 @@
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/version.hh"
 
 #include "sqlite3.h"
@@ -61,19 +60,22 @@ bool extract_optional_enum_option(
 
   auto value = get_if<broker::enum_value>(i->second);
   if (!value) {
-    BROKER_ERROR("SQLite backend option '" << name << "' not an enum value");
+    log::store::error("invalid-sqlite-option",
+                      "SQLite backend option '{}' not an enum value", name);
     return false;
   }
 
   if (value->name.rfind(prefix, 0) != 0) {
-    BROKER_ERROR("SQLite backend option '"
-                 << name << "' not starting with prefix " << prefix);
+    log::store::error("invalid-sqlite-option",
+                      "SQLite backend option '{}' not starting with prefix {}",
+                      name, prefix);
     return false;
   }
 
   auto sstr = value->name.substr(prefix.size());
   if (std::find(allowed.begin(), allowed.end(), sstr) == allowed.end()) {
-    BROKER_ERROR("SQLite backend option '" << name << "' has an invalid value");
+    log::store::error("invalid-sqlite-option",
+                      "SQLite backend option '{}' has an invalid value", name);
     return false;
   }
 
@@ -108,21 +110,28 @@ struct sqlite_backend::impl {
       if (auto value = get_if<broker::boolean>(&i->second)) {
         integrity_check = *value;
       } else {
-        BROKER_ERROR("SQLite backend option 'integrity_check' not a boolean");
+        log::store::error(
+          "invalid-sqlite-option",
+          "SQLite backend option 'integrity_check' not a boolean");
         return;
       }
     }
 
     i = options.find("path");
     if (i == options.end()) {
-      BROKER_ERROR("SQLite backend options are missing required 'path' string");
+      log::store::error(
+        "missing-sqlite-option",
+        "SQLite backend options are missing required 'path' string");
       return;
     }
     if (auto path = get_if<std::string>(&i->second)) {
       if (!open(*path))
-        BROKER_ERROR("unable to open SQLite Database " << *path);
+        log::store::error("sqlite-backend-open-failed",
+                          "SQLite backend failed to open database at '{}'",
+                          *path);
     } else {
-      BROKER_ERROR("SQLite backend option 'path' is not a string");
+      log::store::error("invalid-sqlite-option",
+                        "SQLite backend option 'path' is not a string");
     }
   }
 
@@ -160,7 +169,8 @@ struct sqlite_backend::impl {
 
     auto result = sqlite3_exec(db, query.c_str(), cb, messages, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to run " << query << ":" << sqlite3_errmsg(db));
+      log::store::error("sqlite-query-failed", "failed to run '{}': {}", query,
+                        sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -176,11 +186,12 @@ struct sqlite_backend::impl {
 
     // The integrity check should output just "ok".
     if (messages.size() != 1 || messages[0] != "ok") {
-      BROKER_ERROR("failed to run PRAGMA integrity_check: "
-                   << sqlite3_errmsg(db) << " / messages: " << messages.size());
-
+      log::store::error(
+        "sqlite-integrity-check-failed",
+        "failed to run PRAGMA integrity_check: {} / messages: {}",
+        sqlite3_errmsg(db), messages.size());
       for (const auto& msg : messages)
-        BROKER_ERROR("PRAGMA integrity_check: " << msg);
+        log::store::error("sqlite-integrity-check-message", "{}", msg);
 
       sqlite3_close(db);
       db = nullptr;
@@ -198,8 +209,9 @@ struct sqlite_backend::impl {
     auto result = sqlite3_open(path.c_str(), &db);
     BROKER_LSAN_ENABLE();
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to open database:" << path << ":"
-                                              << sqlite3_errmsg(db));
+      log::store::error("sqlite-open-failed",
+                        "failed to open database '{}': {}", path,
+                        sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -219,7 +231,9 @@ struct sqlite_backend::impl {
                           "meta(key text primary key, value text);",
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to create meta data table" << sqlite3_errmsg(db));
+      log::store::error("sqlite-create-meta-table-failed",
+                        "failed to create meta data table: {}",
+                        sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -230,7 +244,8 @@ struct sqlite_backend::impl {
                           "(key blob primary key, value blob, expiry integer);",
                           nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to create store table" << sqlite3_errmsg(db));
+      log::store::error("sqlite-create-store-table-failed",
+                        "failed to create store table: {}", sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
@@ -243,14 +258,17 @@ struct sqlite_backend::impl {
                   version::major, version::minor, version::patch);
     result = sqlite3_exec(db, tmp, nullptr, nullptr, nullptr);
     if (result != SQLITE_OK) {
-      BROKER_ERROR("failed to insert Broker version" << sqlite3_errmsg(db));
+      log::store::error("sqlite-insert-broker-version-failed",
+                        "failed to insert Broker version: {}",
+                        sqlite3_errmsg(db));
       sqlite3_close(db);
       db = nullptr;
       return false;
     }
 
     if (integrity_check) {
-      BROKER_INFO("running integrity check for database " << path);
+      log::store::info("sqlite-integrity-check",
+                       "running integrity check for database {}", path);
       if (!run_integrity_check())
         return false;
     }
@@ -259,12 +277,11 @@ struct sqlite_backend::impl {
   }
 
   bool open(const std::string& path) {
-    BROKER_TRACE(BROKER_ARG(path));
-
     auto dir = detail::dirname(path);
     if (!dir.empty()) {
       if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
-        BROKER_ERROR("failed to create directory for database: " << dir);
+        log::store::error("sqlite-create-dir-failed",
+                          "failed to create directory for database: {}", dir);
         return false;
       }
     }
@@ -280,19 +297,23 @@ struct sqlite_backend::impl {
         return false;
 
       if (!detail::is_file(path)) {
-        BROKER_ERROR("database path is not a file " << path);
+        log::store::error("sqlite-corrupt-database-not-a-file",
+                          "database path is not a file: {}", path);
         return false;
       }
 
-      BROKER_WARNING("attempting to delete corrupt database " << path);
+      log::store::warning("sqlite-corrupt-database",
+                          "attempting to delete corrupt database {}", path);
       if (!detail::remove(path)) {
-        BROKER_ERROR("failed to delete corrupt database " << path);
+        log::store::error("sqlite-delete-corrupt-database-failed",
+                          "failed to delete corrupt database {}", path);
         return false;
       }
 
       // Old file is out of the way, try it again.
       if (!initialize_db(path)) {
-        BROKER_ERROR("failed to initialize database after deletion");
+        log::store::error("sqlite-reinit-after-delete-failed",
+                          "failed to initialize database after deletion");
         return false;
       }
     }
@@ -318,7 +339,8 @@ struct sqlite_backend::impl {
     };
     for (auto& stmt : statements)
       if (!prepare(stmt.first, stmt.second)) {
-        BROKER_ERROR("failed to prepare statement:" << stmt.second);
+        log::store::error("sqlite-prepare-statement-failed",
+                          "failed to prepare statement: {}", stmt.second);
         sqlite3_close(db);
         db = nullptr;
         return false;
