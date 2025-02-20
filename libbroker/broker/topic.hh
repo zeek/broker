@@ -138,7 +138,7 @@ bool is_internal(const topic& x);
 /// Converts a string to a topic.
 /// @param str The string to convert.
 /// @returns The topic according to *str*.
-broker::topic operator"" _t(const char* str, size_t);
+broker::topic operator""_t(const char* str, size_t);
 
 namespace std {
 

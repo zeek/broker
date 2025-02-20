@@ -1,3 +1,7 @@
+2.8.0-dev.178 | 2025-02-20 13:17:43 +0100
+
+  * Remove space in UDL definition (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.176 | 2025-02-15 10:14:39 +0100
 
   * Fix typo in configuration option name (Dominik Charousset, Corelight)
