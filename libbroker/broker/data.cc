@@ -85,6 +85,14 @@ data data::from_type(data::type t) {
   }
 }
 
+void data::convert_to(std::string& str) const {
+  txt_v1::encode(*this, std::back_inserter(str));
+}
+
+bool data::convert_to(endpoint_id& node) const {
+  return is<std::string>(*this) && convert(get<std::string>(*this), node);
+}
+
 namespace {
 
 vector empty_vector;
@@ -354,7 +362,7 @@ struct data_converter {
   }
 
   void operator()(timespan ts) {
-    convert(ts.count(), str);
+    convert(data{ts.count()}, str);
     str += "ns";
   }
 
@@ -389,14 +397,6 @@ void convert(const set& x, std::string& str) {
 
 void convert(const table& x, std::string& str) {
   txt_v1::encode(x, std::back_inserter(str));
-}
-
-void convert(const data& x, std::string& str) {
-  txt_v1::encode(x, std::back_inserter(str));
-}
-
-bool convert(const data& x, endpoint_id& node) {
-  return is<std::string>(x) && convert(get<std::string>(x), node);
 }
 
 bool convert(const endpoint_id& node, data& d) {
