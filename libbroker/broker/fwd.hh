@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -97,6 +98,7 @@ class intrusive_ptr;
 
 enum class backend : uint8_t;
 enum class ec : uint8_t;
+enum class hub_id : uint64_t;
 enum class p2p_message_type : uint8_t;
 enum class sc : uint8_t;
 enum class variant_tag : uint8_t;

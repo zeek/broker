@@ -48,6 +48,7 @@ set(BROKER_SRC
   broker/filter_type.cc
   broker/format/bin.cc
   broker/format/json.cc
+  broker/hub.cc
   broker/internal/clone_actor.cc
   broker/internal/connector.cc
   broker/internal/connector_adapter.cc
@@ -62,6 +63,7 @@ set(BROKER_SRC
   broker/internal/pending_connection.cc
   broker/internal/println.cc
   broker/internal/store_actor.cc
+  broker/internal/subscriber_queue.cc
   broker/internal/web_socket.cc
   broker/internal/wire_format.cc
   broker/internal_command.cc

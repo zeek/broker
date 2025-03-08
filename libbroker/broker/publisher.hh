@@ -2,12 +2,11 @@
 
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
-#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
-#include <chrono>
 #include <cstddef>
+#include <mutex>
 #include <vector>
 
 namespace broker {

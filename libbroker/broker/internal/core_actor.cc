@@ -362,6 +362,38 @@ caf::behavior core_actor_state::make_behavior() {
       // we can forward them.
       subscribe(filter);
     },
+    [this](uint64_t hub_id, filter_type& filter, data_consumer_res& src,
+           data_producer_res& snk) {
+      if (hubs.count(hub_id) != 0) {
+        src.cancel();
+        snk.close();
+        return;
+      }
+      subscribe(filter);
+      auto ptr = std::make_shared<hub_state>();
+      ptr->filter = std::move(filter);
+      // Connect the messages from the hub to the merge point.
+      hub_inputs.push(src.observe_on(self)
+                        .map([hub_id](const data_message& msg) {
+                          return std::make_pair(hub_id, msg);
+                        })
+                        .as_observable());
+      // Forward local messages (messages from other hubs) to the hub.
+      auto local = hub_merge
+                     .filter([hub_id, ptr](const hub_input& msg) {
+                       detail::prefix_matcher f;
+                       return msg.first != hub_id && f(ptr->filter, msg);
+                       ;
+                     })
+                     .map([](const hub_input& msg) { return msg.second; });
+      // Forward non-local messages to the hub.
+      auto non_local = data_outputs.filter([ptr](const data_message& msg) {
+        detail::prefix_matcher f;
+        return f(ptr->filter, msg);
+      });
+      // Connect the output buffer.
+      std::move(local).merge(std::move(non_local)).subscribe(snk);
+    },
     [this](filter_type& filter, data_producer_res snk) {
       subscribe(filter);
       data_outputs
