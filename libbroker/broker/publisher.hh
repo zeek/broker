@@ -2,13 +2,18 @@
 
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
-#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
-#include <chrono>
 #include <cstddef>
+#include <mutex>
 #include <vector>
+
+namespace broker::internal {
+
+class publisher_queue;
+
+} // namespace broker::internal
 
 namespace broker {
 
@@ -27,9 +32,9 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  publisher(publisher&&) = default;
+  publisher(publisher&&) noexcept;
 
-  publisher& operator=(publisher&&) = default;
+  publisher& operator=(publisher&&) noexcept;
 
   publisher(const publisher&) = delete;
 
@@ -99,10 +104,12 @@ public:
   void reset();
 
 private:
-  // -- force users to use `endpoint::make_publsiher` -------------------------
-  publisher(detail::opaque_ptr q, topic t);
+  // Private to force users to use `endpoint::make_publsiher`.
+  // Note: takes ownership of `q` (not increasing ref count!).
+  publisher(internal::publisher_queue* q, topic t);
 
-  detail::opaque_ptr queue_;
+
+  internal::publisher_queue* queue_;
   topic topic_;
   bool drop_on_destruction_ = false;
 };

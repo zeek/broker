@@ -18,9 +18,8 @@ namespace {
 struct fixture {
   caf::binary_serializer::container_type buf;
   caf::binary_serializer sink;
-  size_t read_pos;
 
-  fixture() : sink(nullptr, buf), read_pos(0) {
+  fixture() : sink(nullptr, buf) {
     // nop
   }
 

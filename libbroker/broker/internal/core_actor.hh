@@ -1,21 +1,21 @@
 #pragma once
 
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/fwd.hh"
 #include "broker/internal/peering.hh"
-#include "broker/lamport_timestamp.hh"
 #include "broker/message.hh"
 
 #include <caf/disposable.hpp>
 #include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
+#include <caf/uuid.hpp>
 
 #include <array>
 #include <optional>
-#include <string_view>
 #include <unordered_map>
 
 namespace broker::internal {
@@ -261,6 +261,16 @@ public:
   /// Stores all clone actors created by this endpoint.
   std::unordered_map<std::string, caf::actor> clones;
 
+  /// An input from a hub. The first element is the hub ID, the second element
+  /// is the message
+  using hub_input = std::pair<hub_id, data_envelope_ptr>;
+
+  /// Pushes flows into the hub merge point.
+  caf::flow::item_publisher<caf::flow::observable<hub_input>> hub_inputs;
+
+  /// The output of `hub_inputs`.
+  caf::flow::observable<hub_input> hub_merge;
+
   /// Pushes messages into the flow. This is marked as unsafe, because we push
   /// inputs from the mailbox directly into the buffer without a back-pressure
   /// for the senders.
@@ -364,6 +374,21 @@ public:
   /// Counts messages that were published directly via message, i.e., without
   /// using the back-pressure of flows.
   int64_t published_via_async_msg = 0;
+
+  struct hub_state {
+    ~hub_state() {
+      in.dispose();
+      out.dispose();
+    }
+
+    filter_type filter;
+    caf::disposable in;
+    caf::disposable out;
+  };
+
+  using hub_state_ptr = std::shared_ptr<hub_state>;
+
+  std::unordered_map<hub_id, hub_state_ptr> hubs;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

@@ -4,11 +4,11 @@
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/hub.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/json_client.hh"
-#include "broker/internal/json_type_mapper.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/web_socket.hh"
 #include "broker/logger.hh"
@@ -852,6 +852,10 @@ endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   // Store background worker and return.
   workers_.emplace_back(facade(worker));
   return workers_.back();
+}
+
+hub endpoint::make_hub(filter_type filter) {
+  return hub::make(*this, std::move(filter));
 }
 
 broker_options endpoint::options() const {

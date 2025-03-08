@@ -48,11 +48,13 @@ set(BROKER_SRC
   broker/filter_type.cc
   broker/format/bin.cc
   broker/format/json.cc
+  broker/hub.cc
   broker/internal/clone_actor.cc
   broker/internal/connector.cc
   broker/internal/connector_adapter.cc
   broker/internal/core_actor.cc
   broker/internal/flare_actor.cc
+  broker/internal/hub_impl.cc
   broker/internal/json.cc
   broker/internal/json_client.cc
   broker/internal/json_type_mapper.cc
@@ -61,7 +63,9 @@ set(BROKER_SRC
   broker/internal/peering.cc
   broker/internal/pending_connection.cc
   broker/internal/println.cc
+  broker/internal/publisher_queue.cc
   broker/internal/store_actor.cc
+  broker/internal/subscriber_queue.cc
   broker/internal/web_socket.cc
   broker/internal/wire_format.cc
   broker/internal_command.cc
@@ -174,6 +178,7 @@ set(BROKER_TEST_SRC
   broker/filter_type.test.cc
   broker/format/bin.test.cc
   broker/format/json.test.cc
+  broker/hub.test.cc
   broker/internal/channel.test.cc
   broker/internal/json.test.cc
   broker/internal/wire_format.test.cc

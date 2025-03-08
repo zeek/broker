@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,7 @@ class endpoint_id;
 class enum_value_view;
 class envelope;
 class error;
+class hub;
 class internal_command;
 class list_builder;
 class mailbox;
@@ -97,6 +99,7 @@ class intrusive_ptr;
 
 enum class backend : uint8_t;
 enum class ec : uint8_t;
+enum class hub_id : uint64_t;
 enum class p2p_message_type : uint8_t;
 enum class sc : uint8_t;
 enum class variant_tag : uint8_t;

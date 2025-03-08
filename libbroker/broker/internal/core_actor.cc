@@ -20,12 +20,10 @@
 #include <caf/system_messages.hpp>
 #include <caf/unit.hpp>
 
-#include "broker/detail/assert.hh"
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
-#include "broker/format/bin.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
@@ -148,6 +146,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
     registry(checked(std::move(reg),
                      "cannot construct the core actor without registry")),
     metrics(*registry),
+    hub_inputs(self),
     unsafe_inputs(self),
     flow_inputs(self) {
   // Read config and check for extra configuration parameters.
@@ -184,7 +183,13 @@ core_actor_state::~core_actor_state() {
 
 caf::behavior core_actor_state::make_behavior() {
   // Create the central "bus" where everything flows through.
-  central_merge = flow_inputs.as_observable().merge().share();
+  hub_merge = hub_inputs.as_observable().merge().share();
+  central_merge = flow_inputs.as_observable()
+                    .merge()
+                    .merge(hub_merge.map([](const hub_input& msg) {
+                      return node_message{msg.second};
+                    }))
+                    .share();
   // Process control messages and add instrumentation for metrics.
   central_merge //
     .for_each([this](const node_message& msg) {
@@ -361,6 +366,69 @@ caf::behavior core_actor_state::make_behavior() {
       // makes sure that this node receives events on the topics, which in means
       // we can forward them.
       subscribe(filter);
+    },
+    [this](hub_id id, filter_type& filter) {
+      // Update the filter of an existing hub.
+      auto i = hubs.find(id);
+      if (i == hubs.end()) {
+        log::core::error("update-hub-filter",
+                         "cannot update filter of hub {}: not found",
+                         static_cast<uint64_t>(id));
+        return;
+      }
+      auto& ptr = i->second;
+      if (ptr->filter != filter) {
+        log::core::debug("update-hub-filter", "update filter of hub {} to {}",
+                         static_cast<uint64_t>(id), filter);
+        ptr->filter = std::move(filter);
+        subscribe(ptr->filter);
+      }
+    },
+    [this](hub_id id, filter_type& filter, bool filter_local,
+           data_consumer_res& src, data_producer_res& snk) {
+      log::core::debug("add-hub", "add hub {}", static_cast<uint64_t>(id));
+      if (hubs.count(id) != 0) {
+        src.cancel();
+        snk.close();
+        return;
+      }
+      subscribe(filter);
+      auto ptr = std::make_shared<hub_state>();
+      ptr->filter = std::move(filter);
+      if (src) {
+        // Connect the messages from the hub to the merge point.
+        log::core::debug("connect-hub-source", "add source for hub {}",
+                         static_cast<uint64_t>(id));
+        hub_inputs.push(src.observe_on(self)
+                          .map([id](const data_message& msg) {
+                            return std::make_pair(id, msg);
+                          })
+                          .as_observable());
+      }
+      if (snk) {
+        // Forward local messages (messages from other hubs) to the hub.
+        log::core::debug("connect-hub-sink", "add sink for hub {}",
+                         static_cast<uint64_t>(id));
+        auto local = hub_merge
+                       .filter([id, ptr, filter_local](const hub_input& msg) {
+                         detail::prefix_matcher f;
+                         return !filter_local && msg.first != id
+                                && f(ptr->filter, msg.second);
+                         ;
+                       })
+                       .map([](const hub_input& msg) { return msg.second; });
+        // ptr->out = std::move(local).subscribe(snk);
+        // Forward non-local messages to the hub.
+        auto non_local = data_outputs.filter([ptr](const data_message& msg) {
+          detail::prefix_matcher f;
+          return f(ptr->filter, msg);
+        });
+        // Connect the output buffer.
+        ptr->out = std::move(local).merge(std::move(non_local)).subscribe(snk);
+      }
+      if (id != hub_id::invalid) {
+        hubs.emplace(id, std::move(ptr));
+      }
     },
     [this](filter_type& filter, data_producer_res snk) {
       subscribe(filter);
@@ -574,7 +642,9 @@ void core_actor_state::finalize_shutdown() {
   // Close the shared state for all peers.
   peer_statuses->close();
   // Close all inputs.
+  hub_inputs.close();
   unsafe_inputs.close();
+  flow_inputs.close();
   // After this point, any remaining flow should stop and the actor terminate.
 }
 
