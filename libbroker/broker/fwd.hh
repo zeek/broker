@@ -59,6 +59,7 @@ class endpoint_id;
 class enum_value_view;
 class envelope;
 class error;
+class hub;
 class internal_command;
 class list_builder;
 class mailbox;

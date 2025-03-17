@@ -1,5 +1,6 @@
 #include "broker/internal/subscriber_queue.hh"
 
+#include "broker/detail/assert.hh"
 #include "broker/logger.hh"
 
 namespace broker::internal {
@@ -55,7 +56,7 @@ void subscriber_queue::deref_consumer() const noexcept {
   deref();
 }
 
-auto subscriber_queue::fd() const noexcept {
+detail::native_socket subscriber_queue::fd() const noexcept {
   return fx_.fd();
 }
 
@@ -70,6 +71,50 @@ void subscriber_queue::extinguish() {
     ready_ = false;
     fx_.extinguish();
   }
+}
+
+bool subscriber_queue::pull(data_message& dst) {
+  struct cb {
+    subscriber_queue* qptr;
+    data_message* dst;
+    void on_next(const data_message& val) {
+      *dst = val;
+    }
+    void on_complete() {
+      qptr->extinguish();
+    }
+    void on_error(const caf::error&) {
+      qptr->extinguish();
+    }
+  };
+  using caf::async::delay_errors;
+  cb consumer{this, &dst};
+  if (buf_) {
+    auto [open, n] = buf_->pull(delay_errors, 1, consumer);
+    log::endpoint::debug("subscriber-pull",
+                         "got {} messages from bounded buffer", n);
+    if (!open) {
+      log::endpoint::debug("subscriber-queue-closed",
+                           "nothing left to pull, queue closed");
+      buf_ = nullptr;
+      return false;
+    }
+    if (buf_->available() == 0) {
+      // Note: We always *must* acquire the lock on the buffer before
+      // acquiring the lock on the subscriber to prevent deadlocks.
+      guard_type buf_guard{buf_->mtx()};
+      guard_type sub_guard{mtx_};
+      if (ready_ && buf_->available_unsafe() == 0) {
+        ready_ = false;
+        fx_.extinguish();
+      }
+      return true;
+    }
+    return true;
+  }
+  log::endpoint::debug("subscriber-queue-closed",
+                       "nothing left to pull, queue closed");
+  return false;
 }
 
 bool subscriber_queue::pull(std::vector<data_message>& dst, size_t num) {
@@ -99,7 +144,8 @@ bool subscriber_queue::pull(std::vector<data_message>& dst, size_t num) {
                            "nothing left to pull, queue closed");
       buf_ = nullptr;
       return false;
-    } else if (buf_->available() == 0) {
+    }
+    if (buf_->available() == 0) {
       // Note: We always *must* acquire the lock on the buffer before
       // acquiring the lock on the subscriber to prevent deadlocks.
       guard_type buf_guard{buf_->mtx()};
@@ -109,14 +155,12 @@ bool subscriber_queue::pull(std::vector<data_message>& dst, size_t num) {
         fx_.extinguish();
       }
       return true;
-    } else {
-      return true;
     }
-  } else {
-    log::endpoint::debug("subscriber-queue-closed",
-                         "nothing left to pull, queue closed");
-    return false;
+    return true;
   }
+  log::endpoint::debug("subscriber-queue-closed",
+                       "nothing left to pull, queue closed");
+  return false;
 }
 
 size_t subscriber_queue::capacity() const noexcept {

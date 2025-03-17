@@ -2,24 +2,61 @@
 
 #include "broker/detail/native_socket.hh"
 #include "broker/fwd.hh"
+#include "broker/message.hh"
+#include "broker/time.hh"
 
+#include <chrono>
 #include <memory>
 #include <vector>
 
 namespace broker {
 
-/// Strong type alias for uniquely identifying hubs.
-enum class hub_id : uint64_t {
-  /// Represents an invalid hub ID.
-  invalid = 0,
-};
-
 /// Hubs act as a subscriber and publisher at the same time.
 class hub {
 public:
-  ~hub();
+  // --- static utility functions ----------------------------------------------
 
   static hub_id next_id() noexcept;
+
+  // --- constructors, destructors, and assignment operators -------------------
+
+  hub(hub&&) noexcept = default;
+
+  hub(const hub&) noexcept = default;
+
+  hub& operator=(hub&&) noexcept = default;
+
+  hub& operator=(const hub&) noexcept = default;
+
+  ~hub();
+
+  static hub make(endpoint& ep, filter_type filter);
+
+  // --- accessors -------------------------------------------------------------
+
+  /// Returns the amount of values than can be extracted immediately without
+  /// blocking.
+  size_t available() const noexcept;
+
+  /// Returns the current demand on this publisher. The demand is the amount of
+  /// messages that were requested by the Broker core.
+  size_t demand() const;
+
+  /// Returns the current size of the output queue.
+  size_t buffered() const;
+
+  /// Returns the capacity of the output queue.
+  size_t capacity() const;
+
+  /// Returns a file handle for integrating this publisher into a `select` or
+  /// `poll` loop. The socket descriptor becomes ready if at least one value is
+  /// available to read.
+  detail::native_socket read_fd() const noexcept;
+
+  /// Returns a file handle for integrating this publisher into a `select` or
+  /// `poll` loop. The socket descriptor becomes ready if the hub is ready to
+  /// accept new values.
+  detail::native_socket write_fd() const noexcept;
 
   // --- access to values ------------------------------------------------------
 
@@ -33,21 +70,13 @@ public:
   /// Returns `num` values, blocking the caller if necessary.
   std::vector<data_message> get(size_t num);
 
-  // --- accessors -------------------------------------------------------------
-
-  /// Returns the amount of values than can be extracted immediately without
-  /// blocking.
-  size_t available() const noexcept;
-
-  /// Returns a file handle for integrating this publisher into a `select` or
-  /// `poll` loop. The socket descriptor becomes ready if at least one value is
-  /// available to read.
-  detail::native_socket read_fd() const noexcept;
-
-  /// Returns a file handle for integrating this publisher into a `select` or
-  /// `poll` loop. The socket descriptor becomes ready if the hub is ready to
-  /// accept new values.
-  detail::native_socket write_fd() const noexcept;
+  /// Pulls a single value out of the stream. Blocks the current thread until
+  /// at least one value becomes available or a timeout occurred.
+  /// @return The message on success, `nullptr` on timeout.
+  template <class Rep, class Period>
+  data_message get(std::chrono::duration<Rep, Period> rel_timeout) {
+    return do_get(std::chrono::duration_cast<timespan>(rel_timeout));
+  }
 
   // --- topic management ------------------------------------------------------
 
@@ -67,7 +96,13 @@ public:
   void publish(const topic& dest, list_builder&& content);
 
 private:
+  data_message do_get(timespan timeout);
+
+  data_message do_get(timestamp timeout);
+
   class impl;
+
+  explicit hub(std::shared_ptr<impl> ptr);
 
   std::shared_ptr<impl> impl_;
 };

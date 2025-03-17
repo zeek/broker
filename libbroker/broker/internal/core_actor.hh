@@ -254,13 +254,13 @@ public:
 
   /// An input from a hub. The first element is the hub ID, the second element
   /// is the message
-  using hub_input = std::pair<uint64_t, data_envelope_ptr>;
+  using hub_input = std::pair<hub_id, data_envelope_ptr>;
 
   /// Pushes flows into the hub merge point.
   caf::flow::item_publisher<caf::flow::observable<hub_input>> hub_inputs;
 
   /// The output of `hub_inputs`.
-  caf::flow::observable<data_message> hub_merge;
+  caf::flow::observable<hub_input> hub_merge;
 
   /// Pushes messages into the flow. This is marked as unsafe, because we push
   /// inputs from the mailbox directly into the buffer without a back-pressure
@@ -377,7 +377,7 @@ public:
 
   using hub_state_ptr = std::shared_ptr<hub_state>;
 
-  std::unordered_map<uint64_t, hub_state_ptr> hubs;
+  std::unordered_map<hub_id, hub_state_ptr> hubs;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

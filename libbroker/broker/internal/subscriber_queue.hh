@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/detail/flare.hh"
+#include "broker/detail/native_socket.hh"
 #include "broker/message.hh"
 
 #include <caf/async/consumer.hpp>
@@ -33,11 +34,13 @@ public:
 
   void deref_consumer() const noexcept override;
 
-  auto fd() const noexcept;
+  detail::native_socket fd() const noexcept;
 
   void cancel();
 
   void extinguish();
+
+  bool pull(data_message& dst);
 
   bool pull(std::vector<data_message>& dst, size_t num);
 
@@ -62,5 +65,7 @@ private:
   /// Stores whether we have data available.
   bool ready_ = false;
 };
+
+using subscriber_queue_ptr = caf::intrusive_ptr<subscriber_queue>;
 
 } // namespace broker::internal

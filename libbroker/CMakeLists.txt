@@ -62,6 +62,7 @@ set(BROKER_SRC
   broker/internal/peering.cc
   broker/internal/pending_connection.cc
   broker/internal/println.cc
+  broker/internal/publisher_queue.cc
   broker/internal/store_actor.cc
   broker/internal/subscriber_queue.cc
   broker/internal/web_socket.cc
@@ -175,6 +176,7 @@ set(BROKER_TEST_SRC
   broker/filter_type.test.cc
   broker/format/bin.test.cc
   broker/format/json.test.cc
+  broker/hub.test.cc
   broker/internal/channel.test.cc
   broker/internal/json.test.cc
   broker/internal/wire_format.test.cc

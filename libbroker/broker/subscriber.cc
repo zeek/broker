@@ -1,9 +1,9 @@
 #include "broker/subscriber.hh"
 
-#include <chrono>
 #include <cstddef>
 #include <future>
 #include <numeric>
+#include <stdexcept>
 #include <utility>
 
 #include <caf/async/consumer.hpp>
@@ -15,10 +15,8 @@
 #include <caf/stateful_actor.hpp>
 
 #include "broker/detail/assert.hh"
-#include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
-#include "broker/internal/endpoint_access.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/subscriber_queue.hh"
 #include "broker/internal/type_id.hh"
@@ -81,11 +79,11 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
 }
 
 data_message subscriber::get() {
-  auto tmp = get(1);
-  BROKER_ASSERT(tmp.size() == 1);
-  auto x = std::move(tmp.front());
-  log::endpoint::debug("subscriber-get", "subscriber received: {}", x);
-  return x;
+  data_message msg;
+  if (!dptr(queue_)->pull(msg)) {
+    throw std::runtime_error("subscriber queue closed");
+  }
+  return msg;
 }
 
 std::vector<data_message> subscriber::get(size_t num) {
