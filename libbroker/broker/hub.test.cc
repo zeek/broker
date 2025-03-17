@@ -2,6 +2,7 @@
 
 #include "broker/broker-test.test.hh"
 #include "broker/builder.hh"
+#include "broker/publisher.hh"
 
 #include <chrono>
 
@@ -28,3 +29,31 @@ TEST("hubs receive messages from other hubs") {
     }
   }
 }
+
+TEST("hubs receive messages from publishers") {
+  broker::endpoint ep;
+  auto uut = ep.make_hub({"/foo/bar"});
+  auto pub = ep.make_publisher(broker::topic{"/foo/bar"});
+  pub.publish(broker::list_builder{}.add(1).add(2).add(3));
+  auto msg = uut.get(150ms);
+  if (CHECK_NE(msg, nullptr)) {
+    CHECK_EQ(msg->topic(), "/foo/bar");
+    if (auto val = msg->value(); CHECK(val.is_list())) {
+      CHECK_EQ(broker::to_string(val), "(1, 2, 3)");
+    }
+  }
+}
+
+// TEST("hubs receive messages that are published on the endpoint") {
+//   broker::endpoint ep;
+//   auto uut = ep.make_hub({"/foo/bar"});
+//   ep.publish(broker::topic{"/foo/bar"},
+//              broker::list_builder{}.add(1).add(2).add(3).build());
+//   auto msg = uut.get(150ms);
+//   if (CHECK_NE(msg, nullptr)) {
+//     CHECK_EQ(msg->topic(), "/foo/bar");
+//     if (auto val = msg->value(); CHECK(val.is_list())) {
+//       CHECK_EQ(broker::to_string(val), "(1, 2, 3)");
+//     }
+//   }
+// }

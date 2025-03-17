@@ -54,6 +54,7 @@ set(BROKER_SRC
   broker/internal/connector_adapter.cc
   broker/internal/core_actor.cc
   broker/internal/flare_actor.cc
+  broker/internal/hub_impl.cc
   broker/internal/json.cc
   broker/internal/json_client.cc
   broker/internal/json_type_mapper.cc

@@ -9,6 +9,12 @@
 #include <memory>
 #include <vector>
 
+namespace broker::internal {
+
+class hub_impl;
+
+} // namespace broker::internal
+
 namespace broker {
 
 /// Hubs act as a subscriber and publisher at the same time.
@@ -100,11 +106,9 @@ private:
 
   data_message do_get(timestamp timeout);
 
-  class impl;
+  explicit hub(std::shared_ptr<internal::hub_impl> ptr);
 
-  explicit hub(std::shared_ptr<impl> ptr);
-
-  std::shared_ptr<impl> impl_;
+  std::shared_ptr<internal::hub_impl> impl_;
 };
 
 } // namespace broker

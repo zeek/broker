@@ -615,7 +615,9 @@ void core_actor_state::finalize_shutdown() {
   // Close the shared state for all peers.
   peer_statuses->close();
   // Close all inputs.
+  hub_inputs.close();
   unsafe_inputs.close();
+  flow_inputs.close();
   // After this point, any remaining flow should stop and the actor terminate.
 }
 

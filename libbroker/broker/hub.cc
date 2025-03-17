@@ -5,6 +5,7 @@
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/endpoint_access.hh"
+#include "broker/internal/hub_impl.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/publisher_queue.hh"
 #include "broker/internal/subscriber_queue.hh"
@@ -13,6 +14,7 @@
 #include "broker/message.hh"
 
 #include <caf/actor.hpp>
+#include <caf/async/spsc_buffer.hpp>
 #include <caf/scoped_actor.hpp>
 
 #include <atomic>
@@ -32,104 +34,6 @@ std::atomic<uint64_t> last_hub_id = 0;
 
 } // namespace
 
-class hub::impl {
-public:
-  impl(hub_id id, caf::actor core, internal::subscriber_queue_ptr read_queue,
-       internal::publisher_queue_ptr write_queue)
-    : id_(id),
-      core_(std::move(core)),
-      read_queue_(std::move(read_queue)),
-      write_queue_(std::move(write_queue)) {
-    // nop
-  }
-
-  // -- subscriber interface ---------------------------------------------------
-
-  std::vector<data_message> poll() {
-    // The Queue may return a capacity of 0 if the producer has closed the flow.
-    std::vector<data_message> buf;
-    auto max_size = read_queue_->capacity();
-    if (max_size > 0) {
-      buf.reserve(max_size);
-      read_queue_->pull(buf, max_size);
-    }
-    return buf;
-  }
-
-  data_message get() {
-    data_message msg;
-    if (!read_queue_->pull(msg)) {
-      throw std::runtime_error("subscriber queue closed");
-    }
-    return msg;
-  }
-
-  std::vector<data_message> get(size_t num) {
-    BROKER_ASSERT(num > 0);
-    std::vector<data_message> buf;
-    buf.reserve(num);
-    read_queue_->pull(buf, num);
-    while (buf.size() < num) {
-      read_queue_->wait();
-      if (!read_queue_->pull(buf, num))
-        return buf;
-    }
-    return buf;
-  }
-
-  data_message get(timestamp timeout) {
-    data_message msg;
-    if (read_queue_->wait_until(timeout)) {
-      read_queue_->pull(msg);
-    }
-    return msg;
-  }
-
-  size_t available() const noexcept {
-    return read_queue_->available();
-  }
-
-  detail::native_socket read_fd() const noexcept {
-    return read_queue_->fd();
-  }
-
-  void subscribe(const topic&, bool) {
-    // TODO
-  }
-
-  void unsubscribe(const topic&, bool) {
-    // TODO
-  }
-
-  // -- publisher interface ----------------------------------------------------
-
-  size_t demand() const {
-    return write_queue_->demand();
-  }
-
-  size_t buffered() const {
-    return write_queue_->buf().available();
-  }
-
-  size_t capacity() const {
-    return write_queue_->buf().capacity();
-  }
-
-  detail::native_socket write_fd() const noexcept {
-    return write_queue_->fd();
-  }
-
-  void publish(const topic& dst, data_message&& msg) {
-    write_queue_->push(caf::make_span(&msg, 1));
-  }
-
-private:
-  hub_id id_;
-  caf::actor core_;
-  internal::subscriber_queue_ptr read_queue_;
-  internal::publisher_queue_ptr write_queue_;
-};
-
 // --- static utility functions ------------------------------------------------
 
 hub_id hub::next_id() noexcept {
@@ -138,7 +42,7 @@ hub_id hub::next_id() noexcept {
 
 // --- constructors, destructors, and assignment operators ---------------------
 
-hub::hub(std::shared_ptr<impl> ptr) : impl_(std::move(ptr)) {
+hub::hub(std::shared_ptr<internal::hub_impl> ptr) : impl_(std::move(ptr)) {
   // nop
 }
 
@@ -178,7 +82,7 @@ hub hub::make(endpoint& ep, filter_type filter) {
         throw std::runtime_error("cannot create hub");
       });
   // Wrap the queues in shared pointers and create the hub.
-  return hub(std::make_shared<impl>(id, core, sub, pub));
+  return hub(std::make_shared<internal::hub_impl>(id, core, sub, pub));
 }
 
 // --- accessors ---------------------------------------------------------------
