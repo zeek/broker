@@ -617,8 +617,9 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
         result = true;
       },
       [&](const caf::error& reason) {
-        log::endpoint::info("sync-unpeer-error", "cannot unpeer from {}:{}: {}",
-                            address, port, reason);
+        log::endpoint::warning("sync-unpeer-error",
+                               "cannot unpeer from {}:{}: {}", address, port,
+                               reason);
       });
 
   return result;
@@ -874,9 +875,10 @@ expected<store> endpoint::attach_master(std::string name, backend type,
         res = store{id_, facade(master), std::move(name)};
       },
       [&](const caf::error& reason) {
-        log::endpoint::info("attach-master-failed",
-                            "failed to attached master store {} of type {}: {}",
-                            name, type, reason);
+        log::endpoint::warning(
+          "attach-master-failed",
+          "failed to attached master store {} of type {}: {}", name, type,
+          reason);
         res = facade(reason);
       });
   return res;
@@ -903,9 +905,9 @@ expected<store> endpoint::attach_clone(std::string name, double resync_interval,
         res = store{id_, facade(clone), std::move(name)};
       },
       [&](const caf::error& reason) {
-        log::endpoint::info("attach-clone-failed",
-                            "failed to attached clone store {}: {}", name,
-                            reason);
+        log::endpoint::warning("attach-clone-failed",
+                               "failed to attached clone store {}: {}", name,
+                               reason);
         res = facade(reason);
       });
   return res;
