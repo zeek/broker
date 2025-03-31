@@ -174,8 +174,8 @@ PYBIND11_MODULE(_broker, m) {
     .def("capacity", &broker::publisher::capacity)
     .def("fd", &broker::publisher::fd)
     .def("drop_all_on_destruction", &broker::publisher::drop_all_on_destruction)
-    .def("publish", (void(broker::publisher::*)(const broker::data&))
-                      & broker::publisher::publish)
+    .def("publish", (void (broker::publisher::*)(
+                      const broker::data&)) &broker::publisher::publish)
     .def("publish_batch", [](broker::publisher& p,
                              std::vector<broker::data> xs) { p.publish(xs); })
     .def("reset", &broker::publisher::reset);
@@ -272,7 +272,7 @@ PYBIND11_MODULE(_broker, m) {
                                                           "StatusSubscriber");
   status_subscriber
     .def("get",
-         (broker::status_subscriber::value_type(
+         (broker::status_subscriber::value_type (
            broker::status_subscriber::*)()) &broker::status_subscriber::get)
     .def("get",
          [](broker::status_subscriber& ep, double secs)
@@ -394,12 +394,11 @@ PYBIND11_MODULE(_broker, m) {
     .def("peer_subscriptions", &broker::endpoint::peer_subscriptions)
     .def("forward", &broker::endpoint::forward)
     .def("publish",
-         (void(broker::endpoint::*)(broker::topic, const broker::data&))
-           & broker::endpoint::publish)
-    .def("publish",
-         (void(broker::endpoint::*)(const broker::endpoint_info&, broker::topic,
-                                    const broker::data&))
-           & broker::endpoint::publish)
+         (void (broker::endpoint::*)(
+           broker::topic, const broker::data&)) &broker::endpoint::publish)
+    .def("publish", (void (broker::endpoint::*)(
+                      const broker::endpoint_info&, broker::topic,
+                      const broker::data&)) &broker::endpoint::publish)
     .def("publish_batch",
          [](broker::endpoint& ep, std::vector<topic_data_pair> batch) {
            for (auto& item : batch)

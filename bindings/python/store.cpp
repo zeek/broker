@@ -41,14 +41,14 @@ void init_store(py::module& m) {
 
   py::class_<broker::store> store(m, "Store");
   store.def("name", &broker::store::name)
-    .def("exists", (broker::expected<broker::data>(broker::store::*)(
+    .def("exists", (broker::expected<broker::data> (broker::store::*)(
                      broker::data d) const)
                      & broker::store::exists)
-    .def("get", (broker::expected<broker::data>(broker::store::*)(
+    .def("get", (broker::expected<broker::data> (broker::store::*)(
                   broker::data d) const)
                   & broker::store::get)
     .def("get_index_from_value",
-         (broker::expected<broker::data>(
+         (broker::expected<broker::data> (
            broker::store::*)(broker::data d, broker::data index) const)
            & broker::store::get_index_from_value)
     .def("keys", &broker::store::keys)
@@ -60,13 +60,13 @@ void init_store(py::module& m) {
     .def("decrement", &broker::store::decrement)
     .def("append", &broker::store::append)
     .def("insert_into",
-         (void(broker::store::*)(broker::data, broker::data,
-                                 std::optional<broker::timespan>))
-           & broker::store::insert_into)
+         (void (broker::store::*)(
+           broker::data, broker::data,
+           std::optional<broker::timespan>)) &broker::store::insert_into)
     .def("insert_into",
-         (void(broker::store::*)(broker::data, broker::data, broker::data,
-                                 std::optional<broker::timespan>))
-           & broker::store::insert_into)
+         (void (broker::store::*)(
+           broker::data, broker::data, broker::data,
+           std::optional<broker::timespan>)) &broker::store::insert_into)
     .def("remove_from", &broker::store::remove_from)
     .def("push", &broker::store::push)
     .def("pop", &broker::store::pop)
