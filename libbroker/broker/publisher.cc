@@ -13,8 +13,8 @@
 #include "broker/detail/flare.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/topic.hh"
 
@@ -49,11 +49,10 @@ public:
   }
 
   void on_consumer_ready() override {
-    BROKER_TRACE("");
+    // nop
   }
 
   void on_consumer_cancel() override {
-    BROKER_TRACE("");
     guard_type guard{mtx_};
     cancelled_ = true;
     if (demand_ == 0)
@@ -61,7 +60,6 @@ public:
   }
 
   void on_consumer_demand(size_t demand) override {
-    BROKER_TRACE(BROKER_ARG(demand));
     BROKER_ASSERT(demand > 0);
     guard_type guard{mtx_};
     if (demand_ == 0) {
@@ -90,12 +88,10 @@ public:
   }
 
   void wait_on_flare() {
-    BROKER_TRACE("");
     fx_.await_one();
   }
 
   void push(caf::span<const value_type> items) {
-    BROKER_TRACE(BROKER_ARG2("items.size", items.size()));
     if (items.empty())
       return;
     guard_type guard{mtx_};
@@ -222,7 +218,7 @@ void publisher::drop_all_on_destruction() {
 
 void publisher::publish(const data& x) {
   auto msg = make_data_message(topic_, x);
-  BROKER_DEBUG("publishing" << msg);
+  log::endpoint::debug("publish", "publishing {}", msg);
   dptr(queue_)->push(caf::make_span(&msg, 1));
 }
 
@@ -231,11 +227,8 @@ void publisher::publish(const std::vector<data>& xs) {
   msgs.reserve(xs.size());
   for (auto& x : xs)
     msgs.push_back(make_data_message(topic_, x));
-#ifdef DEBUG
-  BROKER_DEBUG("publishing batch of size" << xs.size());
-  for (auto& msg : msgs)
-    BROKER_DEBUG("publishing" << msg);
-#endif
+  log::endpoint::debug("publish-batch", "publishing a batch of size {}",
+                       xs.size());
   dptr(queue_)->push(msgs);
 }
 

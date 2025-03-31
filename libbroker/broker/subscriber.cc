@@ -19,9 +19,9 @@
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/logger.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
+#include "broker/logger.hh"
 
 using broker::internal::native;
 
@@ -104,7 +104,6 @@ public:
   }
 
   bool pull(std::vector<data_message>& dst, size_t num) {
-    BROKER_TRACE(BROKER_ARG2("dst.size", dst.size()) << BROKER_ARG(num));
     BROKER_ASSERT(num > 0);
     BROKER_ASSERT(dst.size() < num);
     struct cb {
@@ -124,9 +123,11 @@ public:
     cb consumer{this, &dst};
     if (buf_) {
       auto [open, n] = buf_->pull(delay_errors, num - dst.size(), consumer);
-      BROKER_DEBUG("got" << n << "messages from bounded buffer");
+      log::endpoint::debug("subscriber-pull",
+                           "got {} messages from bounded buffer", n);
       if (!open) {
-        BROKER_DEBUG("nothing left to pull, queue closed");
+        log::endpoint::debug("subscriber-queue-closed",
+                             "nothing left to pull, queue closed");
         buf_ = nullptr;
         return false;
       } else if (buf_->available() == 0) {
@@ -135,7 +136,6 @@ public:
         guard_type buf_guard{buf_->mtx()};
         guard_type sub_guard{mtx_};
         if (ready_ && buf_->available_unsafe() == 0) {
-          BROKER_DEBUG("drained buffer, extinguish flare");
           ready_ = false;
           fx_.extinguish();
         }
@@ -144,7 +144,8 @@ public:
         return true;
       }
     } else {
-      BROKER_DEBUG("nothing left to pull, queue closed");
+      log::endpoint::debug("subscriber-queue-closed",
+                           "nothing left to pull, queue closed");
       return false;
     }
   }
@@ -216,7 +217,8 @@ subscriber::~subscriber() {
 }
 
 subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
-  BROKER_INFO("creating subscriber for topic(s)" << filter);
+  log::endpoint::info("creating-subscriber",
+                      "creating subscriber for topic(s): {}", filter);
   using caf::async::make_spsc_buffer_resource;
   auto fptr = std::make_shared<filter_type>(std::move(filter));
   auto [con_res, prod_res] = make_spsc_buffer_resource<data_message>();
@@ -233,12 +235,11 @@ data_message subscriber::get() {
   auto tmp = get(1);
   BROKER_ASSERT(tmp.size() == 1);
   auto x = std::move(tmp.front());
-  BROKER_DEBUG("received" << x);
+  log::endpoint::debug("subscriber-get", "subscriber received: {}", x);
   return x;
 }
 
 std::vector<data_message> subscriber::get(size_t num) {
-  BROKER_TRACE(BROKER_ARG(num));
   BROKER_ASSERT(num > 0);
   auto q = dptr(queue_);
   std::vector<data_message> buf;
@@ -261,7 +262,6 @@ std::vector<data_message> subscriber::do_get(size_t num,
 
 void subscriber::do_get(std::vector<data_message>& buf, size_t num,
                         timestamp abs_timeout) {
-  BROKER_TRACE(BROKER_ARG(num) << BROKER_ARG(abs_timeout));
   auto q = dptr(queue_);
   buf.clear();
   buf.reserve(num);
@@ -271,7 +271,6 @@ void subscriber::do_get(std::vector<data_message>& buf, size_t num,
 }
 
 std::vector<data_message> subscriber::poll() {
-  BROKER_TRACE("");
   // The Queue may return a capacity of 0 if the producer has closed the flow.
   std::vector<data_message> buf;
   auto q = dptr(queue_);
@@ -280,7 +279,6 @@ std::vector<data_message> subscriber::poll() {
     buf.reserve(max_size);
     q->pull(buf, max_size);
   }
-  BROKER_DEBUG("polled" << buf.size() << "messages");
   return buf;
 }
 
@@ -293,17 +291,17 @@ detail::native_socket subscriber::fd() const noexcept {
 }
 
 void subscriber::add_topic(topic x, bool block) {
-  BROKER_INFO("adding topic" << x << "to subscriber");
+  log::endpoint::info("subscriber-add-topic", "add topic {} to subscriber", x);
   update_filter(std::move(x), true, block);
 }
 
 void subscriber::remove_topic(topic x, bool block) {
-  BROKER_INFO("removing topic" << x << "from subscriber");
+  log::endpoint::info("subscriber-remove-topic",
+                      "remove topic {} from subscriber", x);
   update_filter(std::move(x), false, block);
 }
 
 void subscriber::reset() {
-  BROKER_TRACE("");
   if (queue_) {
     dptr(queue_)->cancel();
     queue_ = nullptr;
@@ -312,7 +310,6 @@ void subscriber::reset() {
 }
 
 void subscriber::update_filter(topic what, bool add, bool block) {
-  BROKER_TRACE(BROKER_ARG(what) << BROKER_ARG(add) << BROKER_ARG(block));
   using internal::native;
   if (!block) {
     caf::anon_send(native(core_), core_filter_, std::move(what), add,
@@ -327,17 +324,14 @@ void subscriber::update_filter(topic what, bool add, bool block) {
 }
 
 void subscriber::wait() {
-  BROKER_TRACE("");
   dptr(queue_)->wait();
 }
 
 bool subscriber::wait_for(timespan rel_timeout) {
-  BROKER_TRACE(BROKER_ARG(rel_timeout));
   return wait_until(now() + rel_timeout);
 }
 
 bool subscriber::wait_until(timestamp abs_timeout) {
-  BROKER_TRACE(BROKER_ARG(abs_timeout));
   return dptr(queue_)->wait_until(abs_timeout);
 }
 
