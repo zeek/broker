@@ -252,7 +252,7 @@ Zeek:
 
 .. code-block:: bash
 
-    # g++ -std=c++17 -lbroker -lcaf_core -lcaf_io -lcaf_openssl -o ping ping.cc
+    # g++ -std=c++17 -lbroker -o ping ping.cc
     # zeek ping.zeek &
     # ./ping
     received pong[0]
