@@ -83,7 +83,7 @@ public:
     return write_queue_->fd();
   }
 
-  void publish(const topic& dst, data_message&& msg) {
+  void publish(data_message&& msg) {
     write_queue_->push(caf::make_span(&msg, 1));
   }
 

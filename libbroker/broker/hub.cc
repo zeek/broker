@@ -139,16 +139,20 @@ void hub::unsubscribe(const topic& x, bool block) {
   impl_->unsubscribe(x, block);
 }
 
+void hub::publish(data_message msg) {
+  impl_->publish(std::move(msg));
+}
+
 void hub::publish(const topic& dest, set_builder&& content) {
-  impl_->publish(dest, std::move(content).build_envelope(dest.string()));
+  impl_->publish(std::move(content).build_envelope(dest.string()));
 }
 
 void hub::publish(const topic& dest, table_builder&& content) {
-  impl_->publish(dest, std::move(content).build_envelope(dest.string()));
+  impl_->publish(std::move(content).build_envelope(dest.string()));
 }
 
 void hub::publish(const topic& dest, list_builder&& content) {
-  impl_->publish(dest, std::move(content).build_envelope(dest.string()));
+  impl_->publish(std::move(content).build_envelope(dest.string()));
 }
 
 } // namespace broker

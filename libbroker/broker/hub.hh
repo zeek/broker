@@ -92,6 +92,8 @@ public:
 
   // --- messaging -------------------------------------------------------------
 
+  void publish(data_message msg);
+
   /// Sends `x` to all subscribers.
   void publish(const topic& dest, set_builder&& content);
 

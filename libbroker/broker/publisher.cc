@@ -94,25 +94,25 @@ void publisher::drop_all_on_destruction() {
 }
 
 void publisher::publish(const data& val) {
-  impl_->publish(dst_, make_data_message(dst_, val));
+  impl_->publish(make_data_message(dst_, val));
 }
 
 void publisher::publish(const std::vector<data>& vals) {
   for (auto& val : vals) {
-    impl_->publish(dst_, make_data_message(dst_, val));
+    impl_->publish(make_data_message(dst_, val));
   }
 }
 
 void publisher::publish(set_builder&& content) {
-  impl_->publish(dst_, std::move(content).build_envelope(dst_.string()));
+  impl_->publish(std::move(content).build_envelope(dst_.string()));
 }
 
 void publisher::publish(table_builder&& content) {
-  impl_->publish(dst_, std::move(content).build_envelope(dst_.string()));
+  impl_->publish(std::move(content).build_envelope(dst_.string()));
 }
 
 void publisher::publish(list_builder&& content) {
-  impl_->publish(dst_, std::move(content).build_envelope(dst_.string()));
+  impl_->publish(std::move(content).build_envelope(dst_.string()));
 }
 
 void publisher::reset() {
