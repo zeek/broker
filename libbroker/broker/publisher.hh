@@ -11,7 +11,7 @@
 
 namespace broker::internal {
 
-class publisher_queue;
+class hub_impl;
 
 } // namespace broker::internal
 
@@ -32,9 +32,9 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  publisher(publisher&&) noexcept;
+  publisher(publisher&&) noexcept = default;
 
-  publisher& operator=(publisher&&) noexcept;
+  publisher& operator=(publisher&&) noexcept = default;
 
   publisher(const publisher&) = delete;
 
@@ -68,26 +68,25 @@ public:
 
   // --- mutators --------------------------------------------------------------
 
-  /// Forces the publisher to drop all remaining items from the queue when the
-  /// destructor gets called.
+  /// @deprecated No longer has any effect.
   void drop_all_on_destruction();
 
   // --- messaging -------------------------------------------------------------
 
   /// Sends `x` to all subscribers.
-  void publish(const data& x);
+  void publish(const data& val);
 
   /// Sends `xs` to all subscribers.
-  void publish(const std::vector<data>& xs);
+  void publish(const std::vector<data>& vals);
 
   /// Sends `x` to all subscribers.
-  void publish(set_builder&& x);
+  void publish(set_builder&& content);
 
   /// Sends `x` to all subscribers.
-  void publish(table_builder&& x);
+  void publish(table_builder&& content);
 
   /// Sends `x` to all subscribers.
-  void publish(list_builder&& x);
+  void publish(list_builder&& content);
 
   // --- miscellaneous ---------------------------------------------------------
 
@@ -106,12 +105,10 @@ public:
 private:
   // Private to force users to use `endpoint::make_publsiher`.
   // Note: takes ownership of `q` (not increasing ref count!).
-  publisher(internal::publisher_queue* q, topic t);
+  publisher(topic dst, std::shared_ptr<internal::hub_impl> impl);
 
-
-  internal::publisher_queue* queue_;
-  topic topic_;
-  bool drop_on_destruction_ = false;
+  topic dst_;
+  std::shared_ptr<internal::hub_impl> impl_;
 };
 
 } // namespace broker

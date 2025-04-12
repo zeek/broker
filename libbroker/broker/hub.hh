@@ -28,11 +28,11 @@ public:
 
   hub(hub&&) noexcept = default;
 
-  hub(const hub&) noexcept = default;
-
   hub& operator=(hub&&) noexcept = default;
 
-  hub& operator=(const hub&) noexcept = default;
+  hub(const hub&) noexcept = delete;
+
+  hub& operator=(const hub&) noexcept = delete;
 
   ~hub();
 

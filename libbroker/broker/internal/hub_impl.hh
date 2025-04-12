@@ -17,11 +17,12 @@ namespace broker::internal {
 class hub_impl {
 public:
   hub_impl(hub_id id, caf::actor core, subscriber_queue_ptr read_queue,
-           publisher_queue_ptr write_queue)
+           publisher_queue_ptr write_queue, filter_type filter = {})
     : id_(id),
       core_(std::move(core)),
       read_queue_(std::move(read_queue)),
-      write_queue_(std::move(write_queue)) {
+      write_queue_(std::move(write_queue)),
+      filter_(std::move(filter)) {
     // nop
   }
 
@@ -32,6 +33,8 @@ public:
   data_message get();
 
   std::vector<data_message> get(size_t num);
+
+  std::vector<data_message> get(size_t num, timestamp timeout);
 
   data_message get(timestamp timeout);
 
@@ -82,6 +85,10 @@ public:
 
   void publish(const topic& dst, data_message&& msg) {
     write_queue_->push(caf::make_span(&msg, 1));
+  }
+
+  auto& read_queue() {
+    return read_queue_;
   }
 
 private:

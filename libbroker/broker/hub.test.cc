@@ -70,16 +70,25 @@ TEST("hubs receive messages from publishers") {
   }
 }
 
-// TEST("hubs receive messages that are published on the endpoint") {
-//   broker::endpoint ep;
-//   auto uut = ep.make_hub({"/foo/bar"});
-//   ep.publish(broker::topic{"/foo/bar"},
-//              broker::list_builder{}.add(1).add(2).add(3).build());
-//   auto msg = uut.get(150ms);
-//   if (CHECK_NE(msg, nullptr)) {
-//     CHECK_EQ(msg->topic(), "/foo/bar");
-//     if (auto val = msg->value(); CHECK(val.is_list())) {
-//       CHECK_EQ(broker::to_string(val), "(1, 2, 3)");
-//     }
-//   }
-// }
+TEST("hubs receive messages that are published on the endpoint") {
+  broker::endpoint ep;
+  auto uut = ep.make_hub({"/foo/bar"});
+  ep.publish(broker::topic{"/foo/bar"},
+             broker::list_builder{}.add(1).add(2).add(3).build());
+  auto msg = uut.get(150ms);
+  if (CHECK_NE(msg, nullptr)) {
+    CHECK_EQ(msg->topic(), "/foo/bar");
+    if (auto val = msg->value(); CHECK(val.is_list())) {
+      CHECK_EQ(broker::to_string(val), "(1, 2, 3)");
+    }
+  }
+}
+
+TEST("subscribers do not receive messages from hubs") {
+  broker::endpoint ep;
+  auto uut = ep.make_hub({"/foo/bar"});
+  auto sub = ep.make_subscriber({"/foo/bar"});
+  uut.publish("/foo/bar", broker::list_builder{}.add(1).add(2).add(3));
+  auto msg = sub.get(150ms);
+  CHECK(!msg.has_value());
+}

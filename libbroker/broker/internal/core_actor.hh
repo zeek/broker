@@ -111,12 +111,6 @@ public:
   /// Creates a snapshot for the peering statistics.
   table peer_stats_snapshot() const;
 
-  /// Creates a snapshot for the status of local subscribers.
-  vector local_subscriber_stats_snapshot() const;
-
-  /// Creates a snapshot for the status of local publishers.
-  vector local_publisher_stats_snapshot() const;
-
   /// Creates a snapshot that summarizes the current status of the core.
   table status_snapshot() const;
 
@@ -327,41 +321,6 @@ public:
 
   using flow_scope_stats_ptr_set = std::set<flow_scope_stats_ptr>;
 
-  /// Keeps track of statistics for local subscribers. This is a pointer,
-  /// because some scopes may get destroyed after the state object or while
-  /// destroying the state.
-  std::shared_ptr<flow_scope_stats_ptr_set> local_subscriber_stats =
-    std::make_shared<flow_scope_stats_ptr_set>();
-
-  /// Returns a function object for adding instrumentation to flow that belongs
-  /// to a local subscriber.
-  auto local_subscriber_scope_adder() {
-    auto stats_ptr = std::make_shared<flow_scope_stats>();
-    auto stats_set = local_subscriber_stats;
-    stats_set->emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr,
-                            [stats_set](const flow_scope_stats_ptr& ptr) {
-                              stats_set->erase(ptr);
-                            }};
-  }
-
-  /// Keeps track of statistics for local publishers. This is a pointer, because
-  /// some scopes may get destroyed after the state object or while destroying
-  /// the state.
-  std::shared_ptr<flow_scope_stats_ptr_set> local_publisher_stats =
-    std::make_shared<flow_scope_stats_ptr_set>();
-
-  /// Returns a function object for adding instrumentation to flow that belongs
-  /// to a local publisher.
-  auto local_publisher_scope_adder() {
-    auto stats_ptr = std::make_shared<flow_scope_stats>();
-    auto stats_set = local_publisher_stats;
-    stats_set->emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr,
-                            [stats_set](const flow_scope_stats_ptr& ptr) {
-                              stats_set->erase(ptr);
-                            }};
-  }
 
   /// Returns whether `shutdown` was called.
   bool shutting_down();

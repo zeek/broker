@@ -22,12 +22,31 @@ data_message hub_impl::get() {
 }
 
 std::vector<data_message> hub_impl::get(size_t num) {
-  BROKER_ASSERT(num > 0);
   std::vector<data_message> buf;
+  if (num == 0) {
+    return buf;
+  }
   buf.reserve(num);
   read_queue_->pull(buf, num);
   while (buf.size() < num) {
     read_queue_->wait();
+    if (!read_queue_->pull(buf, num))
+      return buf;
+  }
+  return buf;
+}
+
+std::vector<data_message> hub_impl::get(size_t num, timestamp timeout) {
+  std::vector<data_message> buf;
+  if (num == 0) {
+    return buf;
+  }
+  buf.reserve(num);
+  read_queue_->pull(buf, num);
+  while (buf.size() < num) {
+    if (!read_queue_->wait_until(timeout)) {
+      return buf; // Timeout occurred, return what we have.
+    }
     if (!read_queue_->pull(buf, num))
       return buf;
   }

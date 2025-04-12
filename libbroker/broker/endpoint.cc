@@ -758,6 +758,7 @@ worker endpoint::do_subscribe(filter_type&& filter,
                               const detail::sink_driver_ptr& sink) {
   BROKER_ASSERT(sink != nullptr);
   using caf::async::make_spsc_buffer_resource;
+  auto wid = hub::next_id();
   // Get a pair of connected resources.
   // Note: structured bindings with values confuses clang-tidy's leak checker.
   auto resources = make_spsc_buffer_resource<data_message>();
@@ -778,7 +779,8 @@ worker endpoint::do_subscribe(filter_type&& filter,
   auto worker = caf::actor{obs};
   launch_obs();
   // Hand the producer end to the core.
-  caf::anon_send(native(core()), std::move(filter), std::move(prod_res));
+  caf::anon_send(native(core()), wid, std::move(filter), true,
+                 internal::data_consumer_res{}, std::move(prod_res));
   // Store background worker and return.
   workers_.emplace_back(facade(worker));
   return workers_.back();
@@ -833,6 +835,7 @@ worker
 endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   BROKER_ASSERT(driver != nullptr);
   using caf::async::make_spsc_buffer_resource;
+  auto wid = hub::next_id();
   // Get a pair of connected resources.
   // Note: structured bindings with values confuses clang-tidy's leak checker.
   auto resources = make_spsc_buffer_resource<data_message>();
@@ -840,15 +843,15 @@ endpoint::do_publish_all(const std::shared_ptr<detail::source_driver>& driver) {
   // Push to the producer end with a new worker.
   auto [src, launch_src] = ctx_->sys.spawn_inactive<worker_actor>();
   driver->init();
-  src //
-    ->make_observable()
+  src->make_observable()
     .from_generator(data_message_source{driver})
     .subscribe(prod_res);
   auto worker = caf::actor{src};
   launch_src();
   // Hand the consumer end to the core.
-  caf::anon_send(native(core_),
-                 internal::data_consumer_res{std::move(con_res)});
+  caf::anon_send(native(core_), wid, filter_type{}, true,
+                 internal::data_consumer_res{std::move(con_res)},
+                 internal::data_producer_res{});
   // Store background worker and return.
   workers_.emplace_back(facade(worker));
   return workers_.back();
