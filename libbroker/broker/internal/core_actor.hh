@@ -319,9 +319,6 @@ public:
   /// after the timeout.
   caf::disposable shutting_down_timeout;
 
-  using flow_scope_stats_ptr_set = std::set<flow_scope_stats_ptr>;
-
-
   /// Returns whether `shutdown` was called.
   bool shutting_down();
 
