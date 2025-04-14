@@ -426,6 +426,7 @@ caf::behavior core_actor_state::make_behavior() {
         log::core::debug("connect-hub-source", "add source for hub {}",
                          static_cast<uint64_t>(id));
         hub_inputs.push(src.observe_on(self)
+                          .compose(inject_killswitch_t{std::addressof(ptr->in)})
                           .map([id](const data_message& msg) -> hub_input {
                             return {id, msg};
                           })
@@ -578,6 +579,14 @@ void core_actor_state::finalize_shutdown() {
   hub_inputs.close();
   unsafe_inputs.close();
   flow_inputs.close();
+  // Drop all hubs.
+  for (auto& kvp : hubs) {
+    if (auto& ptr = kvp.second) {
+      ptr->in.dispose();
+      ptr->out.dispose();
+    }
+  }
+  hubs.clear();
   // After this point, any remaining flow should stop and the actor terminate.
 }
 
