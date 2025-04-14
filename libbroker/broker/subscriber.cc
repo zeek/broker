@@ -53,8 +53,8 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
   auto& sys = internal::endpoint_access{&ep}.sys();
   caf::scoped_actor self{sys};
   self
-    ->request(core, 2s, id, std::move(filter), true,
-              internal::data_consumer_res{}, std::move(snk))
+    ->request(core, 2s, id, filter, true, internal::data_consumer_res{},
+              std::move(snk))
     .receive(
       [] {
         // OK, the core has completed the setup.

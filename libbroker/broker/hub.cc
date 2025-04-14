@@ -70,9 +70,7 @@ hub hub::make(endpoint& ep, filter_type filter) {
   auto& core = internal::native(ep.core());
   auto& sys = internal::endpoint_access{&ep}.sys();
   caf::scoped_actor self{sys};
-  self
-    ->request(core, 2s, id, std::move(filter), false, std::move(src2),
-              std::move(snk1))
+  self->request(core, 2s, id, filter, false, std::move(src2), std::move(snk1))
     .receive(
       [] {
         // OK, the core has completed the setup.
@@ -82,7 +80,8 @@ hub hub::make(endpoint& ep, filter_type filter) {
         throw std::runtime_error("cannot create hub");
       });
   // Wrap the queues in shared pointers and create the hub.
-  return hub(std::make_shared<internal::hub_impl>(id, core, sub, pub));
+  return hub(std::make_shared<internal::hub_impl>(id, core, sub, pub,
+                                                  std::move(filter)));
 }
 
 // --- accessors ---------------------------------------------------------------

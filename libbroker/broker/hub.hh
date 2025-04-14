@@ -92,15 +92,16 @@ public:
 
   // --- messaging -------------------------------------------------------------
 
+  /// Sends a message to all subscribers.
   void publish(data_message msg);
 
-  /// Sends `x` to all subscribers.
+  /// Sends a message to all subscribers.
   void publish(const topic& dest, set_builder&& content);
 
-  /// Sends `x` to all subscribers.
+  /// Sends a message to all subscribers.
   void publish(const topic& dest, table_builder&& content);
 
-  /// Sends `x` to all subscribers.
+  /// Sends a message to all subscribers.
   void publish(const topic& dest, list_builder&& content);
 
 private:

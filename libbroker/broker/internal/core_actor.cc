@@ -402,6 +402,10 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](hub_id id, filter_type& filter, bool filter_local,
            data_consumer_res& src, data_producer_res& snk) {
+      // Note: setting the filter_local flag to true means that we will not push
+      //       messages from other hubs to this hub. This is used by the class
+      //       `subscriber` to only receive messages from non-local messages,
+      //       i.e., messages from other peers.
       if (id == hub_id::invalid) {
         log::core::error("add-hub", "cannot add hub with invalid ID");
         src.cancel();

@@ -116,7 +116,7 @@ void publisher::publish(list_builder&& content) {
 }
 
 void publisher::reset() {
-  if (impl_ == nullptr) {
+  if (impl_) {
     impl_ = nullptr;
   }
 }
