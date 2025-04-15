@@ -2,6 +2,16 @@
 
 namespace broker::internal {
 
+hub_impl::~hub_impl() {
+  // Hubs own the write or read queue, so make sure they
+  // are closed or canceled.
+  if (write_queue_)
+    write_queue_->close();
+
+  if (read_queue_)
+    read_queue_->cancel();
+}
+
 std::vector<data_message> hub_impl::poll() {
   // The Queue may return a capacity of 0 if the producer has closed the flow.
   std::vector<data_message> buf;
