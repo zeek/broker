@@ -54,6 +54,8 @@ public:
 
   void push(caf::span<const value_type> items);
 
+  void close();
+
   friend void intrusive_ptr_add_ref(const publisher_queue* ptr) noexcept {
     ptr->ref();
   }

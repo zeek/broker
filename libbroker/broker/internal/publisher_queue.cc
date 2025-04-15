@@ -28,6 +28,10 @@ void publisher_queue::on_consumer_demand(size_t demand) {
   return;
 }
 
+void publisher_queue::close() {
+  if (buf_)
+    buf_->close();
+}
 void publisher_queue::ref_producer() const noexcept {
   ref();
 }
