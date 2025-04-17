@@ -1010,6 +1010,9 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // subscriber, because events from the client must be visible locally. Hence,
   // we assign a UUID to each client and treat it almost like a peer.
   auto client_id = endpoint_id::random();
+  if (auto* lptr = logger()) {
+    lptr->on_client_connect(client_id, addr);
+  }
   // Emit status updates.
   client_added(client_id, addr, type);
   // Hook into the central merge point for forwarding the data to the client.
@@ -1029,12 +1032,27 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
         .map([this](const node_message& msg) { //
           return msg->as_data();
         })
-        // Disconnect unresponsive clients.
+        .do_on_next([this, client_id](const data_message& msg) {
+          // Record messages that are pushed into the backpressure buffer.
+          if (auto* lptr = logger()) {
+            lptr->on_client_buffer_push(client_id, msg);
+          }
+        })
+        // Handle unresponsive clients.
         .on_backpressure_buffer(web_socket_buffer_size(),
                                 web_socket_overflow_policy())
+        .do_on_next([this, client_id](const data_message& msg) {
+          // Record messages that leave the backpressure buffer.
+          if (auto* lptr = logger()) {
+            lptr->on_client_buffer_pull(client_id, msg);
+          }
+        })
         .do_on_error([this, client_id, addr, type](const caf::error& reason) {
           log::core::debug("client-disconnected", "client {} disconnected",
                            addr);
+          if (auto* lptr = logger()) {
+            lptr->on_client_disconnect(client_id, facade(reason));
+          }
           client_removed(client_id, addr, type, reason, true);
         })
         // Emit values to the producer resource.
