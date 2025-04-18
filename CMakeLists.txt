@@ -207,7 +207,15 @@ function(add_bundled_caf)
   set(CAF_ENABLE_TESTING OFF)
   set(CAF_ENABLE_TOOLS OFF)
   set(BUILD_SHARED_LIBS OFF)
-  add_subdirectory(caf EXCLUDE_FROM_ALL)
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    add_subdirectory(caf EXCLUDE_FROM_ALL SYSTEM)
+  else()
+    add_subdirectory(caf EXCLUDE_FROM_ALL)
+  endif()
+  # Disable a few false positives / irrelevant warnings while building CAF.
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(caf_internal INTERFACE -Wno-invalid-offsetof -Wno-documentation)
+  endif ()
 endfunction()
 
 # Bundle prometheus-cpp. This approach is currently experimental.

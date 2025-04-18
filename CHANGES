@@ -1,3 +1,47 @@
+2.8.0-dev.209 | 2025-04-18 12:34:40 -0700
+
+  * Suppress warnings from CAF on GCC and Clang (Dominik Charousset, Corelight)
+
+  * Promote some info log events to warnings (Dominik Charousset, Corelight)
+
+  * Fix leftover legacy log statements (Dominik Charousset, Corelight)
+
+  * Fix string conversion for internal_command (Dominik Charousset)
+
+  * Avoid throwing exceptions on format string errors (Dominik Charousset)
+
+  * Minor fixes for the new logger plus filter option (Dominik Charousset, Corelight)
+
+  * Merge internal into public logger.hh, add verbose (Dominik Charousset, Corelight)
+
+  * Port remaining log statements, remove log macros (Dominik Charousset, Corelight)
+
+  * Port logging in the store obj to the new API (Dominik Charousset, Corelight)
+
+  * Port more store logging to the new API (Dominik Charousset, Corelight)
+
+  * Merge master and clone store log components (Dominik Charousset, Corelight)
+
+    The distinction between clones and masters at the log level component
+    has proven to be too fine-grained and makes it difficult to log events
+    outside of the master and clone actors, e.g., the store (base) actor or
+    the channels.
+
+  * Remove BROKER_TRACE from the code base (Dominik Charousset, Corelight)
+
+    The new logging backend no longer offers trace logging. Since it is more
+    geared towards high-level description of events rather than leaving a
+    paper trail what lines of code ran.
+
+  * Convert logging for core and endpoint components (Dominik Charousset, Corelight)
+
+  * Use the new logging functions (Dominik Charousset, Corelight)
+
+  * Add new API for tapping into Broker logs (Dominik Charousset, Corelight)
+
+    The new event API in Broker enables users to install custom event
+    observers (loggers) in order to embed Broker logs into a wider context.
+
 2.8.0-dev.185 | 2025-03-31 14:38:05 +0200
 
   * Drop caf dependencies from example (Benjamin Bannier, Corelight)
