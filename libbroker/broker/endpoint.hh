@@ -356,6 +356,12 @@ public:
                      std::move(cleanup));
   }
 
+  // --- subscribing and publishing data ---------------------------------------
+
+  /// Returns a hub connected to this endpoint with the initial topic
+  /// subscriptions from `filter`.
+  hub make_hub(filter_type filter);
+
   // --- data stores -----------------------------------------------------------
 
   /// Attaches and/or creates a *master* data store with a globally unique name.

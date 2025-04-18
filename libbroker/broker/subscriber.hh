@@ -11,6 +11,12 @@
 #include <functional>
 #include <vector>
 
+namespace broker::internal {
+
+class hub_impl;
+
+} // namespace broker::internal
+
 namespace broker {
 
 /// Provides blocking access to a stream of data.
@@ -132,8 +138,7 @@ public:
   void reset();
 
 private:
-  subscriber(detail::opaque_ptr queue, std::shared_ptr<filter_type> core_filter,
-             worker core);
+  explicit subscriber(std::shared_ptr<internal::hub_impl> impl);
 
   void update_filter(topic x, bool add, bool block);
 
@@ -156,7 +161,7 @@ private:
 
   /// Points to the filter held by the core actor. May only be touched in the
   /// context of the core.
-  std::shared_ptr<filter_type> core_filter_;
+  std::shared_ptr<internal::hub_impl> impl_;
 };
 
 } // namespace broker

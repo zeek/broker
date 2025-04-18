@@ -4,6 +4,7 @@
 #include "broker/detail/store_state.hh"
 #include "broker/error.hh"
 #include "broker/fwd.hh"
+#include "broker/hub_id.hh"
 #include "broker/internal/fwd.hh"
 #include "broker/internal/native.hh"
 #include "broker/time.hh"
@@ -134,6 +135,7 @@ CAF_BEGIN_TYPE_ID_BLOCK(broker_internal, caf::first_custom_type_id)
   BROKER_ADD_TYPE_ID((broker::erase_command))
   BROKER_ADD_TYPE_ID((broker::expire_command))
   BROKER_ADD_TYPE_ID((broker::filter_type))
+  BROKER_ADD_TYPE_ID((broker::hub_id))
   BROKER_ADD_TYPE_ID((broker::internal::command_consumer_res))
   BROKER_ADD_TYPE_ID((broker::internal::command_producer_res))
   BROKER_ADD_TYPE_ID((broker::internal::connector_event_id))
