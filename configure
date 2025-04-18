@@ -19,15 +19,12 @@ Usage: $0 [OPTION]... [VAR=VALUE]...
                                    debug symbols on, debug flags off
     --ccache               use ccache to speed up recompilation (requires
                            ccache installation and CMake 3.10+)
-    --enable-debug         compile in debugging mode (like --build-type=Debug)
     --enable-static        build static libraries (in addition to shared)
     --enable-static-only   only build static libraries, not shared
     --with-log-level=LVL   enable debugging output via the CAF logger.
                            Levels: ERROR, WARNING, INFO, DEBUG, TRACE
     --with-clang-tidy      run with clang-tidy (requires CMake >= 3.7.2)
     --sanitizers=LIST      comma-separated list of sanitizer names to enable
-    --disable-sanitizer-optimizations
-                           build without any optimizations when using sanitizers
 
   Installation Directories:
     --prefix=PREFIX        installation directory [/usr/local]
@@ -136,9 +133,6 @@ while [ $# -ne 0 ]; do
         --build-type=*)
             append_cache_entry CMAKE_BUILD_TYPE     STRING $optarg
             ;;
-        --enable-debug)
-            append_cache_entry BROKER_ENABLE_DEBUG  BOOL   true
-            ;;
         --enable-static)
             append_cache_entry ENABLE_STATIC        BOOL   true
             ;;
@@ -148,9 +142,6 @@ while [ $# -ne 0 ]; do
         --sanitizers=*)
             append_cache_entry BROKER_SANITIZERS    STRING    $optarg
             ;;
-        --disable-sanitizer-optimizations)
-            append_cache_entry BROKER_SANITIZER_OPTIMIZATIONS BOOL OFF
-          ;;
         --enable-static-only)
             append_cache_entry ENABLE_STATIC_ONLY   BOOL   true
             ;;
