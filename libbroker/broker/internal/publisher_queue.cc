@@ -4,6 +4,10 @@
 
 namespace broker::internal {
 
+publisher_queue::~publisher_queue() {
+  close();
+}
+
 void publisher_queue::on_consumer_ready() {
   // nop
 }
@@ -69,6 +73,13 @@ void publisher_queue::push(caf::span<const value_type> items) {
   guard.unlock();
   buf_->push(items.subspan(0, n));
   push(items.subspan(n));
+}
+
+void publisher_queue::close() {
+  if (buf_) {
+    buf_->close();
+    buf_ = nullptr;
+  }
 }
 
 } // namespace broker::internal

@@ -26,6 +26,8 @@ public:
     // nop
   }
 
+  ~hub_impl();
+
   // -- subscriber interface ---------------------------------------------------
 
   std::vector<data_message> poll();

@@ -10,8 +10,7 @@ subscriber_queue::subscriber_queue(buffer_ptr buf) : buf_(std::move(buf)) {
 }
 
 subscriber_queue::~subscriber_queue() {
-  if (buf_)
-    buf_->cancel();
+  cancel();
 }
 
 void subscriber_queue::on_producer_ready() {
@@ -61,8 +60,10 @@ detail::native_socket subscriber_queue::fd() const noexcept {
 }
 
 void subscriber_queue::cancel() {
-  if (buf_)
+  if (buf_) {
     buf_->cancel();
+    buf_ = nullptr;
+  }
 }
 
 void subscriber_queue::extinguish() {
