@@ -56,23 +56,6 @@ if (NOT broker_is_subproject)
       set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
       set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
 
-      if ( NOT DEFINED BROKER_SANITIZER_OPTIMIZATIONS )
-        if ( DEFINED ENV{NO_OPTIMIZATIONS} )
-          # Using -O1 is generally the suggestion to get more reasonable
-          # performance.  The one downside is it that the compiler may optimize
-          # out code that otherwise generates an error/leak in a -O0 build, but
-          # that should be rare and users mostly will not be running unoptimized
-          # builds in production anyway.
-          set(BROKER_SANITIZER_OPTIMIZATIONS false CACHE INTERNAL "" FORCE)
-        else ()
-          set(BROKER_SANITIZER_OPTIMIZATIONS true CACHE INTERNAL "" FORCE)
-        endif ()
-      endif ()
-
-      if ( BROKER_SANITIZER_OPTIMIZATIONS )
-        set(_sanitizer_flags "${_sanitizer_flags} -O1")
-      endif ()
-
       # Technically, then we also need to use the compiler to drive linking and
       # give the sanitizer flags there, too.  However, CMake, by default, uses
       # the compiler for linking and so the flags automatically get used.  See

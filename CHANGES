@@ -1,3 +1,7 @@
+2.8.0-dev.211 | 2025-04-19 16:33:45 +0200
+
+  * Remove obsolete CMake/configure options (Dominik Charousset, Corelight)
+
 2.8.0-dev.209 | 2025-04-18 12:34:40 -0700
 
   * Suppress warnings from CAF on GCC and Clang (Dominik Charousset, Corelight)
