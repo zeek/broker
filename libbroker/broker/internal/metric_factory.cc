@@ -53,22 +53,6 @@ core_t::processed_messages_t core_t::processed_messages_instances() {
   };
 }
 
-gauge_family* core_t::buffered_messages_family() {
-  return &prometheus::BuildGauge()
-            .Name("broker_buffered_messages")
-            .Help("Number of currently buffered messages.")
-            .Register(*reg_);
-}
-
-core_t::buffered_messages_t core_t::buffered_messages_instances() {
-  auto fm = buffered_messages_family();
-  return {
-    &fm->Add({{"type", "data"}}),           &fm->Add({{"type", "command"}}),
-    &fm->Add({{"type", "routing-update"}}), &fm->Add({{"type", "ping"}}),
-    &fm->Add({{"type", "pong"}}),
-  };
-}
-
 // -- store metrics ------------------------------------------------------------
 
 using store_t = metric_factory::store_t;
