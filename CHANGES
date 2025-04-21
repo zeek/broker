@@ -1,3 +1,15 @@
+2.8.0-dev.215 | 2025-04-21 16:57:03 -0700
+
+  * Extend the event observer for client connections/buffering (Christian Kreibich, Corelight)
+
+  * Extend the event observer for peering/buffering (Dominik Charousset, Corelight)
+
+  * Remove obsolete metric for buffered messages (Dominik Charousset, Corelight)
+
+    Since we have started using the backpressure operator, the buffered metric
+    ("broker_buffered_messages") will always display 0 as buffering takes places
+    elsewhere and is per-peering.
+
 2.8.0-dev.211 | 2025-04-19 16:33:45 +0200
 
   * Remove obsolete CMake/configure options (Dominik Charousset, Corelight)
