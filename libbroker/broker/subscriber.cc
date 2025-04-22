@@ -69,6 +69,7 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
 }
 
 data_message subscriber::get() {
+  impl_->read_queue()->wait();
   return impl_->get();
 }
 
