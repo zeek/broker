@@ -425,42 +425,50 @@ caf::behavior core_actor_state::make_behavior() {
         // Connect the messages from the hub to the merge point.
         log::core::debug("connect-hub-source", "add source for hub {}",
                          static_cast<uint64_t>(id));
+        // For `publisher` sources, we drop the actual ID and tag the message as
+        // "local" (so a `subscriber` won't receive it) by using
+        // `hub_id::invalid`.
+        auto care_of_id = filter_local ? hub_id::invalid : id;
         hub_inputs.push(src.observe_on(self)
                           .compose(inject_killswitch_t{std::addressof(ptr->in)})
-                          .map([id](const data_message& msg) -> hub_input {
-                            return {id, msg};
+                          .map([care_of_id](const data_message& msg) {
+                            return hub_input{care_of_id, msg};
                           })
                           .as_observable());
       }
       if (snk) {
-        // Forward local messages (messages from other hubs) to the hub.
         log::core::debug("connect-hub-sink", "add sink for hub {}",
                          static_cast<uint64_t>(id));
+        caf::flow::observable<data_envelope_ptr> local;
         if (filter_local) {
-          ptr->out = data_outputs
-                       .filter([ptr](const data_message& msg) {
-                         detail::prefix_matcher f;
-                         return f(ptr->filter, msg);
-                       })
-                       .subscribe(snk);
+          // If filter_local is set, we filter out messages from `publisher`
+          // objects and from messages that are published via
+          // `endpoint::publish`. Those messages will have an invalid hub ID.
+          local = hub_merge
+                    .filter([id](const hub_input& msg) {
+                      return msg.first != hub_id::invalid;
+                    })
+                    .filter([id, ptr](const hub_input& msg) {
+                      detail::prefix_matcher f;
+                      return msg.first != id && f(ptr->filter, msg.second);
+                    })
+                    .map([](const hub_input& msg) { return msg.second; })
+                    .as_observable();
         } else {
-          auto local = hub_merge
-                         .filter([id, ptr](const hub_input& msg) {
-                           detail::prefix_matcher f;
-                           return msg.first != id && f(ptr->filter, msg.second);
-                           ;
-                         })
-                         .map([](const hub_input& msg) { return msg.second; });
-          // ptr->out = std::move(local).subscribe(snk);
-          // Forward non-local messages to the hub.
-          auto non_local = data_outputs.filter([ptr](const data_message& msg) {
-            detail::prefix_matcher f;
-            return f(ptr->filter, msg);
-          });
-          // Connect the output buffer.
-          ptr->out =
-            std::move(local).merge(std::move(non_local)).subscribe(snk);
+          local = hub_merge
+                    .filter([id, ptr](const hub_input& msg) {
+                      detail::prefix_matcher f;
+                      return msg.first != id && f(ptr->filter, msg.second);
+                    })
+                    .map([](const hub_input& msg) { return msg.second; })
+                    .as_observable();
         }
+        auto non_local = data_outputs.filter([ptr](const data_message& msg) {
+          detail::prefix_matcher f;
+          return f(ptr->filter, msg);
+        });
+        // Connect the output buffer.
+        ptr->out = local.merge(std::move(non_local)).subscribe(snk);
       }
       hubs.emplace(id, std::move(ptr));
     },
