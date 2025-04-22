@@ -440,29 +440,20 @@ caf::behavior core_actor_state::make_behavior() {
         log::core::debug("connect-hub-sink", "add sink for hub {}",
                          static_cast<uint64_t>(id));
         caf::flow::observable<data_envelope_ptr> local;
-        if (filter_local) {
-          // If filter_local is set, we filter out messages from `publisher`
-          // objects and from messages that are published via
-          // `endpoint::publish`. Those messages will have an invalid hub ID.
-          local = hub_merge
-                    .filter([id](const hub_input& msg) {
-                      return msg.first != hub_id::invalid;
-                    })
-                    .filter([id, ptr](const hub_input& msg) {
-                      detail::prefix_matcher f;
-                      return msg.first != id && f(ptr->filter, msg.second);
-                    })
-                    .map([](const hub_input& msg) { return msg.second; })
-                    .as_observable();
-        } else {
-          local = hub_merge
-                    .filter([id, ptr](const hub_input& msg) {
-                      detail::prefix_matcher f;
-                      return msg.first != id && f(ptr->filter, msg.second);
-                    })
-                    .map([](const hub_input& msg) { return msg.second; })
-                    .as_observable();
-        }
+        local = hub_merge
+                  .filter([filter_local](const hub_input& msg) {
+                    // If filter_local is set, we filter out messages from
+                    // `publisher` objects and from messages that are published
+                    // via `endpoint::publish`. Those messages will have an
+                    // invalid hub ID.
+                    return !filter_local || msg.first != hub_id::invalid;
+                  })
+                  .filter([id, ptr](const hub_input& msg) {
+                    detail::prefix_matcher f;
+                    return msg.first != id && f(ptr->filter, msg.second);
+                  })
+                  .map([](const hub_input& msg) { return msg.second; })
+                  .as_observable();
         auto non_local = data_outputs.filter([ptr](const data_message& msg) {
           detail::prefix_matcher f;
           return f(ptr->filter, msg);
