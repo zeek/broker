@@ -1,3 +1,7 @@
+2.8.0-dev.217 | 2025-04-22 11:37:52 -0700
+
+  * Add new store::proxy::valid function (Dominik Charousset, Corelight)
+
 2.8.0-dev.215 | 2025-04-21 16:57:03 -0700
 
   * Extend the event observer for client connections/buffering (Christian Kreibich, Corelight)
