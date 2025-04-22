@@ -534,7 +534,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   shutdown_stores();
   // We no longer add new input flows.
   flow_inputs.close();
-  // Cancel all subscriptions to local publishers.
+  // Cancel all subscriptions to local publishers / inputs from hubs.
   for (auto& [id, subs] : subscriptions) {
     for (auto& sub : subs) {
       sub.dispose();
@@ -586,12 +586,14 @@ void core_actor_state::finalize_shutdown() {
   // Close all inputs.
   hub_inputs.close();
   unsafe_inputs.close();
-  flow_inputs.close();
-  // Drop all hubs.
+  // Drop inputs from hubs.
   for (auto& kvp : hubs) {
     if (auto& ptr = kvp.second) {
       ptr->in.dispose();
-      ptr->out.dispose();
+      // Note: don't call `ptr->out.dispose();` since that might truncate
+      // messages. We want to deliver our remaining messages to the subscribers.
+      // We have closed all inputs, so the hubs will naturally receive an
+      // `on_complete` event.
     }
   }
   hubs.clear();
