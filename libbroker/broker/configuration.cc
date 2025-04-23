@@ -23,6 +23,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/hub_id.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/native.hh"

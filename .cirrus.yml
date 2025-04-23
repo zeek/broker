@@ -143,14 +143,6 @@ ubuntu22_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu20_task:
-  container:
-    # Ubuntu 20.04 EOL: April 2025
-    dockerfile: ci/ubuntu-20.04/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
 alpine_task:
   container:
     # Alpine releases typically happen every 6 months w/ support for 2 years.

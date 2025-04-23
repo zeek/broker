@@ -1,6 +1,11 @@
 Broker 2.8.0
 ============
 
+- Add a new ``hub`` primitive that can be used to facilitate endpoint-local
+  publish/subscribe use. Essentially, this is ``publisher`` and ``subscriber``
+  combined, but with visibility into all locally published messages except
+  for those of the publishing hub.
+
 Broker 2.7.0
 ============
 

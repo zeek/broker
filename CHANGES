@@ -1,3 +1,37 @@
+2.8.0-dev.234 | 2025-04-23 08:29:32 -0700
+
+  * CI: No more Ubuntu 20.04 [skip ci] (Arne Welzel, Corelight)
+
+2.8.0-dev.232 | 2025-04-23 14:25:31 +0200
+
+  * Add a NEWS entry for hub (Arne Welzel, Corelight)
+
+  * Fix documentation wording (Dominik Charousset, Corelight)
+
+  * Add cleanup code for removing obsolete hub state (Dominik Charousset, Corelight)
+
+  * Simplify filter logic for hubs in the core actor (Dominik Charousset, Corelight)
+
+  * Add missing wait() statement in the subscribers (Dominik Charousset, Corelight)
+
+  * Remove force-closing hubs on shutdown (Dominik Charousset, Corelight)
+
+  * Allow subscribers to receive messages from hubs (Dominik Charousset, Corelight)
+
+  * Fix memory leak when using hubs (Dominik Charousset, Corelight)
+
+  * Fix shutdown delay with the new hubs (Dominik Charousset, Corelight)
+
+  * Integrate review feedback (Dominik Charousset, Corelight)
+
+  * Drop obsolete type alias (Dominik Charousset, Corelight)
+
+  * Allow publishing `data_message` directly on a hub (Dominik Charousset, Corelight)
+
+  * Re-implement publishers and subscribers using hubs (Dominik Charousset, Corelight)
+
+  * Implement new hub API (new pub/sub primitive) (Dominik Charousset, Corelight)
+
 2.8.0-dev.217 | 2025-04-22 11:37:52 -0700
 
   * Add new store::proxy::valid function (Dominik Charousset, Corelight)

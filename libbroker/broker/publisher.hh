@@ -2,13 +2,18 @@
 
 #include "broker/detail/native_socket.hh"
 #include "broker/detail/opaque_type.hh"
-#include "broker/entity_id.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
-#include <chrono>
 #include <cstddef>
+#include <mutex>
 #include <vector>
+
+namespace broker::internal {
+
+class hub_impl;
+
+} // namespace broker::internal
 
 namespace broker {
 
@@ -27,9 +32,9 @@ public:
 
   // --- constructors and destructors ------------------------------------------
 
-  publisher(publisher&&) = default;
+  publisher(publisher&&) noexcept = default;
 
-  publisher& operator=(publisher&&) = default;
+  publisher& operator=(publisher&&) noexcept = default;
 
   publisher(const publisher&) = delete;
 
@@ -63,26 +68,25 @@ public:
 
   // --- mutators --------------------------------------------------------------
 
-  /// Forces the publisher to drop all remaining items from the queue when the
-  /// destructor gets called.
+  /// @deprecated No longer has any effect.
   void drop_all_on_destruction();
 
   // --- messaging -------------------------------------------------------------
 
   /// Sends `x` to all subscribers.
-  void publish(const data& x);
+  void publish(const data& val);
 
   /// Sends `xs` to all subscribers.
-  void publish(const std::vector<data>& xs);
+  void publish(const std::vector<data>& vals);
 
   /// Sends `x` to all subscribers.
-  void publish(set_builder&& x);
+  void publish(set_builder&& content);
 
   /// Sends `x` to all subscribers.
-  void publish(table_builder&& x);
+  void publish(table_builder&& content);
 
   /// Sends `x` to all subscribers.
-  void publish(list_builder&& x);
+  void publish(list_builder&& content);
 
   // --- miscellaneous ---------------------------------------------------------
 
@@ -99,12 +103,12 @@ public:
   void reset();
 
 private:
-  // -- force users to use `endpoint::make_publsiher` -------------------------
-  publisher(detail::opaque_ptr q, topic t);
+  // Private to force users to use `endpoint::make_publsiher`.
+  // Note: takes ownership of `q` (not increasing ref count!).
+  publisher(topic dst, std::shared_ptr<internal::hub_impl> impl);
 
-  detail::opaque_ptr queue_;
-  topic topic_;
-  bool drop_on_destruction_ = false;
+  topic dst_;
+  std::shared_ptr<internal::hub_impl> impl_;
 };
 
 } // namespace broker

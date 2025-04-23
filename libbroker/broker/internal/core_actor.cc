@@ -24,6 +24,7 @@
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
+#include "broker/hub_id.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
 #include "broker/internal/killswitch.hh"
@@ -146,6 +147,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
     registry(checked(std::move(reg),
                      "cannot construct the core actor without registry")),
     metrics(*registry),
+    hub_inputs(self),
     unsafe_inputs(self),
     flow_inputs(self) {
   // Read config and check for extra configuration parameters.
@@ -182,7 +184,13 @@ core_actor_state::~core_actor_state() {
 
 caf::behavior core_actor_state::make_behavior() {
   // Create the central "bus" where everything flows through.
-  central_merge = flow_inputs.as_observable().merge().share();
+  hub_merge = hub_inputs.as_observable().merge().share();
+  central_merge = flow_inputs.as_observable()
+                    .merge()
+                    .merge(hub_merge.map([](const hub_input& msg) {
+                      return node_message{msg.second};
+                    }))
+                    .share();
   // Process control messages and add instrumentation for metrics.
   central_merge //
     .for_each([this](const node_message& msg) {
@@ -252,8 +260,22 @@ caf::behavior core_actor_state::make_behavior() {
       .map([this](const node_message& msg) { return msg->as_command(); })
       // Convert this blueprint to a *hot* observable.
       .share();
-  // Connect the unsafe inputs to the central merge point.
-  flow_inputs.push(unsafe_inputs.as_observable());
+
+  // Connect data messages from the unsafe inputs to the hub merge point.
+  hub_inputs.push(unsafe_inputs.as_observable()
+                    .filter([](const node_message& msg) {
+                      return get_type(msg) == packed_message_type::data;
+                    })
+                    .map([](const node_message& msg) -> hub_input {
+                      return {hub_id::invalid, msg->as_data()};
+                    })
+                    .as_observable());
+  // Connect other messages from the unsafe inputs to the central merge point.
+  flow_inputs.push(unsafe_inputs.as_observable()
+                     .filter([](const node_message& msg) {
+                       return get_type(msg) != packed_message_type::data;
+                     })
+                     .as_observable());
   // Override the default exit handler to add logging.
   self->set_exit_handler([this](caf::exit_msg& msg) {
     if (msg.reason) {
@@ -352,74 +374,96 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::publish, const command_message& msg, endpoint_id dst) {
       dispatch(msg->with(id, dst));
     },
-    // -- interface for subscribers --------------------------------------------
+    // -- subscription management ----------------------------------------------
     [this](atom::subscribe, const filter_type& filter) {
       // Subscribe to topics without actually caring about the events. This
       // makes sure that this node receives events on the topics, which in means
       // we can forward them.
       subscribe(filter);
     },
-    [this](filter_type& filter, data_producer_res snk) {
-      subscribe(filter);
-      data_outputs
-        .filter([xs = std::move(filter)](const data_message& msg) {
-          detail::prefix_matcher f;
-          return f(xs, msg);
-        })
-        .compose(local_subscriber_scope_adder())
-        .subscribe(std::move(snk));
-    },
-    [this](std::shared_ptr<filter_type> fptr, data_producer_res snk) {
-      // Here, we accept a shared_ptr to the filter instead of an actual object.
-      // This allows the subscriber to manipulate the filter later by sending us
-      // an update message. The filter itself is not thread-safe. Hence, the
-      // publishers should never write to it directly.
-      subscribe(*fptr);
-      data_outputs
-        .filter([fptr = std::move(fptr)](const data_message& msg) {
-          detail::prefix_matcher f;
-          return f(*fptr, msg);
-        })
-        .compose(local_subscriber_scope_adder())
-        .subscribe(std::move(snk));
-    },
-    [this](std::shared_ptr<filter_type>& fptr, topic& x, bool add,
-           std::shared_ptr<std::promise<void>>& sync) {
-      // We assume that fptr belongs to a previously constructed flow.
-      auto e = fptr->end();
-      auto i = std::find(fptr->begin(), e, x);
-      if (add) {
-        if (i == e) {
-          fptr->emplace_back(std::move(x));
-          subscribe(*fptr);
-        }
-      } else {
-        if (i != e)
-          fptr->erase(i);
+    // -- interface for hubs ---------------------------------------------------
+    [this](hub_id id, filter_type& filter) {
+      // Update the filter of an existing hub.
+      auto i = hubs.find(id);
+      if (i == hubs.end()) {
+        log::core::error("update-hub-filter",
+                         "cannot update filter of hub {}: not found",
+                         static_cast<uint64_t>(id));
+        return;
       }
-      if (sync)
-        sync->set_value();
+      auto& ptr = i->second;
+      if (ptr->filter != filter) {
+        log::core::debug("update-hub-filter", "update filter of hub {} to {}",
+                         static_cast<uint64_t>(id), filter);
+        ptr->filter = std::move(filter);
+        subscribe(ptr->filter);
+      }
     },
-    // -- interface for publishers ---------------------------------------------
-    [this](data_consumer_res src) {
-      auto consumer_id = endpoint_id::random();
-      auto [in, sub] =
-        self
-          ->make_observable() //
-          .from_resource(std::move(src))
-          .map([this](const data_message& msg) { return node_message{msg}; })
-          .compose(local_publisher_scope_adder())
-          .compose(add_killswitch_t{});
-      flow_inputs.push(in.do_finally([this, consumer_id] {
-                           auto i = subscriptions.find(consumer_id);
-                           if (i != subscriptions.end()) {
-                             subscriptions.erase(i);
-                           }
-                         })
-                         .as_observable());
-      // TODO: next lines seems to be a false positive, but maybe there's
-      //       something we can do upstream to avoid the alert.
-      subscriptions[consumer_id].push_back(sub); // NOLINT
+    [this](hub_id id, filter_type& filter, bool filter_local,
+           data_consumer_res& src, data_producer_res& snk) {
+      // Note: setting the filter_local flag to true means that we will not push
+      //       messages from other hubs to this hub. This is used by the class
+      //       `subscriber` to only receive messages from non-local messages,
+      //       i.e., messages from other peers.
+      if (id == hub_id::invalid) {
+        log::core::error("add-hub", "cannot add hub with invalid ID");
+        src.cancel();
+        snk.close();
+        return;
+      }
+      log::core::debug("add-hub", "add hub {}", static_cast<uint64_t>(id));
+      if (hubs.count(id) != 0) {
+        src.cancel();
+        snk.close();
+        return;
+      }
+      subscribe(filter);
+      auto ptr = std::make_shared<hub_state>();
+      ptr->filter = std::move(filter);
+      if (src) {
+        // Connect the messages from the hub to the merge point.
+        log::core::debug("connect-hub-source", "add source for hub {}",
+                         static_cast<uint64_t>(id));
+        // For `publisher` sources, we drop the actual ID and tag the message as
+        // "local" (so a `subscriber` won't receive it) by using
+        // `hub_id::invalid`.
+        auto care_of_id = filter_local ? hub_id::invalid : id;
+        hub_inputs.push(src.observe_on(self)
+                          .compose(inject_killswitch_t{std::addressof(ptr->in)})
+                          .do_finally([this, id] { drop_hub_input(id); })
+                          .map([care_of_id](const data_message& msg) {
+                            return hub_input{care_of_id, msg};
+                          })
+                          .as_observable());
+      }
+      if (snk) {
+        log::core::debug("connect-hub-sink", "add sink for hub {}",
+                         static_cast<uint64_t>(id));
+        caf::flow::observable<data_envelope_ptr> local;
+        local = hub_merge
+                  .filter([filter_local](const hub_input& msg) {
+                    // If filter_local is set, we filter out messages from
+                    // `publisher` objects and from messages that are published
+                    // via `endpoint::publish`. Those messages will have an
+                    // invalid hub ID.
+                    return !filter_local || msg.first != hub_id::invalid;
+                  })
+                  .filter([id, ptr](const hub_input& msg) {
+                    detail::prefix_matcher f;
+                    return msg.first != id && f(ptr->filter, msg.second);
+                  })
+                  .map([](const hub_input& msg) { return msg.second; })
+                  .as_observable();
+        auto non_local = data_outputs.filter([ptr](const data_message& msg) {
+          detail::prefix_matcher f;
+          return f(ptr->filter, msg);
+        });
+        // Connect the output buffer.
+        ptr->out = local.merge(std::move(non_local))
+                     .do_finally([this, id] { drop_hub_output(id); })
+                     .subscribe(snk);
+      }
+      hubs.emplace(id, std::move(ptr));
     },
     // -- data store management ------------------------------------------------
     [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
@@ -443,41 +487,6 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](atom::shutdown, atom::data_store) { //
       shutdown_stores();
-    },
-    // -- interface for legacy subscribers -------------------------------------
-    [this](atom::join, const filter_type& filter) {
-      // Sanity checking: reject anonymous messages.
-      auto sender_ptr = self->current_sender();
-      if (sender_ptr == nullptr)
-        return;
-      // Update state for repeated join messages.
-      auto addr = caf::actor_cast<caf::actor_addr>(sender_ptr);
-      if (auto i = legacy_subs.find(addr); i != legacy_subs.end()) {
-        if (filter.empty()) {
-          i->second.sub.dispose();
-          legacy_subs.erase(i);
-        } else {
-          subscribe(filter);
-          *i->second.filter = filter;
-        }
-        return;
-      }
-      // Take selected messages out of the flow and send them via asynchronous
-      // messages to the client.
-      auto fptr = std::make_shared<filter_type>(filter);
-      auto hdl = caf::actor_cast<caf::actor>(sender_ptr);
-      auto sub = data_outputs
-                   .filter([fptr](const data_message& item) {
-                     detail::prefix_matcher f;
-                     return f(*fptr, item);
-                   })
-                   .compose(local_subscriber_scope_adder())
-                   .for_each([this, hdl](const data_message& msg) {
-                     self->send(hdl, msg);
-                   });
-      legacy_subs.emplace(addr, legacy_subscriber{fptr, sub});
-      // Drop this `for_each`-subscription if the client goes down.
-      self->monitor(hdl);
     },
     // -- miscellaneous --------------------------------------------------------
     [this](atom::shutdown, shutdown_options opts) { //
@@ -508,6 +517,59 @@ caf::behavior core_actor_state::make_behavior() {
   }
 }
 
+void core_actor_state::drop_hub_input(hub_id id) {
+  // Callback that does the actual work.
+  auto do_drop = [this, id] {
+    auto i = hubs.find(id);
+    if (i == hubs.end()) {
+      return;
+    }
+    if (auto& ptr = i->second) {
+      ptr->in = nullptr; // already disposed
+      if (ptr->out) {
+        return; // keep the hub registered until the output is disposed as well
+      }
+    }
+    // Remove the hub if either 1) `ptr` is null or 2) both input and output
+    // are disposed.
+    log::core::debug("remove-hub", "removing hub {}",
+                     static_cast<uint64_t>(id));
+    hubs.erase(i);
+  };
+  // Check if the hub is registered. If it is, we schedule a delayed call to
+  // drop the input. This is necessary since we might be in the middle of a
+  // processing chain that may modify the hub state.
+  if (hubs.count(id) != 0) {
+    self->delay_fn(do_drop);
+  }
+}
+
+void core_actor_state::drop_hub_output(hub_id id) {
+  // Callback that does the actual work.
+  auto do_drop = [this, id] {
+    auto i = hubs.find(id);
+    if (i == hubs.end()) {
+      return;
+    }
+    if (auto& ptr = i->second) {
+      ptr->out = nullptr; // already disposed
+      if (ptr->in) {
+        return; // keep the hub registered until the input is disposed as well
+      }
+    }
+    // Remove the hub if either 1) `ptr` is null or 2) both input and output
+    // are disposed.
+    log::core::debug("remove-hub", "removing hub {}",
+                     static_cast<uint64_t>(id));
+    hubs.erase(i);
+  };
+  // Same as `drop_hub_input`: avoid modifying the hub state while processing
+  // messages.
+  if (hubs.count(id) != 0) {
+    self->delay_fn(do_drop);
+  }
+}
+
 void core_actor_state::shutdown(shutdown_options options) {
   if (shutting_down())
     return;
@@ -518,7 +580,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   shutdown_stores();
   // We no longer add new input flows.
   flow_inputs.close();
-  // Cancel all subscriptions to local publishers.
+  // Cancel subscriptions from clients (WebSocket clients).
   for (auto& [id, subs] : subscriptions) {
     for (auto& sub : subs) {
       sub.dispose();
@@ -568,7 +630,19 @@ void core_actor_state::finalize_shutdown() {
   // Close the shared state for all peers.
   peer_statuses->close();
   // Close all inputs.
+  hub_inputs.close();
   unsafe_inputs.close();
+  // Drop inputs from hubs.
+  for (auto& kvp : hubs) {
+    if (auto& ptr = kvp.second) {
+      ptr->in.dispose();
+      // Note: don't call `ptr->out.dispose();` since that might truncate
+      // messages. We want to deliver our remaining messages to the subscribers.
+      // We have closed all inputs, so the hubs will naturally receive an
+      // `on_complete` event.
+    }
+  }
+  hubs.clear();
   // After this point, any remaining flow should stop and the actor terminate.
 }
 
@@ -655,20 +729,6 @@ table core_actor_state::peer_stats_snapshot() const {
   return result;
 }
 
-vector core_actor_state::local_subscriber_stats_snapshot() const {
-  vector result;
-  for (auto& state_ptr : *local_subscriber_stats)
-    result.emplace_back(to_vals(*state_ptr));
-  return result;
-}
-
-vector core_actor_state::local_publisher_stats_snapshot() const {
-  vector result;
-  for (auto& state_ptr : *local_publisher_stats)
-    result.emplace_back(to_vals(*state_ptr));
-  return result;
-}
-
 table core_actor_state::status_snapshot() const {
   auto env_or_default = [](const char* env_name,
                            const char* fallback) -> std::string {
@@ -687,8 +747,6 @@ table core_actor_state::status_snapshot() const {
   add("web-socket-connections", metrics.web_socket_connections->Value());
   add("message-metrics", message_metrics_snapshot());
   add("peerings", peer_stats_snapshot());
-  add("local-subscribers", local_subscriber_stats_snapshot());
-  add("local-publishers", local_publisher_stats_snapshot());
   add("published-via-async-msg", published_via_async_msg);
   return result;
 }
