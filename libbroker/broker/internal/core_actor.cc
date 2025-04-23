@@ -431,6 +431,7 @@ caf::behavior core_actor_state::make_behavior() {
         auto care_of_id = filter_local ? hub_id::invalid : id;
         hub_inputs.push(src.observe_on(self)
                           .compose(inject_killswitch_t{std::addressof(ptr->in)})
+                          .do_finally([this, id] { drop_hub_input(id); })
                           .map([care_of_id](const data_message& msg) {
                             return hub_input{care_of_id, msg};
                           })
@@ -459,7 +460,9 @@ caf::behavior core_actor_state::make_behavior() {
           return f(ptr->filter, msg);
         });
         // Connect the output buffer.
-        ptr->out = local.merge(std::move(non_local)).subscribe(snk);
+        ptr->out = local.merge(std::move(non_local))
+                     .do_finally([this, id] { drop_hub_output(id); })
+                     .subscribe(snk);
       }
       hubs.emplace(id, std::move(ptr));
     },
@@ -515,6 +518,59 @@ caf::behavior core_actor_state::make_behavior() {
   }
 }
 
+void core_actor_state::drop_hub_input(hub_id id) {
+  // Callback that does the actual work.
+  auto do_drop = [this, id] {
+    auto i = hubs.find(id);
+    if (i == hubs.end()) {
+      return;
+    }
+    if (auto& ptr = i->second) {
+      ptr->in = nullptr; // already disposed
+      if (ptr->out) {
+        return; // keep the hub registered until the output is disposed as well
+      }
+    }
+    // Remove the hub if either 1) `ptr` is null or 2) both input and output
+    // are disposed.
+    log::core::debug("remove-hub", "removing hub {}",
+                     static_cast<uint64_t>(id));
+    hubs.erase(i);
+  };
+  // Check if the hub is registered. If it is, we schedule a delayed call to
+  // drop the input. This is necessary since we might be in the middle of a
+  // processing chain that may modify the hub state.
+  if (hubs.count(id) != 0) {
+    self->delay_fn(do_drop);
+  }
+}
+
+void core_actor_state::drop_hub_output(hub_id id) {
+  // Callback that does the actual work.
+  auto do_drop = [this, id] {
+    auto i = hubs.find(id);
+    if (i == hubs.end()) {
+      return;
+    }
+    if (auto& ptr = i->second) {
+      ptr->out = nullptr; // already disposed
+      if (ptr->in) {
+        return; // keep the hub registered until the input is disposed as well
+      }
+    }
+    // Remove the hub if either 1) `ptr` is null or 2) both input and output
+    // are disposed.
+    log::core::debug("remove-hub", "removing hub {}",
+                     static_cast<uint64_t>(id));
+    hubs.erase(i);
+  };
+  // Same as `drop_hub_input`: avoid modifying the hub state while processing
+  // messages.
+  if (hubs.count(id) != 0) {
+    self->delay_fn(do_drop);
+  }
+}
+
 void core_actor_state::shutdown(shutdown_options options) {
   if (shutting_down())
     return;
@@ -525,7 +581,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   shutdown_stores();
   // We no longer add new input flows.
   flow_inputs.close();
-  // Cancel all subscriptions to local publishers / inputs from hubs.
+  // Cancel subscriptions from clients (WebSocket clients).
   for (auto& [id, subs] : subscriptions) {
     for (auto& sub : subs) {
       sub.dispose();

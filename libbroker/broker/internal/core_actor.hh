@@ -344,6 +344,10 @@ public:
 
   using hub_state_ptr = std::shared_ptr<hub_state>;
 
+  void drop_hub_input(hub_id id);
+
+  void drop_hub_output(hub_id id);
+
   std::unordered_map<hub_id, hub_state_ptr> hubs;
 };
 
