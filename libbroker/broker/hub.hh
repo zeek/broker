@@ -40,11 +40,11 @@ public:
 
   // --- accessors -------------------------------------------------------------
 
-  /// Returns the amount of values than can be extracted immediately without
+  /// Returns the number of values than can be extracted immediately without
   /// blocking.
   size_t available() const noexcept;
 
-  /// Returns the current demand on this publisher. The demand is the amount of
+  /// Returns the current demand on this publisher. The demand is the number of
   /// messages that were requested by the Broker core.
   size_t demand() const;
 
