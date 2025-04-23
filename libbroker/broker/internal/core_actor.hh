@@ -1,6 +1,7 @@
 #pragma once
 
 #include "broker/endpoint.hh"
+#include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/fwd.hh"
@@ -11,6 +12,7 @@
 #include <caf/flow/item_publisher.hpp>
 #include <caf/flow/observable.hpp>
 #include <caf/make_counted.hpp>
+#include <caf/uuid.hpp>
 
 #include <array>
 #include <optional>
@@ -103,12 +105,6 @@ public:
 
   /// Creates a snapshot for the peering statistics.
   table peer_stats_snapshot() const;
-
-  /// Creates a snapshot for the status of local subscribers.
-  vector local_subscriber_stats_snapshot() const;
-
-  /// Creates a snapshot for the status of local publishers.
-  vector local_publisher_stats_snapshot() const;
 
   /// Creates a snapshot that summarizes the current status of the core.
   table status_snapshot() const;
@@ -254,6 +250,16 @@ public:
   /// Stores all clone actors created by this endpoint.
   std::unordered_map<std::string, caf::actor> clones;
 
+  /// An input from a hub. The first element is the hub ID, the second element
+  /// is the message
+  using hub_input = std::pair<hub_id, data_envelope_ptr>;
+
+  /// Pushes flows into the hub merge point.
+  caf::flow::item_publisher<caf::flow::observable<hub_input>> hub_inputs;
+
+  /// The output of `hub_inputs`.
+  caf::flow::observable<hub_input> hub_merge;
+
   /// Pushes messages into the flow. This is marked as unsafe, because we push
   /// inputs from the mailbox directly into the buffer without a back-pressure
   /// for the senders.
@@ -308,44 +314,6 @@ public:
   /// after the timeout.
   caf::disposable shutting_down_timeout;
 
-  using flow_scope_stats_ptr_set = std::set<flow_scope_stats_ptr>;
-
-  /// Keeps track of statistics for local subscribers. This is a pointer,
-  /// because some scopes may get destroyed after the state object or while
-  /// destroying the state.
-  std::shared_ptr<flow_scope_stats_ptr_set> local_subscriber_stats =
-    std::make_shared<flow_scope_stats_ptr_set>();
-
-  /// Returns a function object for adding instrumentation to flow that belongs
-  /// to a local subscriber.
-  auto local_subscriber_scope_adder() {
-    auto stats_ptr = std::make_shared<flow_scope_stats>();
-    auto stats_set = local_subscriber_stats;
-    stats_set->emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr,
-                            [stats_set](const flow_scope_stats_ptr& ptr) {
-                              stats_set->erase(ptr);
-                            }};
-  }
-
-  /// Keeps track of statistics for local publishers. This is a pointer, because
-  /// some scopes may get destroyed after the state object or while destroying
-  /// the state.
-  std::shared_ptr<flow_scope_stats_ptr_set> local_publisher_stats =
-    std::make_shared<flow_scope_stats_ptr_set>();
-
-  /// Returns a function object for adding instrumentation to flow that belongs
-  /// to a local publisher.
-  auto local_publisher_scope_adder() {
-    auto stats_ptr = std::make_shared<flow_scope_stats>();
-    auto stats_set = local_publisher_stats;
-    stats_set->emplace(stats_ptr);
-    return add_flow_scope_t{stats_ptr,
-                            [stats_set](const flow_scope_stats_ptr& ptr) {
-                              stats_set->erase(ptr);
-                            }};
-  }
-
   /// Returns whether `shutdown` was called.
   bool shutting_down();
 
@@ -357,6 +325,25 @@ public:
   /// Counts messages that were published directly via message, i.e., without
   /// using the back-pressure of flows.
   int64_t published_via_async_msg = 0;
+
+  struct hub_state {
+    ~hub_state() {
+      in.dispose();
+      out.dispose();
+    }
+
+    filter_type filter;
+    caf::disposable in;
+    caf::disposable out;
+  };
+
+  using hub_state_ptr = std::shared_ptr<hub_state>;
+
+  void drop_hub_input(hub_id id);
+
+  void drop_hub_output(hub_id id);
+
+  std::unordered_map<hub_id, hub_state_ptr> hubs;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;
