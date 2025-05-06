@@ -1,3 +1,7 @@
+2.8.0-dev.238 | 2025-05-06 15:44:15 +0200
+
+  * Remove stale CI files (Dominik Charousset, Corelight)
+
 2.8.0-dev.234 | 2025-04-23 08:29:32 -0700
 
   * CI: No more Ubuntu 20.04 [skip ci] (Arne Welzel, Corelight)
