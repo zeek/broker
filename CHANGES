@@ -1,3 +1,9 @@
+2.8.0-dev.242 | 2025-05-30 07:20:17 -0700
+
+  * Update pybind11 to v2.13.6 (Tim Wojtulewicz, Corelight)
+
+  * CI: Drop Fedora 40, add Fedora 42 (Arne Welzel, Corelight)
+
 2.8.0-dev.238 | 2025-05-06 15:44:15 +0200
 
   * Remove stale CI files (Dominik Charousset, Corelight)
