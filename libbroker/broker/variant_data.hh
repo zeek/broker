@@ -28,15 +28,6 @@ public:
                         std::string_view, address, subnet, port, timestamp,
                         timespan, enum_value_view>;
 
-  // Note: GCC-8 has a broken std::less<> implementation. Remove this workaround
-  //       once we drop support for GCC-8.
-  struct less {
-    template <class T, class U>
-    bool operator()(const T& x, const U& y) const {
-      return x < y;
-    }
-  };
-
   template <class T>
   using allocator_t = detail::monotonic_buffer_resource::allocator<T>;
 
@@ -44,7 +35,7 @@ public:
 
   using list_iterator = list::const_iterator;
 
-  using set = std::set<variant_data, less, allocator_t<variant_data>>;
+  using set = std::set<variant_data, std::less<>, allocator_t<variant_data>>;
 
   using set_iterator = set::const_iterator;
 
@@ -52,7 +43,8 @@ public:
 
   using table_allocator = allocator_t<key_value_pair>;
 
-  using table = std::map<variant_data, variant_data, less, table_allocator>;
+  using table =
+    std::map<variant_data, variant_data, std::less<>, table_allocator>;
 
   using table_iterator = table::const_iterator;
 
