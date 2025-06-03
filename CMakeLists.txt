@@ -88,8 +88,8 @@ endif ()
 # Append our extra flags to the existing value of CXXFLAGS.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
-include(RequireCXX17)
 include(CheckCXXSourceCompiles)
+include(cmake/RequireCXXStd.cmake)
 
 # Unfortunately, std::filesystem is a mess. The feature checks at compile time
 # via __has_include(<filesystem>) or __cpp_lib_filesystem only tell half of the
