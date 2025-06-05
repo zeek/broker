@@ -157,10 +157,10 @@ TODO: Document.
 ..
 ..   context ctx;
 ..   auto ep = ctx.spawn<nonblocking>();
-..   ep.subscribe("/foo", [=](const topic& t, const data& d) {
+..   ep.subscribe("/foo", [](const topic& t, const data& d) {
 ..     std::cout << t << " -> " << d << std::endl;
 ..   });
-..   ep.subscribe("/bar", [=](const topic& t, const data& d) {
+..   ep.subscribe("/bar", [](const topic& t, const data& d) {
 ..     std::cout << t << " -> " << d << std::endl;
 ..   });
 ..
