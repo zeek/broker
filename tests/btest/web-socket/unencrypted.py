@@ -119,7 +119,7 @@ msg = {
         # string
         {
             "@data-type": "string",
-            "data": "Hello Broker!"
+            "data": "Hello \\u003cBroker\\u003e!" # u003c = '<', u003e = '>'
         },
         # none
         {
