@@ -382,7 +382,7 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
         st.gptr = std::move(ptr);
         st.remaining = *this_node->num_outputs;
       },
-      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+      [=, this](state& st, caf::downstream<value_type>& out, size_t hint) {
         if (st.gptr == nullptr)
           return;
         auto n = std::min(hint, st.remaining);
@@ -422,7 +422,7 @@ void generator(caf::stateful_actor<generator_state>* self, node* this_node,
         // Take ownership of `ptr`.
         st.gptr = std::move(ptr);
       },
-      [=](state& st, caf::downstream<value_type>& out, size_t hint) {
+      [=, this](state& st, caf::downstream<value_type>& out, size_t hint) {
         size_t n = 0;
         for (; n < hint; ++n) {
           if (done(st))
@@ -496,8 +496,10 @@ struct consumer_state {
       [](caf::unit_t&) {
         // nop
       },
-      [=](caf::unit_t&, std::vector<T>& xs) { handle_messages(xs.size()); },
-      [=](caf::unit_t&, const caf::error& err) {
+      [=, this](caf::unit_t&, std::vector<T>& xs) {
+        handle_messages(xs.size());
+      },
+      [=, this](caf::unit_t&, const caf::error& err) {
         verbose::println(this_node->name, " stops receiving ",
                          caf::type_name_v<T>);
       });
@@ -521,23 +523,23 @@ caf::behavior consumer(caf::stateful_actor<consumer_state>* self,
   self->send(self * core, atom::join_v, atom::data_store_v, topics(*this_node));
   if (!verbose::enabled())
     return {
-      [=](caf::stream<broker::data_message> in) {
+      [=, this](caf::stream<broker::data_message> in) {
         self->state.attach_sink(in, observer);
       },
-      [=](caf::stream<broker::command_message> in) {
+      [=, this](caf::stream<broker::command_message> in) {
         self->state.attach_sink(in, observer);
       },
     };
   size_t last_printed_count = 0;
   return {
-    [=](caf::stream<broker::data_message> in) {
+    [=, this](caf::stream<broker::data_message> in) {
       self->state.attach_sink(in, observer);
     },
-    [=](caf::stream<broker::command_message> in) {
+    [=, this](caf::stream<broker::command_message> in) {
       self->state.attach_sink(in, observer);
     },
     caf::after(std::chrono::seconds(1)) >>
-      [=]() mutable {
+      [=, this]() mutable {
         if (last_printed_count != self->state.received) {
           verbose::println(this_node->name,
                            " received nothing for 1s, last count: ",
@@ -606,7 +608,7 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
   if (is_receiver(*this_node))
     self->state.ep.forward(topics(*this_node));
   return {
-    [=](atom::init) -> caf::result<atom::ok> {
+    [=, this](atom::init) -> caf::result<atom::ok> {
       // Open up the ports and start peering.
       auto& st = self->state;
       if (this_node->id.scheme() == "tcp") {
@@ -660,9 +662,13 @@ caf::behavior node_manager(node_manager_actor* self, node* this_node) {
       verbose::println(this_node->name, " up and running");
       return atom::ok_v;
     },
-    [=](atom::read, caf::actor observer) { run_receive_mode(self, observer); },
-    [=](atom::write, caf::actor observer) { run_send_mode(self, observer); },
-    [=](atom::shutdown) -> caf::result<atom::ok> {
+    [=, this](atom::read, caf::actor observer) {
+      run_receive_mode(self, observer);
+    },
+    [=, this](atom::write, caf::actor observer) {
+      run_send_mode(self, observer);
+    },
+    [=, this](atom::shutdown) -> caf::result<atom::ok> {
       for (auto& child : self->state.children)
         self->send_exit(child, caf::exit_reason::user_shutdown);
       // Tell broker to shutdown. This is a blocking function call.
