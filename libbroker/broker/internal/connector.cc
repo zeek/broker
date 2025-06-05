@@ -732,7 +732,7 @@ public:
   }
 
   stream_transport_error get_last_error(stream_socket fd, ptrdiff_t ret) {
-    return std::visit([=](auto& pl) { return pl.last_error(fd, ret); },
+    return std::visit([fd, ret](auto& pl) { return pl.last_error(fd, ret); },
                       sck_policy);
   }
 
@@ -771,11 +771,13 @@ public:
   read_result do_transport_handshake_rd(stream_socket fd);
 
   ptrdiff_t do_write(stream_socket fd, caf::span<const caf::byte> buf) {
-    return std::visit([=](auto& pl) { return pl.write(fd, buf); }, sck_policy);
+    return std::visit([fd, buf](auto& pl) { return pl.write(fd, buf); },
+                      sck_policy);
   }
 
   ptrdiff_t do_read(stream_socket fd, caf::span<caf::byte> buf) {
-    return std::visit([=](auto& pl) { return pl.read(fd, buf); }, sck_policy);
+    return std::visit([fd, buf](auto& pl) { return pl.read(fd, buf); },
+                      sck_policy);
   }
 
   write_result continue_writing(stream_socket fd) {

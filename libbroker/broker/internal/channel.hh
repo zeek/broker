@@ -604,7 +604,9 @@ public:
       // Find the first message in the assigned offset and drop any buffered
       // message before that point.
       if (!buf_.empty()) {
-        auto pred = [=](const optional_event& x) { return x.seq > offset; };
+        auto pred = [offset](const optional_event& x) {
+          return x.seq > offset;
+        };
         auto new_begin = std::find_if(buf_.begin(), buf_.end(), pred);
         if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
           metrics_.dec_out_of_order_updates(n);
