@@ -8,6 +8,7 @@
 #include <caf/detail/network_order.hpp>
 
 #include <cstring>
+#include <type_traits>
 
 namespace broker {
 
@@ -399,7 +400,14 @@ bool operator<(const variant_data& lhs, const variant_data& rhs) {
   return std::visit(
     [&rhs](const auto& x) -> bool {
       using T = std::decay_t<decltype(x)>;
-      if constexpr (std::is_pointer_v<T>) {
+      // Some compilers don't like the fact that a custom allocator is used
+      // for the variant_data::set type, so the is_pointer block here fails
+      // to build.
+      if constexpr (std::is_same_v<T, variant_data::set*>) {
+        auto rhs_val = std::get<T>(rhs.value);
+        return std::lexicographical_compare(x->begin(), x->end(),
+                                            rhs_val->begin(), rhs_val->end());
+      } else if constexpr (std::is_pointer_v<T>) {
         return *x < *std::get<T>(rhs.value);
       } else {
         return x < std::get<T>(rhs.value);

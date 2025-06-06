@@ -192,7 +192,7 @@ void subscribe_mode_stream(broker::endpoint& ep, const std::string& topic_str,
       if (++msgs >= cap)
         throw std::runtime_error("Reached cap");
     },
-    [=](size_t&, const broker::error&) {
+    [](size_t&, const broker::error&) {
       // nop
     });
   ep.wait_for(worker);
@@ -239,7 +239,7 @@ int main(int argc, char** argv) try {
     [] {
       // Init: nop.
     },
-    [=](const data_message& x) {
+    [](const data_message& x) {
       // OnNext: print the message.
       std::string what = to_string(x);
       what.insert(0, "*** ");
@@ -247,7 +247,7 @@ int main(int argc, char** argv) try {
       guard_type guard{cout_mtx};
       std::cerr << what;
     },
-    [=](const broker::error&) {
+    [](const broker::error&) {
       // Cleanup: nop.
     });
   // Publish endpoint at demanded port.
