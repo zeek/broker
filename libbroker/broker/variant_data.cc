@@ -400,7 +400,21 @@ bool operator<(const variant_data& lhs, const variant_data& rhs) {
     [&rhs](const auto& x) -> bool {
       using T = std::decay_t<decltype(x)>;
       if constexpr (std::is_pointer_v<T>) {
-        return *x < *std::get<T>(rhs.value);
+        if constexpr (std::is_same_v<std::remove_pointer_t<T>,
+                                     variant_data::set>) {
+          // Note: In C++20, the standard library's comparison operators for
+          // containers (like std::set) were updated to use the new three-way
+          // comparison operator (<=>). This requires the allocator type to also
+          // support <=>, which is not the case for our custom allocator. Hence,
+          // we use std::lexicographical_compare to explicitly compare the
+          // contents.
+          const auto& set1 = *x;
+          const auto& set2 = *std::get<T>(rhs.value);
+          return std::lexicographical_compare(set1.begin(), set1.end(),
+                                              set2.begin(), set2.end());
+        } else {
+          return *x < *std::get<T>(rhs.value);
+        }
       } else {
         return x < std::get<T>(rhs.value);
       }
