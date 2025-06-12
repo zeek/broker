@@ -523,6 +523,36 @@ inline bool operator!=(const data& x, const data& y) {
   return x.get_data() != y.get_data();
 }
 
+inline bool operator<(const std::pair<const data, data>& x,
+                      const std::pair<const data, data>& y) {
+  return x.first < y.first && x.second < y.second;
+}
+
+inline bool operator<=(const std::pair<const data, data>& x,
+                       const std::pair<const data, data>& y) {
+  return x.first <= y.first && x.second <= y.second;
+}
+
+inline bool operator>(const std::pair<const data, data>& x,
+                      const std::pair<const data, data>& y) {
+  return x.first > y.first && x.second > y.second;
+}
+
+inline bool operator>=(const std::pair<const data, data>& x,
+                       const std::pair<const data, data>& y) {
+  return x.first >= y.first && x.second >= y.second;
+}
+
+inline bool operator==(const std::pair<const data, data>& x,
+                       const std::pair<const data, data>& y) {
+  return x.first == y.first && x.second == y.second;
+}
+
+inline bool operator!=(const std::pair<const data, data>& x,
+                       const std::pair<const data, data>& y) {
+  return !(x == y);
+}
+
 // --- compatibility/wrapper functionality (may be removed later) --------------
 
 template <class T>
