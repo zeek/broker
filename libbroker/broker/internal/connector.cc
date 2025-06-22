@@ -13,6 +13,7 @@
 #include "broker/message.hh"
 
 #include <caf/async/spsc_buffer.hpp>
+#include <caf/chunk.hpp>
 #include <caf/config.hpp>
 #include <caf/detail/scope_guard.hpp>
 #include <caf/expected.hpp>
@@ -272,6 +273,30 @@ namespace {
 
 // -- implementations for pending connections ----------------------------------
 
+class chunk_trait {
+public:
+  /// Serializes a @ref node_message to a sequence of bytes.
+  bool convert(const caf::chunk& msg, caf::byte_buffer& buf) {
+    auto bytes = msg.bytes();
+    buf.insert(buf.end(), bytes.data(), bytes.data() + bytes.size());
+    return true;
+  }
+
+  /// Deserializes a @ref node_message from a sequence of bytes.
+  bool convert(caf::const_byte_span bytes, caf::chunk& msg) {
+    msg = caf::chunk{bytes};
+    return true;
+  }
+
+  /// Retrieves the last error from a conversion.
+  const caf::error& last_error() const noexcept {
+    return last_error_;
+  }
+
+private:
+  caf::error last_error_;
+};
+
 class plain_pending_connection : public pending_connection {
 public:
   explicit plain_pending_connection(caf::net::stream_socket fd) : fd_(fd) {
@@ -283,11 +308,11 @@ public:
   }
 
   caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
+                 caf::async::consumer_resource<caf::chunk> pull,
+                 caf::async::producer_resource<caf::chunk> push) override {
     log::network::debug("run-plain-connection", "run plain connection on fd {}",
                         fd_.id);
-    using trait_t = wire_format::v1::trait;
+    using trait_t = chunk_trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
@@ -318,11 +343,11 @@ public:
   }
 
   caf::error run(caf::actor_system& sys,
-                 caf::async::consumer_resource<node_message> pull,
-                 caf::async::producer_resource<node_message> push) override {
+                 caf::async::consumer_resource<caf::chunk> pull,
+                 caf::async::producer_resource<caf::chunk> push) override {
     log::network::debug("run-ssl-connection", "run SSL connection on fd {}",
                         fd_.id);
-    using trait_t = wire_format::v1::trait;
+    using trait_t = chunk_trait;
     if (fd_ != caf::net::invalid_socket) {
       using caf::net::run_with_length_prefix_framing;
       auto& mpx = sys.network_manager().mpx();
