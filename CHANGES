@@ -1,3 +1,9 @@
+2.8.0-dev.249 | 2025-06-24 10:30:01 -0700
+
+  * Update baseline for WebSocket test (Dominik Charousset, Corelight)
+
+  * Integrate CAF patch for WS unicode escaping (Dominik Charousset, Corelight)
+
 2.8.0-dev.246 | 2025-06-24 10:22:13 -0700
 
   * Remove GCC 8 workaround for std::less (Tim Wojtulewicz, Corelight)
