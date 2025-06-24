@@ -1,3 +1,7 @@
+2.8.0-dev.244 | 2025-06-24 10:21:46 -0700
+
+  * Add pre-commit for cmake-format, using Zeek config (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.242 | 2025-05-30 07:20:17 -0700
 
   * Update pybind11 to v2.13.6 (Tim Wojtulewicz, Corelight)

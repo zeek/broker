@@ -1,8 +1,8 @@
 # Define a function to create an executable and link the required libraries
-function(add_btest_executable target source)
+function (add_btest_executable target source)
     add_executable(btest-${target} ${source})
     target_link_libraries(btest-${target} PRIVATE ${BROKER_LIBRARY} ${ARGN})
-endfunction()
+endfunction ()
 
 add_btest_executable(disconnect-on-overload peering/disconnect-on-overload.cc)
 add_btest_executable(put-unique store/put-unique.cc CAF::core CAF::net)
