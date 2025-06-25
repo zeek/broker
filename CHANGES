@@ -1,3 +1,11 @@
+2.8.0-dev.256 | 2025-06-25 10:29:42 -0700
+
+  * Fix build on Fedora 42 with C++20 enabled (Dominik Charousset, Corelight)
+
+  * Fix build issue in C++20 mode (Dominik Charousset, Corelight)
+
+    (cherry picked from commit 67f7e7da7457a08d3fe0658959da826039c2d0e3)
+
 2.8.0-dev.253 | 2025-06-25 10:29:24 -0700
 
   * Make some lambda captures more concise in what they're capturing (Tim Wojtulewicz, Corelight)
