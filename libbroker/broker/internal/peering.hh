@@ -54,9 +54,10 @@ public:
   node_message status_msg();
 
   /// Sets up the pipeline for this peer.
-  caf::flow::observable<node_message>
-  setup(caf::scheduled_actor* self, node_consumer_res in_res,
-        node_producer_res out_res, caf::flow::observable<node_message> src);
+  std::pair<caf::flow::observable<node_message>,
+            caf::flow::observable<node_message>>
+  setup(caf::scheduled_actor* self, caf::flow::observable<node_message> in,
+        caf::flow::observable<node_message> src);
 
   /// Queries whether `remove` was called.
   bool removed() const noexcept {

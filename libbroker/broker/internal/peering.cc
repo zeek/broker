@@ -165,47 +165,47 @@ node_message peering::make_bye_message() {
   return make_ping_message(id_, peer_id_, token.data(), token.size());
 }
 
-caf::flow::observable<node_message>
-peering::setup(caf::scheduled_actor* self, node_consumer_res in_res,
-               node_producer_res out_res,
+std::pair<caf::flow::observable<node_message>,
+          caf::flow::observable<node_message>>
+peering::setup(caf::scheduled_actor* self,
+               caf::flow::observable<node_message> in,
                caf::flow::observable<node_message> src) {
   // Construct the BYE message that we emit at the end.
   bye_id_ = self->new_u64_id();
   auto bye_msg = make_bye_message();
   // Inject our kill switch to allow us to cancel this peering later on.
-  src //
-    .compose(add_flow_scope_t{output_stats_})
-    .compose(inject_killswitch_t{&out_})
-    .subscribe(std::move(out_res));
+  auto out = src //
+               .compose(add_flow_scope_t{output_stats_})
+               .compose(inject_killswitch_t{&out_});
   // Read inputs and surround them with connect/disconnect status messages.
-  return self //
-    ->make_observable()
-    .from_generator(prefix_generator{shared_from_this()})
-    .concat( //
-      self->make_observable()
-        .from_resource(std::move(in_res))
-        .on_error_complete()
-        .compose(add_flow_scope_t{input_stats_})
-        .compose(inject_killswitch_t{&in_})
-        .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
-                      const node_message& msg) mutable {
-          // When unpeering, we send a BYE ping message. When
-          // receiving the corresponding pong message, we can safely
-          // discard the input (this flow).
-          if (!ptr || get_type(msg) != packed_message_type::pong)
-            return;
-          if (auto [payload_bytes, payload_size] = msg->raw_bytes();
-              std::equal(payload_bytes, payload_bytes + payload_size,
-                         token.begin(), token.end())) {
-            log::core::debug("final-pong-received",
-                             "received final PONG message during unpeering");
-            ptr->on_bye_ack();
-            ptr = nullptr;
-          }
-        }),
-      self //
-        ->make_observable()
-        .from_generator(suffix_generator{shared_from_this()}));
+  auto new_in =
+    self //
+      ->make_observable()
+      .from_generator(prefix_generator{shared_from_this()})
+      .concat( //
+        in.on_error_complete()
+          .compose(add_flow_scope_t{input_stats_})
+          .compose(inject_killswitch_t{&in_})
+          .do_on_next([ptr = shared_from_this(), token = make_bye_token()](
+                        const node_message& msg) mutable {
+            // When unpeering, we send a BYE ping message. When
+            // receiving the corresponding pong message, we can safely
+            // discard the input (this flow).
+            if (!ptr || get_type(msg) != packed_message_type::pong)
+              return;
+            if (auto [payload_bytes, payload_size] = msg->raw_bytes();
+                std::equal(payload_bytes, payload_bytes + payload_size,
+                           token.begin(), token.end())) {
+              log::core::debug("final-pong-received",
+                               "received final PONG message during unpeering");
+              ptr->on_bye_ack();
+              ptr = nullptr;
+            }
+          }),
+        self //
+          ->make_observable()
+          .from_generator(suffix_generator{shared_from_this()}));
+  return {new_in.as_observable(), out.as_observable()};
 }
 
 void peering::remove(caf::scheduled_actor* self,

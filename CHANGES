@@ -1,3 +1,10 @@
+2.8.0-dev.251 | 2025-06-25 16:27:01 +0200
+
+  * Emit chunks from peer connections (Dominik Charousset, Corelight)
+
+    CAF 1.0 emit chunks when running a length-prefix framing protocol. This
+    step prepares Broker for the migration.
+
 2.8.0-dev.249 | 2025-06-24 10:30:01 -0700
 
   * Update baseline for WebSocket test (Dominik Charousset, Corelight)
