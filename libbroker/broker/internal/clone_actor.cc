@@ -535,7 +535,7 @@ caf::behavior clone_state::make_behavior() {
     sync_timeout = caf::make_timestamp() + max_sync_interval;
   return super::make_behavior(
     // --- local communication -------------------------------------------------
-    [=](atom::local, internal_command_variant& content) {
+    [this](atom::local, internal_command_variant& content) {
       if (auto inner = get_if<put_unique_command>(&content)) {
         if (inner->who) {
           log::store::debug("received-put-unique",
@@ -555,10 +555,10 @@ caf::behavior clone_state::make_behavior() {
       }
       send_to_master(std::move(content));
     },
-    [=](atom::sync_point, caf::actor& who) {
+    [this](atom::sync_point, caf::actor& who) {
       self->send(who, atom::sync_point_v);
     },
-    [=](atom::tick) {
+    [this](atom::tick) {
       tick();
       if (sync_timeout) {
         if (has_master()) {
@@ -582,17 +582,17 @@ caf::behavior clone_state::make_behavior() {
         idle_callbacks.clear();
       }
     },
-    [=](atom::get, atom::keys) -> caf::result<data> {
+    [this](atom::get, atom::keys) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp]() mutable { rp.deliver(keys()); });
       return rp;
     },
-    [=](atom::get, atom::keys, request_id id) {
+    [this](atom::get, atom::keys, request_id id) {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, id]() mutable { rp.deliver(keys(), id); }, id);
       return rp;
     },
-    [=](atom::exists, data& key) -> caf::result<data> {
+    [this](atom::exists, data& key) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{std::move(key)}]() mutable {
         auto result = this->store.count(key) != 0;
@@ -600,7 +600,7 @@ caf::behavior clone_state::make_behavior() {
       });
       return rp;
     },
-    [=](atom::exists, data& key, request_id id) {
+    [this](atom::exists, data& key, request_id id) {
       auto rp = self->make_response_promise();
       get_impl(
         rp,
@@ -611,7 +611,7 @@ caf::behavior clone_state::make_behavior() {
         id);
       return rp;
     },
-    [=](atom::get, data& key) -> caf::result<data> {
+    [this](atom::get, data& key) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{std::move(key)}]() mutable {
         if (rp.pending()) {
@@ -624,7 +624,7 @@ caf::behavior clone_state::make_behavior() {
       });
       return rp;
     },
-    [=](atom::get, data& key, data& aspect) -> caf::result<data> {
+    [this](atom::get, data& key, data& aspect) -> caf::result<data> {
       auto rp = self->make_response_promise();
       get_impl(rp, [this, rp, key{std::move(key)},
                     aspect{std::move(aspect)}]() mutable {
@@ -639,7 +639,7 @@ caf::behavior clone_state::make_behavior() {
       });
       return rp;
     },
-    [=](atom::get, data& key, request_id id) {
+    [this](atom::get, data& key, request_id id) {
       auto rp = self->make_response_promise();
       get_impl(
         rp,
@@ -653,7 +653,7 @@ caf::behavior clone_state::make_behavior() {
         id);
       return rp;
     },
-    [=](atom::get, data& key, data& aspect, request_id id) {
+    [this](atom::get, data& key, data& aspect, request_id id) {
       auto rp = self->make_response_promise();
       get_impl(
         rp,
@@ -671,8 +671,8 @@ caf::behavior clone_state::make_behavior() {
         id);
       return rp;
     },
-    [=](atom::get, atom::name) { return store_name; },
-    [=](atom::await, atom::idle) -> caf::result<atom::ok> {
+    [this](atom::get, atom::name) { return store_name; },
+    [this](atom::await, atom::idle) -> caf::result<atom::ok> {
       if (idle())
         return atom::ok_v;
       auto rp = self->make_response_promise();

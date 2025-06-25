@@ -1,3 +1,10 @@
+2.8.0-dev.253 | 2025-06-25 10:29:24 -0700
+
+  * Make some lambda captures more concise in what they're capturing (Tim Wojtulewicz, Corelight)
+
+    This fixes some warnings in C++ 20 builds as well. Lambda captures
+    using just [=] are deprecated in that version.
+
 2.8.0-dev.251 | 2025-06-25 16:27:01 +0200
 
   * Emit chunks from peer connections (Dominik Charousset, Corelight)
