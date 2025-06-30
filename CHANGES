@@ -1,3 +1,7 @@
+2.8.0-dev.258 | 2025-06-30 10:18:01 -0700
+
+  * Fix CAF-side warnings in C++20 mode (Dominik Charousset, Corelight)
+
 2.8.0-dev.256 | 2025-06-25 10:29:42 -0700
 
   * Fix build on Fedora 42 with C++20 enabled (Dominik Charousset, Corelight)
