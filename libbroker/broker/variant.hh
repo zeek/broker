@@ -282,7 +282,7 @@ public:
   }
 
   /// Returns a shared pointer to the @ref envelope that owns the stored data.
-  auto shared_envelope() const noexcept {
+  const auto& shared_envelope() const noexcept {
     return envelope_;
   }
 
