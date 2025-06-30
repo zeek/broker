@@ -72,6 +72,21 @@ void trie::node::erase(char key) {
   }
 }
 
+trie::trie(trie&& other) noexcept {
+  for (size_t index = 0; index < num_segments; ++index) {
+    root_.segments[index].swap(other.root_.segments[index]);
+  }
+}
+
+trie& trie::operator=(trie&& other) noexcept {
+  if (this != &other) {
+    for (size_t index = 0; index < num_segments; ++index) {
+      root_.segments[index].swap(other.root_.segments[index]);
+    }
+  }
+  return *this;
+}
+
 void trie::insert(std::string_view str) {
   if (str.empty()) {
     return;

@@ -102,6 +102,16 @@ public:
     }
   };
 
+  trie() = default;
+
+  trie(const trie&) = delete;
+
+  trie& operator=(const trie&) = delete;
+
+  trie(trie&& other) noexcept;
+
+  trie& operator=(trie&& other) noexcept;
+
   /// Inserts a key into the trie.
   void insert(std::string_view key);
 
