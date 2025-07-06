@@ -111,12 +111,6 @@ constexpr caf::string_view json = R"_({
 // The same as above, but as native broker::data_message.
 data_message native() {
   using namespace std::literals;
-  auto timestamp_from_string = [](std::string ts) {
-    auto opt = caf::timestamp_from_string(ts);
-    if (!opt)
-      FAIL("unable to parse timestamp " << ts << ": " << opt.error());
-    return *opt;
-  };
   address dummy_addr_v6;
   convert("2001:db8::"s, dummy_addr_v6);
   address dummy_addr_v4;
@@ -131,7 +125,7 @@ data_message native() {
   xs.emplace_back(dummy_addr_v6);
   xs.emplace_back(subnet{dummy_addr_v4, 24});
   xs.emplace_back(port{8080, port::protocol::tcp});
-  xs.emplace_back(timestamp_from_string("2022-04-10T16:07:00.000"));
+  xs.emplace_back(timestamp{timespan{1649606820s}});
   xs.emplace_back(timespan{23s});
   xs.emplace_back(enum_value{"foo"s});
   xs.emplace_back(set{data{1}, data{2}, data{3}});

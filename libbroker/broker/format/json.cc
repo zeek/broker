@@ -29,9 +29,9 @@ size_t encode_to_buf(timestamp value, std::array<char, 32>& buf) {
   // more than enough space.
   tm time_buf;
 #ifdef _MSC_VER
-  localtime_s(&time_buf, &secs);
+  gmtime_s(&time_buf, &secs);
 #else
-  localtime_r(&secs, &time_buf);
+  gmtime_r(&secs, &time_buf);
 #endif
   buf[0] = '"';
   auto pos = strftime(buf.data() + 1, buf.size() - 1, "%FT%T", &time_buf) + 1;
