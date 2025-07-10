@@ -1,3 +1,17 @@
+2.8.0-dev.263 | 2025-07-10 14:06:17 -0700
+
+  * Use <version> header instead of deprecated <ciso646> (Tim Wojtulewicz, Corelight)
+
+  * Add flag to disable building extra tools (Tim Wojtulewicz, Corelight)
+
+    The extra tools cause linker errors on the Windows CI builds by causing
+    the build processes to run out of memory. They're not necessary for the
+    few tests we run for Windows there, so disable them for CI builds.
+
+  * CI: Make Windows environment consistent with how Zeek does it (Tim Wojtulewicz, Corelight)
+
+  * Require C++20 for builds (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.258 | 2025-06-30 10:18:01 -0700
 
   * Fix CAF-side warnings in C++20 mode (Dominik Charousset, Corelight)

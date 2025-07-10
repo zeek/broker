@@ -7,13 +7,11 @@ call "c:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliar
 mkdir build
 cd build
 
-:: The configure script doesn't work for Windows but we can call cmake directly
-:: to do the same. Ninja is installed as part of the CI image.
-C:\WINDOWS\system32\cmd.exe /c %SYSTEMROOT%\System32\chcp.com 65001 >NUL && ^
-cmake.exe -G "Ninja" -DCMAKE_BUILD_TYPE:STRING="Debug" ^
--DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe -DCMAKE_MAKE_PROGRAM=ninja.exe ^
--DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% ^
--DDISABLE_PYTHON_BINDINGS="true" ..
+cmake.exe .. -DCMAKE_BUILD_TYPE=debug -G Ninja ^
+   -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% ^
+   -DDISABLE_PYTHON_BINDINGS:BOOL=ON -DDISABLE_BROKER_EXTRA_TOOLS:BOOL=ON
 
 cmake.exe --build . --target install --config release || exit \b 1
+
+:: Back up one directory so that we can run tests from the top-level directory
 cd ..

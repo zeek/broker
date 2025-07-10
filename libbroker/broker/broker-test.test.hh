@@ -17,8 +17,8 @@
 #include "broker/internal/type_id.hh"
 
 #include <cassert>
-#include <ciso646>
 #include <functional>
+#include <version>
 
 // -- test setup macros --------------------------------------------------------
 

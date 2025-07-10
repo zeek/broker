@@ -1,6 +1,5 @@
 #include "broker/configuration.hh"
 
-#include <ciso646>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +9,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <version>
 
 #include <caf/actor_system_config.hpp>
 #include <caf/config.hpp>
