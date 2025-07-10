@@ -7,8 +7,9 @@ call "c:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliar
 mkdir build
 cd build
 
-cmake.exe .. -DCMAKE_BUILD_TYPE=debug -G Ninja -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" ^
--DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% -DDISABLE_PYTHON_BINDINGS="true"
+cmake.exe .. -DCMAKE_BUILD_TYPE=debug -G Ninja ^
+   -DOPENSSL_ROOT_DIR="C:\Program Files\OpenSSL-Win64" -DEXTRA_FLAGS=/MP%BROKER_CI_CPUS% ^
+   -DDISABLE_PYTHON_BINDINGS:BOOL=ON -DDISABLE_BROKER_EXTRA_TOOLS:BOOL=ON
 
 cmake.exe --build . --target install --config release || exit \b 1
 

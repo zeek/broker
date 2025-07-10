@@ -12,9 +12,13 @@ set(BROKER_TEST_TIMEOUT 60)
 
 get_directory_property(parent_dir PARENT_DIRECTORY)
 if (parent_dir)
+    set(DISABLE_BROKER_EXTRA_TOOLS ON)
     set(broker_is_subproject ON)
 else ()
     set(broker_is_subproject OFF)
+    if (NOT DEFINED DISABLE_BROKER_EXTRA_TOOLS)
+        set(DISABLE_BROKER_EXTRA_TOOLS OFF)
+    endif ()
 endif ()
 unset(parent_dir)
 
@@ -309,7 +313,7 @@ endif ()
 
 # -- Tools and benchmarks -----------------------------------------------------
 
-if (NOT broker_is_subproject)
+if (NOT DISABLE_BROKER_EXTRA_TOOLS)
     add_subdirectory(broker-node)
     add_subdirectory(broker-pipe)
     add_subdirectory(broker-throughput)
