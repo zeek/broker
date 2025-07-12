@@ -22,32 +22,37 @@
 namespace broker::internal::web_socket {
 
 struct trait_t {
-  using value_type = caf::cow_string;
+  using value_type = caf::net::web_socket::frame;
 
   caf::error init(const caf::settings&) {
     return caf::none;
   }
 
-  bool converts_to_binary(const caf::cow_string&) {
+  bool converts_to_binary(const caf::net::web_socket::frame&) {
     return false; // We use text messages exclusively.
   }
 
-  bool convert(const caf::cow_string&, caf::byte_buffer&) {
+  bool convert(const caf::net::web_socket::frame&, caf::byte_buffer&) {
     return false; // Never serialize to binary.
   }
 
-  bool convert(caf::const_byte_span, caf::cow_string&) {
+  bool convert(caf::const_byte_span, caf::net::web_socket::frame&) {
     return false; // Reject binary messages.
   }
 
-  bool convert(const caf::cow_string& str, std::vector<char>& buf) {
-    buf.insert(buf.end(), str.begin(), str.end());
-    return true;
+  bool convert(const caf::net::web_socket::frame& frame,
+               std::vector<char>& buf) {
+    if (frame.is_text()) {
+      auto text = frame.as_text();
+      buf.insert(buf.end(), text.begin(), text.end());
+      return true;
+    }
+    return false;
   }
 
-  bool convert(caf::string_view input, caf::cow_string& str) {
-    auto& x = str.unshared();
-    x.insert(x.end(), input.begin(), input.end());
+  bool convert(caf::string_view input, caf::net::web_socket::frame& frame) {
+    frame =
+      caf::net::web_socket::frame(std::string_view{input.data(), input.size()});
     return true;
   }
 };
@@ -138,8 +143,9 @@ expected<uint16_t> launch(caf::actor_system& sys,
     return {facade(actual_port.error())};
   }
   // Callback for connecting the flows.
-  using consumer_res_t = caf::async::consumer_resource<caf::cow_string>;
-  using producer_res_t = caf::async::producer_resource<caf::cow_string>;
+  using frame_t = caf::net::web_socket::frame;
+  using consumer_res_t = caf::async::consumer_resource<frame_t>;
+  using producer_res_t = caf::async::producer_resource<frame_t>;
   using res_t =
     caf::expected<std::tuple<consumer_res_t, producer_res_t, trait_t>>;
   auto on_request = [cb = std::move(on_connect),
@@ -147,8 +153,8 @@ expected<uint16_t> launch(caf::actor_system& sys,
     auto path = caf::get_or(hdr, "web-socket.path", "");
     if (path == allowed_path) {
       using caf::async::make_spsc_buffer_resource;
-      auto [pull1, push1] = make_spsc_buffer_resource<caf::cow_string>();
-      auto [pull2, push2] = make_spsc_buffer_resource<caf::cow_string>();
+      auto [pull1, push1] = make_spsc_buffer_resource<frame_t>();
+      auto [pull2, push2] = make_spsc_buffer_resource<frame_t>();
       connect_event_t ev{std::move(pull2), std::move(push1)};
       cb(hdr, ev);
       return res_t{std::make_tuple(pull1, push2, trait_t{})};

@@ -5,13 +5,14 @@
 
 #include <caf/async/fwd.hpp>
 #include <caf/fwd.hpp>
+#include <caf/net/web_socket/frame.hpp>
 
 #include <functional>
 
 namespace broker::internal::web_socket {
 
-using pull_t = caf::async::consumer_resource<caf::cow_string>;
-using push_t = caf::async::producer_resource<caf::cow_string>;
+using pull_t = caf::async::consumer_resource<caf::net::web_socket::frame>;
+using push_t = caf::async::producer_resource<caf::net::web_socket::frame>;
 
 using connect_event_t = std::pair<pull_t, push_t>;
 

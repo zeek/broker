@@ -10,6 +10,7 @@
 #include <caf/async/spsc_buffer.hpp>
 #include <caf/fwd.hpp>
 #include <caf/json_reader.hpp>
+#include <caf/net/web_socket/frame.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
 
@@ -22,9 +23,9 @@ class json_client_state {
 public:
   static inline const char* name = "broker.json-client";
 
-  using in_t = caf::async::consumer_resource<caf::cow_string>;
+  using in_t = caf::async::consumer_resource<caf::net::web_socket::frame>;
 
-  using out_t = caf::async::producer_resource<caf::cow_string>;
+  using out_t = caf::async::producer_resource<caf::net::web_socket::frame>;
 
   json_client_state(caf::event_based_actor* selfptr, endpoint_id this_node,
                     caf::actor core, network_info addr, in_t in, out_t out);
@@ -45,7 +46,7 @@ public:
   std::vector<std::byte> buf;
   caf::json_reader reader;
   std::vector<caf::disposable> subscriptions;
-  caf::flow::item_publisher<caf::cow_string> ctrl_msgs;
+  caf::flow::item_publisher<caf::net::web_socket::frame> ctrl_msgs;
   std::vector<char> json_buf;
 
   static std::string_view default_serialization_failed_error();
