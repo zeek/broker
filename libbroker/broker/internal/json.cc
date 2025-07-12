@@ -7,6 +7,8 @@
 #include "broker/variant_set.hh"
 #include "broker/variant_table.hh"
 
+#include <caf/chrono.hpp>
+#include <caf/expected.hpp>
 #include <caf/json_array.hpp>
 #include <caf/json_object.hpp>
 #include <caf/json_value.hpp>
@@ -93,9 +95,14 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
     if (!dval.is_string())
       return false;
     auto val = dval.to_string();
-    broker::timestamp tmp;
-    if (auto err = caf::detail::parse(val, tmp))
+    auto std_val = std::string_view{val.data(), val.size()};
+    auto maybe_dt = caf::chrono::datetime::from_string(std_val);
+    if (!maybe_dt) {
       return false;
+    }
+    caf::chrono::datetime& dt = *maybe_dt;
+    dt.force_utc(); // forces UTC if the string specifies no timezone
+    broker::timestamp tmp = dt.to_local_time();
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
   }

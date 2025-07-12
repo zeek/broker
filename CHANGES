@@ -1,3 +1,7 @@
+2.8.0-dev.265 | 2025-07-12 14:14:51 +0200
+
+  * Read timestamps as UTC by default (Dominik Charousset, Corelight)
+
 2.8.0-dev.263 | 2025-07-10 14:06:17 -0700
 
   * Use <version> header instead of deprecated <ciso646> (Tim Wojtulewicz, Corelight)

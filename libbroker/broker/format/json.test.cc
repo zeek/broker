@@ -41,18 +41,7 @@ void strip_whitespaces(std::string& str) {
 // Returns a `time_t` value for 2014-07-09T10:16:44, i.e., the date and time of
 // the first commit to the Broker repository.
 timestamp broker_genesis() {
-  // Encode the timestamp to a `tm` representation.
-  tm datetime;
-  datetime.tm_year = 2014 - 1900;
-  datetime.tm_mon = 7 - 1;
-  datetime.tm_mday = 9;
-  datetime.tm_hour = 10;
-  datetime.tm_min = 16;
-  datetime.tm_sec = 44;
-  datetime.tm_isdst = -1;
-  // Convert the `tm` representation to a `time_t` value and then to a
-  // `broker::timestamp` by turning the seconds into nanoseconds.
-  auto secs_since_epoch = std::mktime(&datetime);
+  auto secs_since_epoch = 1'404'901'004ll;
   return timestamp{timespan{secs_since_epoch * int64_t{1'000'000'000}}};
 }
 
