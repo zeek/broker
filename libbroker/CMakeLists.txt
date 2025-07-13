@@ -155,6 +155,7 @@ set(BROKER_TEST_SRC
     broker/builder.test.cc
     broker/data.test.cc
     broker/detail/peer_status_map.test.cc
+    broker/detail/radix_tree.test.cc
     broker/detail/trie.test.cc
     broker/domain_options.test.cc
     broker/envelope.test.cc
@@ -167,7 +168,6 @@ set(BROKER_TEST_SRC
     broker/internal/json.test.cc
     broker/internal/wire_format.test.cc
     broker/peering.test.cc
-    broker/radix_tree.test.cc
     broker/shutdown.test.cc
     broker/status.test.cc
     broker/store.test.cc

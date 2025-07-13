@@ -9,15 +9,19 @@
 #include <string>
 #include <utility>
 
-using namespace std;
+using namespace std::literals;
 using namespace broker;
+
+using std::deque;
+using std::make_pair;
+using std::string;
 
 using test_radix_tree = detail::radix_tree<int>;
 
 namespace {
 
 bool check_match(deque<test_radix_tree::iterator> matches,
-                 std::set<pair<string, int>> expected) {
+                 std::set<std::pair<string, int>> expected) {
   if (matches.size() != expected.size())
     return false;
   for (auto it = expected.begin(); it != expected.end(); ++it) {
@@ -30,7 +34,8 @@ bool check_match(deque<test_radix_tree::iterator> matches,
   return true;
 }
 
-bool find(deque<test_radix_tree::iterator> haystack, pair<string, int> needle) {
+bool find(deque<test_radix_tree::iterator> haystack,
+          std::pair<string, int> needle) {
   for (const auto& h : haystack)
     if (h->first == needle.first && h->second == needle.second)
       return true;
@@ -252,7 +257,7 @@ TEST(many keys) {
   deque<string> keys;
   deque<int> values;
   for (int i = 0; i < 1000; ++i) {
-    stringstream ss;
+    std::stringstream ss;
     ss << i;
     keys.push_back(ss.str());
     values.push_back(i);
@@ -316,7 +321,7 @@ TEST(dense nodes) {
   for (auto i = 0; i < 256; ++i)
     for (auto j = 0; j < 256; ++j)
       for (auto k = 0; k < 10; ++k) {
-        stringstream ss;
+        std::stringstream ss;
         ss.put(i).put(j);
         ss << k;
         CHECK(t.insert(make_pair(ss.str(), idx)).second);
@@ -329,7 +334,7 @@ TEST(dense nodes) {
   for (auto i = 0; i < 256; ++i)
     for (auto j = 0; j < 256; ++j)
       for (auto k = 0; k < 10; ++k) {
-        stringstream ss;
+        std::stringstream ss;
         ss.put(i).put(j);
         ss << k;
         string s = ss.str();
@@ -340,7 +345,7 @@ TEST(dense nodes) {
       }
   CHECK(t.size() == 10);
   for (auto i = 0; i < 10; ++i) {
-    stringstream ss;
+    std::stringstream ss;
     ss << "br" << i;
     CHECK(t.find(ss.str())->second == 'b' * 256 * 10 + 'r' * 10 + i);
   }
@@ -473,4 +478,69 @@ TEST(general) {
   CHECK(tree.erase("bro") == 1);
   matches = tree.prefixed_by("");
   CHECK(matches.empty());
+}
+
+namespace {
+
+constexpr std::string_view test_data[] = {
+  "clones.my-store-3.input.buffered",
+  "clones.my-store-3.input.last-seq",
+  "clones.my-store-3.input.next-seq",
+  "clones.my-store-3.input.num-ticks",
+  "clones.my-store-3.master-id",
+  "clones.my-store-3.output",
+  "clones.my-store-3.output.buffered",
+  "clones.my-store-3.output.paths",
+  "clones.my-store-3.output.seq",
+  "clones.my-store-3.output.tick-time",
+  "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b",
+  "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.buffered",
+  "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.last-seq",
+  "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.next-seq",
+  "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.num-ticks",
+  "masters.my-store-1.output.buffered",
+  "masters.my-store-1.output.paths",
+  "masters.my-store-1.output.seq",
+  "masters.my-store-1.output.tick-time",
+  "masters.my-store-2.inputs.36762b90-d415-4ada-bb6a-eff33f34836b",
+  "masters.my-store-2.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.buffered",
+  "masters.my-store-2.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.last-seq",
+  "masters.my-store-2.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.next-seq",
+  "masters.my-store-2.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.num-ticks",
+  "masters.my-store-2.output.buffered",
+  "masters.my-store-2.output.paths",
+  "masters.my-store-2.output.seq",
+  "masters.my-store-2.output.tick-time",
+  "message-metrics.command.buffered",
+  "message-metrics.command.processed",
+  "message-metrics.data.buffered",
+  "message-metrics.data.processed",
+  "message-metrics.ping.buffered",
+  "message-metrics.ping.processed",
+  "message-metrics.pong.buffered",
+  "message-metrics.pong.processed",
+  "message-metrics.routing_update",
+  "message-metrics.routing_update.buffered",
+  "message-metrics.routing_update.processed",
+};
+
+} // namespace
+
+TEST(is_prefix) {
+  test_radix_tree tree;
+  for (auto str : test_data)
+    tree.insert({std::string{str}, 1});
+  CHECK(!tree.is_prefix("foo"));
+  CHECK(!tree.is_prefix("n"));
+  CHECK(!tree.is_prefix("mo"));
+  CHECK(!tree.is_prefix("ci"));
+  CHECK(!tree.is_prefix("clones.my-other-store"));
+  CHECK(!tree.is_prefix("clones.my-store-4"));
+  CHECK(!tree.is_prefix("clones.my-store-3.inputs"));
+  CHECK(!tree.is_prefix("message-metrics.data.buffered-at-the-receiver"));
+  // Every single substring of this must be recognized as a prefix.
+  auto full =
+    "masters.my-store-1.inputs.36762b90-d415-4ada-bb6a-eff33f34836b.num-ticks"s;
+  for (size_t n = 1; n <= full.size(); ++n)
+    CHECK(tree.is_prefix(full.substr(0, n)));
 }
