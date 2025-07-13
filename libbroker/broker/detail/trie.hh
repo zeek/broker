@@ -1,5 +1,7 @@
 #pragma once
 
+#include "broker/fwd.hh"
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -158,6 +160,9 @@ public:
 
   /// Clears the trie.
   void clear() noexcept;
+
+  /// Overrides the contents of the trie with the given topics.
+  void assign(const filter_type& from);
 
 private:
   template <class F>

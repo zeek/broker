@@ -21,7 +21,6 @@
 #include <caf/unit.hpp>
 
 #include "broker/detail/make_backend.hh"
-#include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
 #include "broker/hub_id.hh"
@@ -215,7 +214,7 @@ caf::behavior core_actor_state::make_behavior() {
             }
             log::core::debug("routing-update", "{} changed its filter to {}",
                              sender, new_filter);
-            i->second->filter(std::move(new_filter));
+            i->second->filter().assign(new_filter);
           }
           // else: ignore. Probably a stale message after unpeering.
           break;
@@ -383,7 +382,7 @@ caf::behavior core_actor_state::make_behavior() {
       subscribe(filter);
     },
     // -- interface for hubs ---------------------------------------------------
-    [this](hub_id id, filter_type& filter) {
+    [this](hub_id id, const filter_type& filter) {
       // Update the filter of an existing hub.
       auto i = hubs.find(id);
       if (i == hubs.end()) {
@@ -393,12 +392,10 @@ caf::behavior core_actor_state::make_behavior() {
         return;
       }
       auto& ptr = i->second;
-      if (ptr->filter != filter) {
-        log::core::debug("update-hub-filter", "update filter of hub {} to {}",
-                         static_cast<uint64_t>(id), filter);
-        ptr->filter = std::move(filter);
-        subscribe(ptr->filter);
-      }
+      log::core::debug("update-hub-filter", "update filter of hub {} to {}",
+                       static_cast<uint64_t>(id), filter);
+      ptr->filter.assign(filter);
+      subscribe(filter);
     },
     [this](hub_id id, filter_type& filter, bool filter_local,
            data_consumer_res& src, data_producer_res& snk) {
@@ -420,7 +417,7 @@ caf::behavior core_actor_state::make_behavior() {
       }
       subscribe(filter);
       auto ptr = std::make_shared<hub_state>();
-      ptr->filter = std::move(filter);
+      ptr->filter.assign(filter);
       if (src) {
         // Connect the messages from the hub to the merge point.
         log::core::debug("connect-hub-source", "add source for hub {}",
@@ -450,14 +447,13 @@ caf::behavior core_actor_state::make_behavior() {
                     return !filter_local || msg.first != hub_id::invalid;
                   })
                   .filter([id, ptr](const hub_input& msg) {
-                    detail::prefix_matcher f;
-                    return msg.first != id && f(ptr->filter, msg.second);
+                    return msg.first != id
+                           && ptr->filter.has_prefix(get_topic(msg.second));
                   })
                   .map([](const hub_input& msg) { return msg.second; })
                   .as_observable();
         auto non_local = data_outputs.filter([ptr](const data_message& msg) {
-          detail::prefix_matcher f;
-          return f(ptr->filter, msg);
+          return ptr->filter.has_prefix(get_topic(msg));
         });
         // Connect the output buffer.
         ptr->out = local.merge(std::move(non_local))
@@ -946,7 +942,8 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
     in =
       self->make_observable().from_resource(std::move(in_res)).as_observable();
   }
-  auto filter_ptr = std::make_shared<filter_type>(filter);
+  auto filter_ptr = std::make_shared<detail::trie>();
+  filter_ptr->assign(filter);
   auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
   auto [new_in, new_out] = ptr->setup(
     self, std::move(in),
@@ -957,9 +954,9 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
           return false;
         if (disable_forwarding && !is_local(msg))
           return false;
-        auto f = detail::prefix_matcher{};
         auto receiver = get_receiver(msg);
-        return receiver == pid || (!receiver && f(*filter_ptr, get_topic(msg)));
+        return receiver == pid
+               || (!receiver && filter_ptr->has_prefix(get_topic(msg)));
       })
       // Override the sender field. This makes sure the sender field always
       // reflects the last hop. Since we only need this information to avoid
@@ -1128,18 +1125,18 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // Emit status updates.
   client_added(client_id, addr, type);
   // Hook into the central merge point for forwarding the data to the client.
+  auto filter_ptr = std::make_shared<detail::trie>();
+  filter_ptr->assign(filter);
   if (out_res) {
     auto sub =
       central_merge
         // Select by subscription.
-        .filter(
-          [this, filt = std::move(filter), client_id](const node_message& msg) {
-            if (get_type(msg) != packed_message_type::data
-                || get_sender(msg) == client_id)
-              return false;
-            detail::prefix_matcher f;
-            return f(filt, get_topic(msg));
-          })
+        .filter([this, filter_ptr, client_id](const node_message& msg) {
+          if (get_type(msg) != packed_message_type::data
+              || get_sender(msg) == client_id)
+            return false;
+          return filter_ptr->has_prefix(get_topic(msg));
+        })
         // Deserialize payload and wrap it into a data message.
         .map([this](const node_message& msg) { //
           return msg->as_data();
@@ -1269,10 +1266,11 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
                                             std::move(con1), std::move(prod2));
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
+  auto filter_ptr = std::make_shared<detail::trie>();
+  filter_ptr->assign(filter);
   command_outputs
-    .filter([xs = filter](const command_message& item) {
-      detail::prefix_matcher f;
-      return f(xs, item);
+    .filter([filter_ptr](const command_message& item) {
+      return filter_ptr->has_prefix(get_topic(item));
     })
     .subscribe(prod1);
   auto in = self
@@ -1322,10 +1320,11 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
                                                     std::move(prod2));
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
+  auto filter_ptr = std::make_shared<detail::trie>();
+  filter_ptr->assign(filter);
   command_outputs
-    .filter([xs = filter](const command_message& item) {
-      detail::prefix_matcher f;
-      return f(xs, item);
+    .filter([filter_ptr](const command_message& item) {
+      return filter_ptr->has_prefix(get_topic(item));
     })
     .subscribe(prod1);
   auto in = self

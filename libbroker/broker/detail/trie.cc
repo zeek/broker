@@ -1,6 +1,7 @@
 #include "broker/detail/trie.hh"
 
 #include "broker/detail/assert.hh"
+#include "broker/topic.hh"
 
 #include <stdexcept>
 #include <vector>
@@ -333,6 +334,13 @@ void trie::copy_from(const trie& other) {
 void trie::clear() noexcept {
   for (auto& seg : root_.segments) {
     seg.reset();
+  }
+}
+
+void trie::assign(const filter_type& from) {
+  clear();
+  for (const auto& entry : from) {
+    insert(entry.string());
   }
 }
 

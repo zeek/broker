@@ -1,6 +1,6 @@
 #pragma once
 
-#include "broker/detail/prefix_matcher.hh"
+#include "broker/detail/trie.hh"
 #include "broker/endpoint.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
@@ -22,8 +22,10 @@ public:
   // ASCII sequence 'BYE' followed by our 64-bit bye ID.
   static constexpr size_t bye_token_size = 11;
 
-  peering(network_info peer_addr, std::shared_ptr<filter_type> peer_filter,
-          endpoint_id id, endpoint_id peer_id)
+  using shared_trie = std::shared_ptr<detail::trie>;
+
+  peering(network_info peer_addr, shared_trie peer_filter, endpoint_id id,
+          endpoint_id peer_id)
     : addr_(std::move(peer_addr)),
       filter_(std::move(peer_filter)),
       id_(id),
@@ -99,13 +101,8 @@ public:
   bool is_subscribed_to(const topic& what) const;
 
   /// Returns the filter of the peer.
-  const filter_type& filter() const noexcept {
+  detail::trie& filter() noexcept {
     return *filter_;
-  }
-
-  /// Set a new filter for the peer.
-  void filter(filter_type new_filter) {
-    *filter_ = std::move(new_filter);
   }
 
   /// Returns a status object that keeps track of input messages from the peer.
@@ -129,7 +126,7 @@ private:
   network_info addr_;
 
   /// Stores the subscriptions of the remote peer.
-  std::shared_ptr<filter_type> filter_;
+  shared_trie filter_;
 
   /// Handle for aborting inputs.
   caf::disposable in_;

@@ -230,8 +230,7 @@ void peering::remove(caf::scheduled_actor* self,
 }
 
 bool peering::is_subscribed_to(const topic& what) const {
-  detail::prefix_matcher f;
-  return f(*filter_, what);
+  return filter_->has_prefix(what.string());
 }
 
 } // namespace broker::internal

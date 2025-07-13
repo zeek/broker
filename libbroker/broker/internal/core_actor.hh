@@ -1,5 +1,6 @@
 #pragma once
 
+#include "broker/detail/trie.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
@@ -336,7 +337,7 @@ public:
       out.dispose();
     }
 
-    filter_type filter;
+    detail::trie filter;
     caf::disposable in;
     caf::disposable out;
   };
