@@ -36,6 +36,7 @@ set(BROKER_SRC
     broker/detail/source_driver.cc
     broker/detail/sqlite_backend.cc
     broker/detail/store_state.cc
+    broker/detail/trie.cc
     broker/domain_options.cc
     broker/endpoint.cc
     broker/endpoint_id.cc
@@ -154,6 +155,7 @@ set(BROKER_TEST_SRC
     broker/builder.test.cc
     broker/data.test.cc
     broker/detail/peer_status_map.test.cc
+    broker/detail/trie.test.cc
     broker/domain_options.test.cc
     broker/envelope.test.cc
     broker/error.test.cc
