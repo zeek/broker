@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <memory_resource>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -90,7 +91,7 @@ public:
 private:
   variant_data* root_ = nullptr;
   caf::byte_buffer bytes_;
-  detail::monotonic_buffer_resource buf_;
+  std::pmr::monotonic_buffer_resource buf_;
 };
 
 using envelope_test_impl_ptr = intrusive_ptr<envelope_test_impl>;

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "broker/config.hh"
+#include "broker/detail/allocator.hh"
 #include "broker/detail/inspect_enum.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/intrusive_ptr.hh"
@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory_resource>
 
 namespace broker {
 
@@ -146,7 +147,7 @@ public:
   };
 
   template <class T>
-  using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
+  using mbr_allocator = detail::allocator<T>;
 
   template <class Base>
   class deserialized : public Base {
@@ -191,7 +192,7 @@ public:
       return {payload_, payload_size_};
     }
 
-    detail::monotonic_buffer_resource& buf() {
+    std::pmr::monotonic_buffer_resource& buf() {
       return buf_;
     }
 
@@ -210,7 +211,7 @@ public:
 
     size_t payload_size_;
 
-    detail::monotonic_buffer_resource buf_;
+    std::pmr::monotonic_buffer_resource buf_;
   };
 
 private:

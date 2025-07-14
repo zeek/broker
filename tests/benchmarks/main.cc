@@ -8,6 +8,7 @@
 #include <caf/init_global_meta_objects.hpp>
 
 #include <cstdlib>
+#include <memory_resource>
 
 using namespace broker;
 using namespace std::literals;
@@ -15,8 +16,8 @@ using namespace std::literals;
 // -- custom types -------------------------------------------------------------
 
 uuid_multipath_tree::uuid_multipath_tree(uuid id, bool is_receiver) {
-  root = broker::detail::new_instance<uuid_multipath_node>(mem, id,
-                                                           is_receiver);
+  detail::allocator<uuid_multipath_node> alloc{&mem};
+  root = new (alloc.allocate(1)) uuid_multipath_node(id, is_receiver);
 }
 
 uuid_multipath_tree::~uuid_multipath_tree() {
@@ -84,11 +85,11 @@ uuid_multipath_group::emplace_impl(uuid id, MakeNewNode make_new_node) {
 }
 
 std::pair<uuid_multipath_node*, bool>
-uuid_multipath_group::emplace(detail::monotonic_buffer_resource& mem, uuid id,
+uuid_multipath_group::emplace(std::pmr::monotonic_buffer_resource& mem, uuid id,
                               bool is_receiver) {
   auto make_new_node = [&mem, id, is_receiver] {
-    return broker::detail::new_instance<uuid_multipath_node>(mem, id,
-                                                             is_receiver);
+    detail::allocator<uuid_multipath_node> alloc{&mem};
+    return new (alloc.allocate(1)) uuid_multipath_node(id, is_receiver);
   };
   return emplace_impl(id, make_new_node);
 }

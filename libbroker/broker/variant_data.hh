@@ -1,7 +1,7 @@
 #pragma once
 
 #include "broker/address.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
+#include "broker/detail/allocator.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
@@ -12,6 +12,7 @@
 
 #include <list>
 #include <map>
+#include <memory_resource>
 #include <set>
 
 namespace broker {
@@ -29,7 +30,7 @@ public:
                         timespan, enum_value_view>;
 
   template <class T>
-  using allocator_t = detail::monotonic_buffer_resource::allocator<T>;
+  using allocator_t = detail::allocator<T>;
 
   using list = std::list<variant_data, allocator_t<variant_data>>;
 
@@ -78,12 +79,12 @@ public:
   // -- deserialization --------------------------------------------------------
 
   std::pair<bool, const std::byte*>
-  parse_shallow(detail::monotonic_buffer_resource& buf, const std::byte* pos,
+  parse_shallow(std::pmr::monotonic_buffer_resource& buf, const std::byte* pos,
                 const std::byte* end);
 
   std::pair<bool, const std::byte*>
-  parse_shallow(detail::monotonic_buffer_resource& buf, const std::byte* bytes,
-                size_t num_bytes) {
+  parse_shallow(std::pmr::monotonic_buffer_resource& buf,
+                const std::byte* bytes, size_t num_bytes) {
     return parse_shallow(buf, bytes, bytes + num_bytes);
   }
 

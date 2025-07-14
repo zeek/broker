@@ -1,6 +1,7 @@
 #include "broker/variant_data.hh"
 
 #include "broker/data.hh"
+#include "broker/detail/allocator.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/format/bin.hh"
 
@@ -8,6 +9,7 @@
 #include <caf/detail/network_order.hpp>
 
 #include <cstring>
+#include <memory_resource>
 
 namespace broker {
 
@@ -127,7 +129,7 @@ data variant_data::to_data() const {
 namespace {
 
 template <class T>
-using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
+using mbr_allocator = detail::allocator<T>;
 
 struct decoder_handler_value;
 
@@ -139,7 +141,7 @@ struct decoder_handler_table;
 
 // Consumes events from a decoder and produces a data object.
 struct decoder_handler_value {
-  detail::monotonic_buffer_resource* buf;
+  std::pmr::monotonic_buffer_resource* buf;
   variant_data* result;
 
   template <class T>
@@ -163,10 +165,10 @@ struct decoder_handler_value {
 
 // Consumes events from a decoder and produces a list of data objects.
 struct decoder_handler_list {
-  detail::monotonic_buffer_resource* buf;
+  std::pmr::monotonic_buffer_resource* buf;
   variant_data::list* result;
 
-  explicit decoder_handler_list(detail::monotonic_buffer_resource* res)
+  explicit decoder_handler_list(std::pmr::monotonic_buffer_resource* res)
     : buf(res) {
     using vec_allocator = mbr_allocator<variant_data>;
     using vec_type = variant_data::list;
@@ -201,10 +203,10 @@ struct decoder_handler_list {
 
 // Consumes events from a decoder and produces a set of data objects.
 struct decoder_handler_set {
-  detail::monotonic_buffer_resource* buf;
+  std::pmr::monotonic_buffer_resource* buf;
   variant_data::set* result;
 
-  explicit decoder_handler_set(detail::monotonic_buffer_resource* res)
+  explicit decoder_handler_set(std::pmr::monotonic_buffer_resource* res)
     : buf(res) {
     using set_allocator = mbr_allocator<variant_data>;
     using set_type = variant_data::set;
@@ -245,11 +247,11 @@ struct decoder_handler_set {
 };
 
 struct decoder_handler_table {
-  detail::monotonic_buffer_resource* buf;
+  std::pmr::monotonic_buffer_resource* buf;
   variant_data::table* result;
   std::optional<variant_data> key;
 
-  explicit decoder_handler_table(detail::monotonic_buffer_resource* res)
+  explicit decoder_handler_table(std::pmr::monotonic_buffer_resource* res)
     : buf(res) {
     using table_allocator = variant_data::table_allocator;
     using table_type = variant_data::table;
@@ -369,7 +371,7 @@ bool decoder_handler_set::end_table(decoder_handler_table& other) {
 } // namespace
 
 std::pair<bool, const std::byte*>
-variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
+variant_data::parse_shallow(std::pmr::monotonic_buffer_resource& buf,
                             const std::byte* begin, const std::byte* end) {
   decoder_handler_value handler{.buf = &buf, .result = this};
   auto [ok, pos] = format::bin::v1::decode(begin, end, handler);

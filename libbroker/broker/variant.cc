@@ -1,5 +1,6 @@
 #include "broker/variant.hh"
 
+#include "broker/detail/allocator.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/error.hh"
@@ -11,6 +12,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <memory_resource>
 #include <type_traits>
 
 namespace broker::detail {
@@ -18,7 +20,7 @@ namespace broker::detail {
 namespace {
 
 template <class T>
-using mbr_allocator = broker::detail::monotonic_buffer_resource::allocator<T>;
+using mbr_allocator = broker::detail::allocator<T>;
 
 using const_byte_pointer = const std::byte*;
 
@@ -28,7 +30,7 @@ namespace {
 
 template <class Container>
 struct container_storage {
-  broker::detail::monotonic_buffer_resource resource;
+  std::pmr::monotonic_buffer_resource resource;
   Container container;
   container_storage()
     : container(typename Container::allocator_type{&resource}) {}

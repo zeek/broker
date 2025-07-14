@@ -8,6 +8,7 @@
 #include <caf/type_id.hpp>
 #include <caf/uuid.hpp>
 
+#include <memory_resource>
 #include <random>
 
 // -- forward declarations -----------------------------------------------------
@@ -69,7 +70,7 @@ struct uuid_multipath_tree {
   uuid_multipath_tree(uuid id, bool is_receiver);
   ~uuid_multipath_tree();
   uuid_multipath_node* root;
-  broker::detail::monotonic_buffer_resource mem;
+  std::pmr::monotonic_buffer_resource mem;
 };
 
 class uuid_multipath_group {
@@ -118,8 +119,7 @@ public:
   bool contains(uuid what) const noexcept;
 
   std::pair<uuid_multipath_node*, bool>
-  emplace(broker::detail::monotonic_buffer_resource& mem, uuid id,
-          bool is_receiver);
+  emplace(std::pmr::monotonic_buffer_resource& mem, uuid id, bool is_receiver);
 
   bool emplace(uuid_multipath_node* node);
 
@@ -202,13 +202,13 @@ private:
   }
 
   template <class Inspector>
-  bool load_children(broker::detail::monotonic_buffer_resource& mem,
-                     Inspector& f) {
+  bool load_children(std::pmr::monotonic_buffer_resource& mem, Inspector& f) {
     size_t n = 0;
     if (f.begin_sequence(n)) {
       for (size_t i = 0; i < n; ++i) {
-        auto child =
-          broker::detail::new_instance<uuid_multipath_node>(mem, uuid{}, false);
+        broker::detail::allocator<uuid_multipath_node> alloc{&mem};
+        auto* child = new (alloc.allocate(1))
+          uuid_multipath_node(uuid{}, false);
         if (!child->load(mem, f)) {
           return false;
         } else if (!down_.emplace(child)) {
@@ -222,7 +222,7 @@ private:
   }
 
   template <class Inspector>
-  bool load(broker::detail::monotonic_buffer_resource& mem, Inspector& f) {
+  bool load(std::pmr::monotonic_buffer_resource& mem, Inspector& f) {
     return f.begin_object(caf::type_id_v<uuid_multipath>,
                           caf::type_name_v<uuid_multipath>)
            && f.begin_field("id")          // <id>

@@ -3,7 +3,6 @@
 #include "broker/command_envelope.hh"
 #include "broker/data_envelope.hh"
 #include "broker/defaults.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
 #include "broker/format/bin.hh"
@@ -26,17 +25,6 @@
 #include <caf/json_value.hpp>
 
 namespace broker {
-
-// -- utilities ----------------------------------------------------------------
-
-namespace {
-
-template <class T>
-using mbr_allocator = broker::detail::monotonic_buffer_resource::allocator<T>;
-
-using const_byte_pointer = const std::byte*;
-
-} // namespace
 
 // -- envelope_type ------------------------------------------------------------
 
