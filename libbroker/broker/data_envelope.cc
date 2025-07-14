@@ -1,6 +1,5 @@
 #include "broker/data_envelope.hh"
 
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
@@ -16,16 +15,9 @@
 #include <caf/json_object.hpp>
 #include <caf/json_value.hpp>
 
+#include <memory_resource>
+
 using namespace std::literals;
-
-namespace {
-
-template <class T>
-using mbr_allocator = broker::detail::monotonic_buffer_resource::allocator<T>;
-
-using const_byte_pointer = const std::byte*;
-
-} // namespace
 
 namespace broker {
 
@@ -73,7 +65,7 @@ expected<data_envelope_ptr> data_envelope::deserialize(
   return {std::move(result)};
 }
 
-variant_data* data_envelope::do_parse(detail::monotonic_buffer_resource& buf,
+variant_data* data_envelope::do_parse(std::pmr::monotonic_buffer_resource& buf,
                                       error& err) {
   auto [bytes, size] = raw_bytes();
   if (bytes == nullptr || size == 0) {
@@ -83,7 +75,7 @@ variant_data* data_envelope::do_parse(detail::monotonic_buffer_resource& buf,
   // Create the root object.
   variant_data* root;
   {
-    mbr_allocator<variant_data> allocator{&buf};
+    std::pmr::polymorphic_allocator<variant_data> allocator{&buf};
     root = new (allocator.allocate(1)) variant_data();
   }
   // Parse the data. This is a shallow parse, which is why we need to copy the
@@ -147,7 +139,7 @@ private:
   variant_data* root_ = nullptr;
   std::string topic_;
   caf::byte_buffer bytes_;
-  detail::monotonic_buffer_resource buf_;
+  std::pmr::monotonic_buffer_resource buf_;
 };
 
 using default_data_envelope_ptr = intrusive_ptr<default_data_envelope>;

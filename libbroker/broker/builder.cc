@@ -7,19 +7,18 @@
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
+#include <memory_resource>
+
 namespace broker {
 
 namespace {
-
-template <class T>
-using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
 
 class builder_envelope : public data_envelope {
 public:
   builder_envelope(std::string_view topic_str, std::vector<std::byte> bytes,
                    size_t offset)
     : topic_size_(topic_str.size()), bytes_(std::move(bytes)), offset_(offset) {
-    mbr_allocator<char> str_allocator{&buf_};
+    std::pmr::polymorphic_allocator<char> str_allocator{&buf_};
     topic_ = str_allocator.allocate(topic_str.size() + 1);
     memcpy(topic_, topic_str.data(), topic_str.size());
     topic_[topic_str.size()] = '\0';
@@ -52,7 +51,7 @@ private:
   size_t topic_size_;
   variant_data* root_ = nullptr;
   std::vector<std::byte> bytes_;
-  detail::monotonic_buffer_resource buf_;
+  std::pmr::monotonic_buffer_resource buf_;
   size_t offset_;
 };
 
