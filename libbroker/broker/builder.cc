@@ -1,4 +1,5 @@
 #include "broker/builder.hh"
+#include "broker/detail/allocator.hh"
 
 #include "broker/data.hh"
 #include "broker/defaults.hh"
@@ -7,12 +8,14 @@
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
+#include <memory_resource>
+
 namespace broker {
 
 namespace {
 
 template <class T>
-using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
+using mbr_allocator = detail::allocator<T>;
 
 class builder_envelope : public data_envelope {
 public:
@@ -52,7 +55,7 @@ private:
   size_t topic_size_;
   variant_data* root_ = nullptr;
   std::vector<std::byte> bytes_;
-  detail::monotonic_buffer_resource buf_;
+  std::pmr::monotonic_buffer_resource buf_;
   size_t offset_;
 };
 

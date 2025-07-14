@@ -181,7 +181,6 @@ using pong_message = pong_envelope_ptr;
 namespace broker::detail {
 
 class abstract_backend;
-class monotonic_buffer_resource;
 
 } // namespace broker::detail
 
