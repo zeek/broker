@@ -1,6 +1,5 @@
 #include "broker/variant.hh"
 
-#include "broker/detail/allocator.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/error.hh"
@@ -16,15 +15,6 @@
 #include <type_traits>
 
 namespace broker::detail {
-
-namespace {
-
-template <class T>
-using mbr_allocator = broker::detail::allocator<T>;
-
-using const_byte_pointer = const std::byte*;
-
-} // namespace
 
 namespace {
 

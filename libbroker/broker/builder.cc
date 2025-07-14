@@ -1,5 +1,4 @@
 #include "broker/builder.hh"
-#include "broker/detail/allocator.hh"
 
 #include "broker/data.hh"
 #include "broker/defaults.hh"
@@ -14,15 +13,12 @@ namespace broker {
 
 namespace {
 
-template <class T>
-using mbr_allocator = detail::allocator<T>;
-
 class builder_envelope : public data_envelope {
 public:
   builder_envelope(std::string_view topic_str, std::vector<std::byte> bytes,
                    size_t offset)
     : topic_size_(topic_str.size()), bytes_(std::move(bytes)), offset_(offset) {
-    mbr_allocator<char> str_allocator{&buf_};
+    std::pmr::polymorphic_allocator<char> str_allocator{&buf_};
     topic_ = str_allocator.allocate(topic_str.size() + 1);
     memcpy(topic_, topic_str.data(), topic_str.size());
     topic_[topic_str.size()] = '\0';

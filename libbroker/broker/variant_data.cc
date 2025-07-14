@@ -1,7 +1,6 @@
 #include "broker/variant_data.hh"
 
 #include "broker/data.hh"
-#include "broker/detail/allocator.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/format/bin.hh"
 
@@ -128,9 +127,6 @@ data variant_data::to_data() const {
 
 namespace {
 
-template <class T>
-using mbr_allocator = detail::allocator<T>;
-
 struct decoder_handler_value;
 
 struct decoder_handler_list;
@@ -170,9 +166,9 @@ struct decoder_handler_list {
 
   explicit decoder_handler_list(std::pmr::monotonic_buffer_resource* res)
     : buf(res) {
-    using vec_allocator = mbr_allocator<variant_data>;
+    using vec_allocator = std::pmr::polymorphic_allocator<variant_data>;
     using vec_type = variant_data::list;
-    mbr_allocator<vec_type> allocator{buf};
+    std::pmr::polymorphic_allocator<vec_type> allocator{buf};
     result = new (allocator.allocate(1)) vec_type(vec_allocator{buf});
   }
 
@@ -208,9 +204,9 @@ struct decoder_handler_set {
 
   explicit decoder_handler_set(std::pmr::monotonic_buffer_resource* res)
     : buf(res) {
-    using set_allocator = mbr_allocator<variant_data>;
+    using set_allocator = std::pmr::polymorphic_allocator<variant_data>;
     using set_type = variant_data::set;
-    mbr_allocator<set_type> allocator{buf};
+    std::pmr::polymorphic_allocator<set_type> allocator{buf};
     result = new (allocator.allocate(1)) set_type(set_allocator{buf});
   }
 
@@ -255,7 +251,7 @@ struct decoder_handler_table {
     : buf(res) {
     using table_allocator = variant_data::table_allocator;
     using table_type = variant_data::table;
-    mbr_allocator<table_type> allocator{buf};
+    std::pmr::polymorphic_allocator<table_type> allocator{buf};
     result = new (allocator.allocate(1)) table_type(table_allocator{buf});
   }
 
