@@ -1,7 +1,6 @@
 #pragma once
 
 #include "broker/address.hh"
-#include "broker/detail/allocator.hh"
 #include "broker/enum_value.hh"
 #include "broker/fwd.hh"
 #include "broker/none.hh"
@@ -30,7 +29,7 @@ public:
                         timespan, enum_value_view>;
 
   template <class T>
-  using allocator_t = detail::allocator<T>;
+  using allocator_t = std::pmr::polymorphic_allocator<T>;
 
   using list = std::list<variant_data, allocator_t<variant_data>>;
 

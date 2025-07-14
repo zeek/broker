@@ -2,14 +2,13 @@
 
 #include "broker/alm/multipath.hh"
 #include "broker/alm/routing_table.hh"
-#include "broker/detail/allocator.hh"
 
 #include <memory_resource>
 
 namespace broker::alm {
 
 multipath_tree::multipath_tree(endpoint_id id) {
-  detail::allocator<multipath_node> alloc{&mem};
+  std::pmr::polymorphic_allocator<multipath_node> alloc{&mem};
   root = new (alloc.allocate(1)) multipath_node(id);
 }
 
@@ -81,7 +80,7 @@ std::pair<multipath_node*, bool>
 multipath_group::emplace(std::pmr::monotonic_buffer_resource& mem,
                          const endpoint_id& id) {
   auto make_new_node = [&mem, &id] {
-    detail::allocator<multipath_node> alloc{&mem};
+    std::pmr::polymorphic_allocator<multipath_node> alloc{&mem};
     return new (alloc.allocate(1)) multipath_node(id);
   };
   return emplace_impl(id, make_new_node);

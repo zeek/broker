@@ -6,7 +6,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "broker/detail/allocator.hh"
 #include "broker/detail/assert.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
@@ -223,7 +222,7 @@ private:
     size_t n = 0;
     if (f.begin_sequence(n)) {
       for (size_t i = 0; i < n; ++i) {
-        detail::allocator<multipath_node> alloc{&mem};
+        std::pmr::polymorphic_allocator<multipath_node> alloc{&mem};
         auto* child = new (alloc.allocate(1)) multipath_node(endpoint_id{});
         if (!child->load(mem, f)) {
           child->shallow_delete();
