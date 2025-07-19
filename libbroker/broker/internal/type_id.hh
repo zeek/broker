@@ -14,6 +14,8 @@
 #include <caf/is_error_code_enum.hpp>
 #include <caf/type_id.hpp>
 
+#include <future>
+
 // -- imported atoms -----------------------------------------------------------
 
 // NOLINTBEGIN

@@ -1,5 +1,7 @@
 #include "broker/store_event.hh"
 
+#include "broker/format.hh"
+
 #include <caf/deep_to_string.hpp>
 
 namespace broker {
@@ -80,46 +82,20 @@ std::string expiry_to_string(const std::optional<timespan>& x) {
 } // namespace
 
 std::string to_string(const store_event::insert& x) {
-  std::string result = "insert(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.value());
-  result += ", ";
-  result += expiry_to_string(x.expiry());
-  result += ", ";
-  result += caf::deep_to_string(x.publisher());
-  result += ')';
-  return result;
+  return std::format("insert({}, {}, {}, {}, {})", x.store_id(), x.key(),
+                     x.value(), expiry_to_string(x.expiry()),
+                     caf::deep_to_string(x.publisher()));
 }
 
 std::string to_string(const store_event::update& x) {
-  std::string result = "update(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.old_value());
-  result += ", ";
-  result += to_string(x.new_value());
-  result += ", ";
-  result += expiry_to_string(x.expiry());
-  result += ", ";
-  result += caf::deep_to_string(x.publisher());
-  result += ')';
-  return result;
+  return std::format("update({}, {}, {}, {}, {}, {})", x.store_id(), x.key(),
+                     x.old_value(), x.new_value(), expiry_to_string(x.expiry()),
+                     caf::deep_to_string(x.publisher()));
 }
 
 std::string to_string(const store_event::erase& x) {
-  std::string result = "erase(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.publisher());
-  result += ')';
-  return result;
+  return std::format("erase({}, {}, {})", x.store_id(), x.key(),
+                     caf::deep_to_string(x.publisher()));
 }
 
 bool convert(const std::string& src, store_event::type& dst) noexcept {

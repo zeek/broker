@@ -85,4 +85,8 @@ expected<envelope_ptr> ping_envelope::deserialize(
   return envelope_ptr{std::move(ptr)};
 }
 
+void convert(const ping_envelope_ptr& src, std::string& dst) {
+  convert(src.get(), dst);
+}
+
 } // namespace broker

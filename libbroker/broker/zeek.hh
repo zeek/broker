@@ -78,7 +78,9 @@ public:
   }
 
   std::string to_string() const {
-    return broker::to_string(data_);
+    std::string result;
+    convert(data_, result);
+    return result;
   }
 
   /// Returns the underlying data as-is.

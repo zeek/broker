@@ -5,7 +5,7 @@
 
 namespace broker {
 
-void convert(overflow_policy src, std::string& dst) {
+void convert(const overflow_policy& src, std::string& dst) {
   switch (src) {
     case overflow_policy::disconnect:
       dst = "disconnect";

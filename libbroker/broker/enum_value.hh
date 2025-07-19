@@ -33,11 +33,6 @@ bool inspect(Inspector& f, enum_value& e) {
   return f.apply(e.name);
 }
 
-/// @relates enum_value
-inline void convert(const enum_value& e, std::string& str) {
-  str = e.name;
-}
-
 /// Like enum_value, but wraps a value of type `std::string_view` instead.
 class enum_value_view : detail::comparable<enum_value_view>,
                         detail::comparable<enum_value_view, enum_value> {

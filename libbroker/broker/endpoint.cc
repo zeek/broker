@@ -4,6 +4,7 @@
 #include "broker/defaults.hh"
 #include "broker/detail/die.hh"
 #include "broker/detail/filesystem.hh"
+#include "broker/format.hh"
 #include "broker/hub.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
@@ -233,7 +234,8 @@ public:
         },
         [&](const caf::error& reason) {
           log::endpoint::debug("sim-clock-error",
-                               "advance_time actor syncing failed: {}", reason);
+                               "advance_time actor syncing failed: {}",
+                               caf::to_string(reason));
           abort_syncing = true;
         });
     // Dispose the timeout if it's still pending to avoid unnecessary messaging.
@@ -546,7 +548,8 @@ uint16_t endpoint::listen(const std::string& address, uint16_t port,
       },
       [&](caf::error& err) {
         log::endpoint::warning("listen-failed",
-                               "failed to listen on port {}: {}", port, err);
+                               "failed to listen on port {}: {}", port,
+                               caf::to_string(err));
         if (err_ptr)
           *err_ptr = facade(err);
       });
@@ -571,7 +574,7 @@ bool endpoint::peer(const std::string& address, uint16_t port,
       },
       [&](const caf::error& reason) {
         log::endpoint::warning("sync-peer-error", "cannot peer to {}:{}: {}",
-                               address, port, reason);
+                               address, port, caf::to_string(reason));
       });
   return result;
 }
@@ -619,7 +622,7 @@ bool endpoint::unpeer(const std::string& address, uint16_t port) {
       [&](const caf::error& reason) {
         log::endpoint::warning("sync-unpeer-error",
                                "cannot unpeer from {}:{}: {}", address, port,
-                               reason);
+                               caf::to_string(reason));
       });
 
   return result;
@@ -885,7 +888,7 @@ expected<store> endpoint::attach_master(std::string name, backend type,
         log::endpoint::warning(
           "attach-master-failed",
           "failed to attached master store {} of type {}: {}", name, type,
-          reason);
+          caf::to_string(reason));
         res = facade(reason);
       });
   return res;
@@ -914,7 +917,7 @@ expected<store> endpoint::attach_clone(std::string name, double resync_interval,
       [&](const caf::error& reason) {
         log::endpoint::warning("attach-clone-failed",
                                "failed to attached clone store {}: {}", name,
-                               reason);
+                               caf::to_string(reason));
         res = facade(reason);
       });
   return res;

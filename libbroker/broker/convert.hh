@@ -108,21 +108,6 @@ std::enable_if_t<detail::has_convert_v<From, To>, To> get_as(const From& from) {
   return result;
 }
 
-/// Converts a value to a string representation.
-template <class From>
-std::enable_if_t<detail::has_convert_v<From, std::string>, std::string>
-to_string(const From& from) {
-  std::string result;
-  convert(from, result);
-  return result;
-}
-
-/// Convenience alias for `from<T>(str)`.
-template <class T>
-auto from_string(std::string_view str) -> decltype(to<T>(str)) {
-  return to<T>(str);
-}
-
 // Injects an overload for `operator<<` for any type convertible to a
 // `std::string` via a free function `bool convert(const T&, std::string&)`
 // that can be found via ADL.

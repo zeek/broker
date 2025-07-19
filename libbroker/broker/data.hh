@@ -488,6 +488,15 @@ std::enable_if_t<std::is_same_v<Data, data>> convert(const Data& x,
 
 /// @relates data
 template <class Data>
+std::enable_if_t<std::is_same_v<Data, data>, std::string>
+to_string(const Data& x) {
+  std::string result;
+  convert(x, result);
+  return result;
+}
+
+/// @relates data
+template <class Data>
 std::enable_if_t<std::is_same_v<Data, data>, bool> convert(const Data& x,
                                                            endpoint_id& node) {
   return x.convert_to(node);

@@ -383,11 +383,14 @@ inline bool operator!=(const expected<void>& x, const expected<void>& y) {
   return !(x == y);
 }
 
-inline std::string to_string(const expected<void>& x) {
+/*
+std::string to_string(const expected<void>& x)
+ {
   if (x)
     return "unit";
   else
-    return "!" + to_string(x.error());
+    return std::format("!{}", x.error());
 }
+    */
 
 } // namespace broker

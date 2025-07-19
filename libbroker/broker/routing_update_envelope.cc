@@ -154,4 +154,8 @@ expected<envelope_ptr> routing_update_envelope::deserialize(
   return {std::move(result)};
 }
 
+void convert(const routing_update_envelope_ptr& src, std::string& dst) {
+  convert(src.get(), dst);
+}
+
 } // namespace broker

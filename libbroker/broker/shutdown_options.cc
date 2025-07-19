@@ -17,6 +17,10 @@ void append(std::string& result, broker::shutdown_options::flag flag) {
 
 namespace broker {
 
+void convert(const shutdown_options& src, std::string& dst) {
+  dst = to_string(src);
+}
+
 std::string to_string(shutdown_options options) {
   std::string result = "shutdown_options(";
   for (auto flag : {shutdown_options::await_stores_on_shutdown})

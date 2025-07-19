@@ -216,4 +216,20 @@ envelope_type data_envelope::type() const noexcept {
   return envelope_type::data;
 }
 
+void convert(const envelope& src, std::string& dst) {
+  dst = src.stringify();
+}
+
+void convert(const envelope* src, std::string& dst) {
+  if (src) {
+    dst = src->stringify();
+  } else {
+    dst = "null";
+  }
+}
+
+void convert(const envelope_ptr& src, std::string& dst) {
+  convert(src.get(), dst);
+}
+
 } // namespace broker

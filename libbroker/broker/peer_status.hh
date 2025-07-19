@@ -19,10 +19,7 @@ enum class peer_status {
 };
 
 /// @relates peer_status
-void convert(peer_status x, std::string& str);
-
-/// @relates peer_status
-const char* to_string(peer_status);
+void convert(const peer_status& x, std::string& str);
 
 /// @relates peer_status
 template <class Inspector>

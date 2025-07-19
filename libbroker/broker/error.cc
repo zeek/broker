@@ -175,10 +175,10 @@ error make_error(ec code, endpoint_info info, std::string description) {
   return error{code, std::move(info), std::move(description)};
 }
 
-std::string to_string(ec code) {
-  auto index = static_cast<uint8_t>(code);
+void convert(const ec& src, std::string& dst) {
+  auto index = static_cast<uint8_t>(src);
   BROKER_ASSERT(index < array_size(ec_names));
-  return std::string{ec_names[index]};
+  dst = ec_names[index];
 }
 
 std::string_view enum_str(ec code) {

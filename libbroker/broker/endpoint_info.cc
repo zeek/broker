@@ -1,15 +1,16 @@
 #include "broker/endpoint_info.hh"
 
-#include <regex>
-
 #include <caf/expected.hpp>
 #include <caf/node_id.hpp>
 #include <caf/uri.hpp>
 
 #include "broker/data.hh"
+#include "broker/format.hh"
 #include "broker/internal/native.hh"
 #include "broker/variant.hh"
 #include "broker/variant_list.hh"
+
+#include <format>
 
 namespace broker {
 
@@ -86,8 +87,11 @@ bool convert(const variant& src, endpoint_info& dst) {
 bool convert(const endpoint_info& src, data& dst) {
   vector result;
   result.resize(4);
-  if (src.node)
-    result[0] = to_string(src.node);
+  if (src.node) {
+    std::string node_str;
+    convert(src.node, node_str);
+    result[0] = std::move(node_str);
+  }
   if (src.network) {
     result[1] = src.network->address;
     result[2] = port{src.network->port, port::protocol::tcp};
@@ -98,16 +102,11 @@ bool convert(const endpoint_info& src, data& dst) {
 }
 
 void convert(const endpoint_info& src, std::string& dst) {
-  dst += "endpoint_info(";
-  dst += to_string(src.node);
-  dst += ", ";
   if (auto& net = src.network) {
-    dst += '*';
-    dst += to_string(*net);
+    dst = std::format("endpoint_info({}, *{})", src.node, *net);
   } else {
-    dst += "none";
+    dst = std::format("endpoint_info({}, none)", src.node);
   }
-  dst += ')';
 }
 
 } // namespace broker

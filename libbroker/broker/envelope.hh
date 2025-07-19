@@ -224,16 +224,12 @@ private:
 using envelope_ptr = intrusive_ptr<const envelope>;
 
 /// @relates envelope
-inline std::string to_string(const envelope& x) {
-  return x.stringify();
-}
+void convert(const envelope& src, std::string& dst);
 
 /// @relates envelope
-inline std::string to_string(const envelope_ptr& x) {
-  if (x)
-    return x->stringify();
-  else
-    return "<null>";
-}
+void convert(const envelope* src, std::string& dst);
+
+/// @relates envelope
+void convert(const envelope_ptr& src, std::string& dst);
 
 } // namespace broker

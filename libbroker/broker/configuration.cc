@@ -23,6 +23,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/endpoint.hh"
+#include "broker/format.hh"
 #include "broker/hub_id.hh"
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
@@ -209,10 +210,10 @@ configuration::configuration(broker_options opts) : configuration(skip_init) {
   impl_->set("broker.ttl", opts.ttl);
   impl_->set("broker.peer-buffer-size", opts.peer_buffer_size);
   caf::put(impl_->content, "broker.peer-overflow-policy",
-           broker::to_string(opts.peer_overflow_policy));
+           to_string(opts.peer_overflow_policy));
   impl_->set("broker.web_socket-buffer-size", opts.web_socket_buffer_size);
   caf::put(impl_->content, "broker.web_socket-overflow-policy",
-           broker::to_string(opts.web_socket_overflow_policy));
+           to_string(opts.web_socket_overflow_policy));
   caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
   impl_->config_file_path = "broker.conf";
