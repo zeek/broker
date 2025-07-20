@@ -92,7 +92,7 @@ public:
               << std::put_time(std::localtime(&secs), "%F %T") << '.'
               << msecs_str << ' ' << severity_name(what->severity) << ' '
               << component_tag(what->component) << ' ' << what->description
-              << caf::term::reset << std::endl;
+              << caf::term::reset << '\n';
   }
 
   bool accepts(event::severity_level severity,

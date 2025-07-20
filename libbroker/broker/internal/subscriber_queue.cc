@@ -89,7 +89,7 @@ bool subscriber_queue::pull(data_message& dst) {
     }
   };
   using caf::async::delay_errors;
-  cb consumer{this, &dst};
+  cb consumer{.qptr = this, .dst = &dst};
   if (buf_) {
     auto [open, n] = buf_->pull(delay_errors, 1, consumer);
     log::endpoint::debug("subscriber-pull",
@@ -135,7 +135,7 @@ bool subscriber_queue::pull(std::vector<data_message>& dst, size_t num) {
     }
   };
   using caf::async::delay_errors;
-  cb consumer{this, &dst};
+  cb consumer{.qptr = this, .dst = &dst};
   if (buf_) {
     auto [open, n] = buf_->pull(delay_errors, num - dst.size(), consumer);
     log::endpoint::debug("subscriber-pull",

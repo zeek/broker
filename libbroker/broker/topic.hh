@@ -64,8 +64,8 @@ public:
 
   /// Constructs a topic from a type that is convertible to a string.
   /// @param x A value convertible to a string.
-  template <class T,
-            class = std::enable_if_t<std::is_constructible_v<std::string, T>>>
+  template <class T>
+    requires std::is_constructible_v<std::string, T>
   topic(T&& x) : str_(std::forward<T>(x)) {
     // nop
   }

@@ -121,7 +121,8 @@ public:
   }
 
   template <class U>
-  std::enable_if_t<std::is_convertible_v<U, T>, expected&> operator=(U x) {
+    requires std::is_convertible_v<U, T>
+  expected& operator=(U x) {
     return *this = T{std::move(x)};
   }
 

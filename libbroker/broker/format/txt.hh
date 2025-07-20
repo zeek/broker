@@ -23,7 +23,8 @@ OutIter encode(none, OutIter out) {
 
 /// Renders `value` to `out` as `T` for `true` and `F` for `false`.
 template <class T, class OutIter>
-std::enable_if_t<std::is_integral_v<T>, OutIter> encode(T value, OutIter out) {
+  requires std::is_integral_v<T>
+OutIter encode(T value, OutIter out) {
   if constexpr (std::is_same_v<T, bool>) {
     *out++ = value ? 'T' : 'F';
     return out;
@@ -131,8 +132,8 @@ template <class OutIter>
 OutIter encode(const broker::vector& values, OutIter out);
 
 template <class Data, class OutIter>
-std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
-                                                             OutIter out);
+  requires std::is_same_v<data, Data>
+OutIter encode(const Data& value, OutIter out);
 
 /// Helper function to render a sequence of values to `out`.
 template <class Iterator, class Sentinel, class OutIter>
@@ -172,8 +173,8 @@ OutIter encode(const variant_data& value, OutIter out) {
 // broker::data directly, without allowing to compiler to implicitly convert
 // other types to broker::data.
 template <class Data, class OutIter>
-std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
-                                                             OutIter out) {
+  requires std::is_same_v<data, Data>
+OutIter encode(const Data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode(x, out); }, value.get_data());
 }
 

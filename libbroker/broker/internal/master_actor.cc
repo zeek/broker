@@ -206,7 +206,7 @@ void master_state::tick() {
                             key);
       } else {
         log::store::info("expire", "expired key {}", key);
-        expire_command cmd{key, id};
+        expire_command cmd{.key = key, .publisher = id};
         emit_expire_event(cmd);
         broadcast(std::move(cmd));
         metrics.entries->Decrement();
@@ -261,7 +261,8 @@ void master_state::consume(put_unique_command& x) {
                     "master received put unique command (expiry {}): {} -> {}",
                     expiry_formatter{x.expiry}, x.key, x.value);
   auto broadcast_result = [this, &x](bool inserted) {
-    broadcast(put_unique_result_command{inserted, x.who, x.req_id, id});
+    broadcast(put_unique_result_command{
+      .inserted = inserted, .who = x.who, .req_id = x.req_id, .publisher = id});
     if (x.who) {
       local_request_key key{x.who, x.req_id};
       if (auto i = local_requests.find(key); i != local_requests.end()) {
@@ -286,8 +287,10 @@ void master_state::consume(put_unique_command& x) {
   metrics.entries->Increment();
   // Broadcast a regular "put" command (clones don't have to do their own
   // existence check) followed by the (positive) result message.
-  broadcast(
-    put_command{std::move(x.key), std::move(x.value), x.expiry, x.publisher});
+  broadcast(put_command{.key = std::move(x.key),
+                        .value = std::move(x.value),
+                        .expiry = x.expiry,
+                        .publisher = x.publisher});
   broadcast_result(true);
 }
 
@@ -330,8 +333,10 @@ void master_state::consume(add_command& x) {
     set_expire_time(x.key, x.expiry);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    x.publisher};
+    put_command cmd{.key = std::move(x.key),
+                    .value = std::move(*val),
+                    .expiry = std::nullopt,
+                    .publisher = x.publisher};
     if (old_value) {
       emit_update_event(cmd, *old_value);
     } else {
@@ -370,8 +375,10 @@ void master_state::consume(subtract_command& x) {
     set_expire_time(x.key, x.expiry);
     // Broadcast a regular "put" command. Clones don't have to repeat the same
     // processing again.
-    put_command cmd{std::move(x.key), std::move(*val), std::nullopt,
-                    x.publisher};
+    put_command cmd{.key = std::move(x.key),
+                    .value = std::move(*val),
+                    .expiry = std::nullopt,
+                    .publisher = x.publisher};
     emit_update_event(cmd, *old_value);
     broadcast(std::move(cmd));
   }
@@ -440,17 +447,22 @@ void master_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
   log::store::debug("send-cumulative-ack",
                     "send cumulative ack with seq {} to {}", ack.seq, dst);
   auto msg = make_command_message(
-    clones_topic,
-    internal_command{0, id, dst, cumulative_ack_command{ack.seq}});
+    clones_topic, internal_command{.seq = 0,
+                                   .sender = id,
+                                   .receiver = dst,
+                                   .content = cumulative_ack_command{ack.seq}});
   self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
 }
 
 void master_state::send(consumer_type* ptr, channel_type::nack nack) {
   auto dst = ptr->producer();
   log::store::debug("send-nack", "send nack to {}", dst);
-  auto msg = make_command_message(
-    clones_topic,
-    internal_command{0, id, dst, nack_command{std::move(nack.seqs)}});
+  auto msg = make_command_message(clones_topic,
+                                  internal_command{.seq = 0,
+                                                   .sender = id,
+                                                   .receiver = dst,
+                                                   .content = nack_command{
+                                                     std::move(nack.seqs)}});
   self->send(core, atom::publish_v, std::move(msg), dst.endpoint);
 }
 
@@ -474,9 +486,13 @@ void master_state::send(producer_type*, const entity_id& whom,
       detail::die("failed to snapshot master");
     auto cmd = make_command_message(
       clones_topic,
-      internal_command{msg.offset, id, whom,
-                       ack_clone_command{msg.offset, msg.heartbeat_interval,
-                                         std::move(*ss)}});
+      internal_command{.seq = msg.offset,
+                       .sender = id,
+                       .receiver = whom,
+                       .content = ack_clone_command{.offset = msg.offset,
+                                                    .heartbeat_interval =
+                                                      msg.heartbeat_interval,
+                                                    .state = std::move(*ss)}});
     i = open_handshakes.emplace(whom, std::move(cmd)).first;
   }
   log::store::debug("send-handshake", "send handshake with offset {} to {}",
@@ -488,7 +504,10 @@ void master_state::send(producer_type*, const entity_id& whom,
                         channel_type::retransmit_failed msg) {
   auto cmd = make_command_message(
     clones_topic,
-    internal_command{0, id, whom, retransmit_failed_command{msg.seq}});
+    internal_command{.seq = 0,
+                     .sender = id,
+                     .receiver = whom,
+                     .content = retransmit_failed_command{msg.seq}});
   log::store::debug("send-retransmit-failed",
                     "send retransmit_failed with seq {} to {}", msg.seq, whom);
   self->send(core, atom::publish_v, std::move(cmd), whom.endpoint);
@@ -497,9 +516,11 @@ void master_state::send(producer_type*, const entity_id& whom,
 void master_state::broadcast(producer_type*, channel_type::heartbeat msg) {
   log::store::debug("broadcast-heartbeat", "broadcast heartbeat with seq {}",
                     msg.seq);
-  auto cmd = make_command_message(clones_topic,
-                                  internal_command{0, id, entity_id::nil(),
-                                                   keepalive_command{msg.seq}});
+  auto cmd = make_command_message(
+    clones_topic, internal_command{.seq = 0,
+                                   .sender = id,
+                                   .receiver = entity_id::nil(),
+                                   .content = keepalive_command{msg.seq}});
   self->send(core, atom::publish_v, std::move(cmd));
 }
 

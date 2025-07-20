@@ -341,8 +341,9 @@ caf::behavior core_actor_state::make_behavior() {
         endpoint_info info{peer_id, state->addr()};
         auto status = peer_statuses->get(peer_id);
         if (status != peer_status::unknown) {
-          result.emplace_back(
-            peer_info{std::move(info), peer_flags::remote, status});
+          result.emplace_back(peer_info{.peer = std::move(info),
+                                        .flags = peer_flags::remote,
+                                        .status = status});
         }
       }
       return result;

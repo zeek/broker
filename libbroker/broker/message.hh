@@ -18,27 +18,32 @@ namespace broker {
 
 using node_message = envelope_ptr;
 
-template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+template <class T>
+  requires std::is_base_of_v<envelope, T>
 auto get_topic(const intrusive_ptr<T>& msg) {
   return msg->topic();
 }
 
-template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+template <class T>
+  requires std::is_base_of_v<envelope, T>
 auto get_topic_str(const intrusive_ptr<T>& msg) {
   return msg->topic();
 }
 
-template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+template <class T>
+  requires std::is_base_of_v<envelope, T>
 auto get_sender(const intrusive_ptr<T>& msg) {
   return msg->sender();
 }
 
-template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+template <class T>
+  requires std::is_base_of_v<envelope, T>
 auto get_receiver(const intrusive_ptr<T>& msg) {
   return msg->receiver();
 }
 
-template <class T, class = std::enable_if_t<std::is_base_of_v<envelope, T>>>
+template <class T>
+  requires std::is_base_of_v<envelope, T>
 auto get_type(const intrusive_ptr<T>& msg) {
   return msg->type();
 }

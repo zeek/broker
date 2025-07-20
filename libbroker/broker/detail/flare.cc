@@ -150,7 +150,7 @@ bool flare::extinguish_one() {
 }
 
 void flare::await_one() {
-  pollfd p = {fds_[0], POLLIN, 0};
+  pollfd p = {.fd = fds_[0], .events = POLLIN, .revents = 0};
   for (;;) {
     auto n = ::poll(&p, 1, -1);
     if (n < 0 && !try_again_later())
@@ -163,7 +163,7 @@ void flare::await_one() {
 }
 
 bool flare::await_one_impl(int ms_timeout) {
-  pollfd p = {fds_[0], POLLIN, 0};
+  pollfd p = {.fd = fds_[0], .events = POLLIN, .revents = 0};
   auto n = ::poll(&p, 1, ms_timeout);
   if (n < 0 && !try_again_later())
     std::terminate();

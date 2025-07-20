@@ -311,8 +311,10 @@ void clone_state::send(consumer_type* ptr, channel_type::cumulative_ack ack) {
                     ack.seq, master_id, ptr->producer());
   BROKER_ASSERT(master_id);
   auto msg = make_command_message(
-    master_topic,
-    internal_command{0, id, master_id, cumulative_ack_command{ack.seq}});
+    master_topic, internal_command{.seq = 0,
+                                   .sender = id,
+                                   .receiver = master_id,
+                                   .content = cumulative_ack_command{ack.seq}});
   self->send(core, atom::publish_v, std::move(msg), ptr->producer().endpoint);
 }
 
@@ -321,9 +323,12 @@ void clone_state::send(consumer_type* ptr, channel_type::nack nack) {
                     "clone received nack from "
                     "master {} for producer {}",
                     master_id, ptr->producer());
-  auto msg = make_command_message(
-    master_topic,
-    internal_command{0, id, master_id, nack_command{std::move(nack.seqs)}});
+  auto msg = make_command_message(master_topic,
+                                  internal_command{.seq = 0,
+                                                   .sender = id,
+                                                   .receiver = master_id,
+                                                   .content = nack_command{
+                                                     std::move(nack.seqs)}});
   if (ptr->initialized()) {
     BROKER_ASSERT(master_id == ptr->producer());
     self->send(core, atom::publish_v, std::move(msg), master_id.endpoint);
@@ -359,9 +364,12 @@ void clone_state::send(producer_type* ptr, const entity_id&,
                     "send attach_writer_command with offset {}", what.offset);
   auto msg = make_command_message(
     master_topic,
-    internal_command{0, id, master_id,
-                     attach_writer_command{what.offset,
-                                           what.heartbeat_interval}});
+    internal_command{.seq = 0,
+                     .sender = id,
+                     .receiver = master_id,
+                     .content = attach_writer_command{
+                       .offset = what.offset,
+                       .heartbeat_interval = what.heartbeat_interval}});
   self->send(core, atom::publish_v, std::move(msg));
 }
 
@@ -371,7 +379,10 @@ void clone_state::send(producer_type* ptr, const entity_id&,
                     "send retransmit_failed with seq {}", what.seq);
   auto msg = make_command_message(
     master_topic,
-    internal_command{0, id, master_id, retransmit_failed_command{what.seq}});
+    internal_command{.seq = 0,
+                     .sender = id,
+                     .receiver = master_id,
+                     .content = retransmit_failed_command{what.seq}});
   self->send(core, atom::publish_v, std::move(msg));
 }
 
@@ -385,13 +396,17 @@ void clone_state::broadcast(producer_type* ptr, channel_type::heartbeat what) {
       log::store::debug("re-send-handshake", "re-send handshake to {}",
                         path.hdl);
       send(ptr, path.hdl,
-           channel_type::handshake{path.offset, ptr->heartbeat_interval()});
+           channel_type::handshake{.offset = path.offset,
+                                   .heartbeat_interval =
+                                     ptr->heartbeat_interval()});
     }
   }
   log::store::debug("send-keepalive", "send keepalive to master {}", master_id);
   auto msg = make_command_message(
-    master_topic,
-    internal_command{0, id, entity_id::nil(), keepalive_command{what.seq}});
+    master_topic, internal_command{.seq = 0,
+                                   .sender = id,
+                                   .receiver = entity_id::nil(),
+                                   .content = keepalive_command{what.seq}});
   self->send(core, atom::publish_v, std::move(msg));
 }
 
@@ -445,7 +460,7 @@ void clone_state::set_store(std::unordered_map<data, data> x) {
     for (auto& kvp : store)
       keys.emplace_back(&kvp.first);
     auto is_erased = [&x](const data* key) { return x.count(*key) == 0; };
-    auto p = std::partition(keys.begin(), keys.end(), is_erased);
+    auto p = std::remove_if(keys.begin(), keys.end(), is_erased);
     for (auto i = keys.begin(); i != p; ++i)
       emit_erase_event(**i, entity_id{});
     for (auto i = p; i != keys.end(); ++i) {
@@ -490,9 +505,9 @@ void clone_state::start_output() {
   BROKER_ASSERT(master_id);
   log::store::debug("add-output-channel", "clone {} adds an output channel",
                     id);
-  output_opt.emplace(this);
-  super::init(*output_opt);
-  output_opt->add(master_id);
+  auto& out = output_opt.emplace(this);
+  super::init(out);
+  out.add(master_id);
   if (!stalled.empty()) {
     std::vector<internal_command_variant> buf;
     buf.swap(stalled);
@@ -508,9 +523,12 @@ void clone_state::send_to_master(internal_command_variant&& content) {
     log::store::debug("send-to-master", "send command of type {} to master",
                       content.index());
     auto& out = *output_opt;
-    auto msg = make_command_message(
-      master_topic,
-      internal_command{out.next_seq(), id, master_id, std::move(content)});
+    auto msg =
+      make_command_message(master_topic,
+                           internal_command{.seq = out.next_seq(),
+                                            .sender = id,
+                                            .receiver = master_id,
+                                            .content = std::move(content)});
     out.produce(std::move(msg));
   } else {
     log::store::debug("buffer-to-master",

@@ -246,7 +246,7 @@ void configuration::impl::init(int argc, char** argv) {
   if (!options.ignore_broker_conf) {
     std::vector<std::string> args_subset;
     auto predicate = [](const std::string& str) {
-      return str.compare(0, 14, "--config-file=") != 0;
+      return !str.starts_with("--config-file=");
     };
     auto sep = std::stable_partition(args.begin(), args.end(), predicate);
     if (sep != args.end()) {
@@ -492,7 +492,8 @@ std::optional<int64_t> configuration::read_i64(std::string_view key,
     return {*res};
   // Special case: if the value is a port, we allow a conversion here.
   if (auto res = caf::get_as<port>(*impl_, key);
-      res && res->number() >= min_val && res->number() <= max_val)
+      res && std::cmp_greater_equal(res->number(), min_val)
+      && std::cmp_less_equal(res->number(), max_val))
     return {static_cast<int64_t>(res->number())};
   // No matching conversion: return nullopt.
   return {};

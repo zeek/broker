@@ -65,7 +65,7 @@ bool extract_optional_enum_option(
     return false;
   }
 
-  if (value->name.rfind(prefix, 0) != 0) {
+  if (!value->name.starts_with(prefix)) {
     log::store::error("invalid-sqlite-option",
                       "SQLite backend option '{}' not starting with prefix {}",
                       name, prefix);
@@ -578,7 +578,7 @@ expected<bool> sqlite_backend::exists(const data& key) const {
     return false;
   if (result != SQLITE_ROW)
     return ec::backend_failure;
-  auto n = sqlite3_column_int(impl_->exists, 0);
+  [[maybe_unused]] auto n = sqlite3_column_int(impl_->exists, 0);
   BROKER_ASSERT(n == 1);
   return true;
 }

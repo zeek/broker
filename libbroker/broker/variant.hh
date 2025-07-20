@@ -196,8 +196,8 @@ public:
   /// Retrieves the string value or returns @p fallback if this object does
   /// not contain a string.
   template <class StringView>
-  std::enable_if_t<std::is_same_v<std::string_view, StringView>, StringView>
-  to_string(StringView fallback) const noexcept {
+    requires std::is_same_v<std::string_view, StringView>
+  StringView to_string(StringView fallback) const noexcept {
     // Note: we use enable_if to block implicit conversions. Otherwise, users
     // could pass in a `std::string` rvalue and we would return a dangling
     // reference.
@@ -349,26 +349,26 @@ inline bool operator!=(const variant& x, const variant& y) noexcept {
 }
 
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>, bool>
-operator==(const Data& lhs, const variant& rhs) noexcept {
+  requires std::is_same_v<Data, data>
+bool operator==(const Data& lhs, const variant& rhs) noexcept {
   return lhs == *rhs.raw();
 }
 
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>, bool>
-operator!=(const Data& lhs, const variant& rhs) noexcept {
+  requires std::is_same_v<Data, data>
+bool operator!=(const Data& lhs, const variant& rhs) noexcept {
   return !(lhs == *rhs.raw());
 }
 
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>, bool>
-operator==(const variant& lhs, const Data& rhs) noexcept {
+  requires std::is_same_v<Data, data>
+bool operator==(const variant& lhs, const Data& rhs) noexcept {
   return *lhs.raw() == rhs;
 }
 
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>, bool>
-operator!=(const variant& lhs, const Data& rhs) noexcept {
+  requires std::is_same_v<Data, data>
+bool operator!=(const variant& lhs, const Data& rhs) noexcept {
   return !(*lhs.raw() == rhs);
 }
 

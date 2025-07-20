@@ -194,7 +194,8 @@ public:
                   std::string_view description);
 
   template <class T>
-  std::enable_if_t<std::is_integral_v<T>> set(std::string_view key, T val) {
+    requires std::is_integral_v<T>
+  void set(std::string_view key, T val) {
     if constexpr (std::is_same_v<T, bool>)
       set_bool(key, val);
     else if constexpr (std::is_signed_v<T>)

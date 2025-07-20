@@ -55,11 +55,11 @@ public:
     }
 
     key_value_pair operator*() const noexcept {
-      return {key(), value()};
+      return {.first = key(), .second = value()};
     }
 
     key_value_pair operator->() const noexcept {
-      return {key(), value()};
+      return {.first = key(), .second = value()};
     }
 
     friend bool operator==(const iterator& lhs, const iterator& rhs) noexcept {

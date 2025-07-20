@@ -1066,7 +1066,8 @@ struct connect_manager {
       if (auto fds_ptr = find_pollfd(i->first)) {
         fds_ptr->events = static_cast<short>(fds_ptr->events | event);
       } else {
-        pending_fdset.emplace_back(pollfd{i->first, event, 0});
+        pending_fdset.emplace_back(
+          pollfd{.fd = i->first, .events = event, .revents = 0});
       }
     } else {
       log::network::error(
@@ -1883,7 +1884,7 @@ void connector::write_to_pipe(caf::span<const caf::byte> bytes,
     }
   }
   auto res = caf::net::write(caf::net::pipe_socket{pipe_wr_}, bytes);
-  if (res != static_cast<ptrdiff_t>(bytes.size())) {
+  if (std::cmp_not_equal(res, bytes.size())) {
     const char* errmsg = "wrong number of bytes written to the pipe";
     log::network::error("write-to-pipe", "{}", errmsg);
     throw std::runtime_error(errmsg);

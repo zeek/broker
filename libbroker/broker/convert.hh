@@ -79,8 +79,8 @@ void convert(std::chrono::duration<Rep, std::ratio<3600>> d, std::string& str) {
 /// Attempts to convert `From` to `To`.
 /// @returns a value of type `To` on success, otherwise `nil`.
 template <class To, class From>
-std::enable_if_t<detail::has_convert_v<From, To>, std::optional<To>>
-to(const From& from) {
+  requires detail::has_convert_v<From, To>
+std::optional<To> to(const From& from) {
   auto result = To{};
   using convert_res_type = decltype(convert(from, result));
   if constexpr (std::is_same_v<convert_res_type, bool>) {
@@ -101,7 +101,8 @@ to(const From& from) {
 /// @returns a value of type `To`.
 /// @throws logic_error if the conversion fails.
 template <class To, class From>
-std::enable_if_t<detail::has_convert_v<From, To>, To> get_as(const From& from) {
+  requires detail::has_convert_v<From, To>
+To get_as(const From& from) {
   To result;
   if (!convert(from, result))
     throw std::logic_error("conversion failed");
@@ -110,8 +111,8 @@ std::enable_if_t<detail::has_convert_v<From, To>, To> get_as(const From& from) {
 
 /// Converts a value to a string representation.
 template <class From>
-std::enable_if_t<detail::has_convert_v<From, std::string>, std::string>
-to_string(const From& from) {
+  requires detail::has_convert_v<From, std::string>
+std::string to_string(const From& from) {
   std::string result;
   convert(from, result);
   return result;
@@ -127,14 +128,13 @@ auto from_string(std::string_view str) -> decltype(to<T>(str)) {
 // `std::string` via a free function `bool convert(const T&, std::string&)`
 // that can be found via ADL.
 template <class T>
-std::enable_if_t<
-  detail::has_convert_v<T, std::string> // must have a convert function
-    && !std::is_arithmetic_v<T> // avoid ambiguitiy with default overloads
-    && !std::is_convertible_v<T, std::string> // avoid ambiguity with
-                                              // conversion-to-string
-    && !std::is_same_v<T, std::string_view>,
-  std::ostream&>
-operator<<(std::ostream& os, const T& x) {
+  requires detail::has_convert_v<T, std::string> // must have a convert function
+           && (!std::is_arithmetic_v<T>) // avoid ambiguitiy with default
+                                         // overloads
+           && (!std::is_convertible_v<T, std::string>) // avoid ambiguity with
+                                                       // conversion-to-string
+           && (!std::is_same_v<T, std::string_view>)
+std::ostream& operator<<(std::ostream& os, const T& x) {
   std::string str;
   convert(x, str);
   return os << str;

@@ -456,7 +456,7 @@ bool inspect(Inspector& f, broker::table& tbl) {
       for (size_t i = 0; i < n; ++i) {
         broker::data key;
         broker::data value;
-        broker::detail::kvp_view view{&key, &value};
+        broker::detail::kvp_view view{.key = &key, .value = &value};
         if (!f.apply(view))
           return false;
         if (!tbl.emplace(std::move(key), std::move(value)).second)
@@ -468,8 +468,8 @@ bool inspect(Inspector& f, broker::table& tbl) {
   } else {
     auto save_values = [&] {
       for (auto& kvp : tbl) {
-        detail::kvp_view view{&const_cast<broker::data&>(kvp.first),
-                              &kvp.second};
+        detail::kvp_view view{.key = &const_cast<broker::data&>(kvp.first),
+                              .value = &kvp.second};
         if (!f.apply(view))
           return false;
       }
@@ -481,15 +481,15 @@ bool inspect(Inspector& f, broker::table& tbl) {
 
 /// @relates data
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>> convert(const Data& x,
-                                                     std::string& str) {
+  requires std::is_same_v<Data, data>
+void convert(const Data& x, std::string& str) {
   x.convert_to(str);
 }
 
 /// @relates data
 template <class Data>
-std::enable_if_t<std::is_same_v<Data, data>, bool> convert(const Data& x,
-                                                           endpoint_id& node) {
+  requires std::is_same_v<Data, data>
+bool convert(const Data& x, endpoint_id& node) {
   return x.convert_to(node);
 }
 

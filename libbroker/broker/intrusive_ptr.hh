@@ -74,7 +74,8 @@ public:
     // nop
   }
 
-  template <class U, class = std::enable_if_t<std::is_convertible_v<U*, T*>>>
+  template <class U>
+    requires std::is_convertible_v<U*, T*>
   intrusive_ptr(intrusive_ptr<U> other) noexcept : ptr_(other.release()) {
     // nop
   }
