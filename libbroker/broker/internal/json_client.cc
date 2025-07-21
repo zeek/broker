@@ -15,6 +15,7 @@
 #include <caf/event_based_actor.hpp>
 #include <caf/json_object.hpp>
 #include <caf/json_value.hpp>
+#include <caf/net/web_socket/frame.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/unordered_flat_map.hpp>
 
@@ -26,9 +27,9 @@ namespace {
 
 /// Catches errors by converting them into complete events instead.
 struct handshake_step {
-  using input_type = caf::cow_string;
+  using input_type = caf::net::web_socket::frame;
 
-  using output_type = caf::cow_string;
+  using output_type = caf::net::web_socket::frame;
 
   json_client_state* state;
 
@@ -55,7 +56,7 @@ struct handshake_step {
       return next.on_next(item, steps...);
     } else {
       filter_type filter;
-      state->reader.load(item.str());
+      state->reader.load(item.as_text());
       if (!state->reader.apply(filter)) {
         // Received malformed input: drop remaining input and quit.
         auto err = caf::make_error(caf::sec::invalid_argument,
@@ -97,7 +98,8 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
   reader.mapper(&mapper);
   using caf::cow_string;
   using caf::flow::observable;
-  using head_and_tail_t = caf::cow_tuple<cow_string, observable<cow_string>>;
+  using frame_t = caf::net::web_socket::frame;
+  using head_and_tail_t = caf::cow_tuple<frame_t, observable<frame_t>>;
   self->monitor(core);
   self->set_down_handler([this](const caf::down_msg& msg) { //
     on_down_msg(msg);
@@ -114,19 +116,23 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
     .transform(handshake_step{this, std::move(out), core_pull}) // Calls init().
     .do_finally([this] { ctrl_msgs.close(); })
     // Parse all JSON coming in and forward them to the core.
-    .map([this, n = 0](const caf::cow_string& cow_str) mutable {
+    .map([this, n = 0](const frame_t& frame) mutable {
       ++n;
       auto send_error = [this, n](auto&&... args) {
         auto ctx = "input #" + std::to_string(n);
         ctx += ' ';
         (ctx += ... += args);
         auto json = render_error(enum_str(ec::deserialization_failed), ctx);
-        ctrl_msgs.push(caf::cow_string{std::move(json)});
+        ctrl_msgs.push(frame_t{json});
       };
       // Parse the received JSON.
-      auto val = caf::json_value::parse_shallow(cow_str.str());
+      auto val = caf::json_value::parse_shallow(frame.as_text());
       if (!val) {
         send_error("contained malformed JSON -> ", to_string(val.error()));
+        return data_envelope_ptr{};
+      }
+      if (!val->is_object()) {
+        send_error("expected a JSON object");
         return data_envelope_ptr{};
       }
       auto obj = val->to_object();
@@ -197,10 +203,11 @@ void json_client_state::init(
     auto core_json = //
       self->make_observable()
         .from_resource(core_pull2)
-        .map([this](const data_envelope_ptr& msg) -> caf::cow_string {
+        .map([this](const data_envelope_ptr& msg) {
+          using frame_t = caf::net::web_socket::frame;
           json_buf.clear();
           format::json::v1::encode(msg, std::back_inserter(json_buf));
-          return caf::cow_string{std::string{json_buf.begin(), json_buf.end()}};
+          return frame_t{std::string_view{json_buf.data(), json_buf.size()}};
         })
         .as_observable();
     auto sub = ctrl_msgs.as_observable().merge(core_json).subscribe(out);
@@ -215,7 +222,8 @@ void json_client_state::init(
                    caf::async::producer_resource<data_envelope_ptr>{});
   }
   // Setup complete. Send ACK to the client.
-  ctrl_msgs.push(caf::cow_string{render_ack()});
+  auto ack = render_ack();
+  ctrl_msgs.push(caf::net::web_socket::frame{ack});
 }
 
 void json_client_state::on_down_msg(const caf::down_msg& msg) {

@@ -1,3 +1,10 @@
+2.8.0-dev.271 | 2025-07-21 15:47:49 -0700
+
+  * Use the new WebSocket frame API (Dominik Charousset, Corelight)
+
+    CAF 1.0 emits WebSocket frame objects when using the WebSocket API. This
+    step prepares Broker for the migration.
+
 2.8.0-dev.269 | 2025-07-21 15:34:34 -0700
 
   * Fix various clang-tidy findings in C++20 mode (Dominik Charousset, Corelight)
