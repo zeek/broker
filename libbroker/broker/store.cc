@@ -96,11 +96,11 @@ public:
   }
 
   entity_id self_id() const {
-    return entity_id{this_peer, self->id()};
+    return entity_id{.endpoint = this_peer, .object = self->id()};
   }
 
   entity_id frontend_id() const {
-    return entity_id{this_peer, frontend.id()};
+    return entity_id{.endpoint = this_peer, .object = frontend.id()};
   }
 };
 
@@ -265,11 +265,15 @@ request_id store::proxy::put_unique(data key, data val,
                                     std::optional<timespan> expiry) {
   if (frontend_) {
     auto req_id = ++id_;
-    send_as(native(proxy_), native(frontend_), atom::local_v,
-            internal_command_variant{
-              put_unique_command{std::move(key), std::move(val), expiry,
-                                 entity_id{this_peer_, native(proxy_).id()},
-                                 req_id, frontend_id()}});
+    send_as(
+      native(proxy_), native(frontend_), atom::local_v,
+      internal_command_variant{put_unique_command{
+        .key = std::move(key),
+        .value = std::move(val),
+        .expiry = expiry,
+        .who = entity_id{.endpoint = this_peer_, .object = native(proxy_).id()},
+        .req_id = req_id,
+        .publisher = frontend_id()}});
     return id_;
   } else {
     return 0;
@@ -306,15 +310,15 @@ mailbox store::proxy::mailbox() {
 }
 
 store::response store::proxy::receive() {
-  auto resp = response{error{}, 0};
+  auto resp = response{.answer = error{}, .id = 0};
   auto fa = caf::actor_cast<internal::flare_actor*>(native(proxy_));
   fa->receive(
     [&resp, fa](data& x, request_id id) {
-      resp = {std::move(x), id};
+      resp = {.answer = std::move(x), .id = id};
       fa->extinguish_one();
     },
     [&resp, fa](caf::error& err, request_id id) {
-      resp = {facade(err), id};
+      resp = {.answer = facade(err), .id = id};
       fa->extinguish_one();
     },
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
@@ -343,7 +347,7 @@ store::response store::proxy::receive() {
 
 entity_id store::proxy::frontend_id() const noexcept {
   auto& hdl = native(frontend_);
-  return {this_peer_, hdl.id()};
+  return {.endpoint = this_peer_, .object = hdl.id()};
 }
 
 std::vector<store::response> store::proxy::receive(size_t n) {
@@ -376,10 +380,14 @@ expected<data> store::put_unique(data key, data val,
       auto tag = st.req_id++;
       return st.request_tagged<data>(
         tag, atom::local_v,
-        internal_command_variant{
-          put_unique_command{std::move(key), std::move(val), expiry,
-                             entity_id{st.this_peer, st.self->id()}, tag,
-                             entity_id{st.this_peer, st.frontend.id()}}});
+        internal_command_variant{put_unique_command{
+          .key = std::move(key),
+          .value = std::move(val),
+          .expiry = expiry,
+          .who = entity_id{.endpoint = st.this_peer, .object = st.self->id()},
+          .req_id = tag,
+          .publisher = entity_id{.endpoint = st.this_peer,
+                                 .object = st.frontend.id()}}});
     },
     []() -> expected<data> {
       return make_error(ec::unspecified, "store not initialized");
@@ -401,26 +409,30 @@ bool store::initialized() const noexcept {
 void store::put(data key, data value, std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
     st.anon_send(atom::local_v, internal_command_variant{
-                                  put_command{std::move(key), std::move(value),
-                                              expiry, st.frontend_id()}});
+                                  put_command{.key = std::move(key),
+                                              .value = std::move(value),
+                                              .expiry = expiry,
+                                              .publisher = st.frontend_id()}});
   });
 }
 
 void store::erase(data key) {
   with_state([&](state_impl& st) {
     st.anon_send(atom::local_v,
-                 internal_command_variant{
-                   erase_command{std::move(key), st.frontend_id()}});
+                 internal_command_variant{erase_command{
+                   .key = std::move(key), .publisher = st.frontend_id()}});
   });
 }
 
 void store::add(data key, data value, data::type init_type,
                 std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
-    st.anon_send(atom::local_v,
-                 internal_command_variant{
-                   add_command{std::move(key), std::move(value), init_type,
-                               expiry, st.frontend_id()}});
+    st.anon_send(atom::local_v, internal_command_variant{
+                                  add_command{.key = std::move(key),
+                                              .value = std::move(value),
+                                              .init_type = init_type,
+                                              .expiry = expiry,
+                                              .publisher = st.frontend_id()}});
   });
 }
 
@@ -428,8 +440,10 @@ void store::subtract(data key, data value, std::optional<timespan> expiry) {
   with_state([&](state_impl& st) {
     st.anon_send(atom::local_v,
                  internal_command_variant{
-                   subtract_command{std::move(key), std::move(value), expiry,
-                                    st.frontend_id()}});
+                   subtract_command{.key = std::move(key),
+                                    .value = std::move(value),
+                                    .expiry = expiry,
+                                    .publisher = st.frontend_id()}});
   });
 }
 

@@ -332,10 +332,9 @@ bool revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
 
 /// Checks whether `path` is revoked by any entry in `entries`.
 template <class PeerId, class Container>
-std::enable_if_t<
-  std::is_same_v<typename Container::value_type, revocation<PeerId>>, bool>
-revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
-        const Container& entries) {
+  requires std::is_same_v<typename Container::value_type, revocation<PeerId>>
+bool revoked(const std::vector<PeerId>& path, const vector_timestamp& ts,
+             const Container& entries) {
   for (const auto& entry : entries)
     if (revoked(path, ts, entry))
       return true;

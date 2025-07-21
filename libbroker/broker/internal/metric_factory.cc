@@ -32,8 +32,8 @@ gauge_family* core_t::connections_family() {
 core_t::connections_t core_t::connections_instances() {
   auto fm = connections_family();
   return {
-    &fm->Add({{"type", "native"}}),
-    &fm->Add({{"type", "web-socket"}}),
+    .native = &fm->Add({{"type", "native"}}),
+    .web_socket = &fm->Add({{"type", "web-socket"}}),
   };
 }
 
@@ -47,9 +47,11 @@ counter_family* core_t::processed_messages_family() {
 core_t::processed_messages_t core_t::processed_messages_instances() {
   auto fm = processed_messages_family();
   return {
-    &fm->Add({{"type", "data"}}),           &fm->Add({{"type", "command"}}),
-    &fm->Add({{"type", "routing-update"}}), &fm->Add({{"type", "ping"}}),
-    &fm->Add({{"type", "pong"}}),
+    .data = &fm->Add({{"type", "data"}}),
+    .command = &fm->Add({{"type", "command"}}),
+    .routing_update = &fm->Add({{"type", "routing-update"}}),
+    .ping = &fm->Add({{"type", "ping"}}),
+    .pong = &fm->Add({{"type", "pong"}}),
   };
 }
 

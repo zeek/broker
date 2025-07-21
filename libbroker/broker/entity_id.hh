@@ -38,7 +38,7 @@ struct entity_id {
 
   /// Returns an invalid ID.
   static entity_id nil() noexcept {
-    return {endpoint_id{}, 0};
+    return {.endpoint = endpoint_id{}, .object = 0};
   }
 
   /// Converts the handle type to an entity ID.

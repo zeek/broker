@@ -75,7 +75,7 @@ public:
 
     entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[5])) {
-        return {*value, get<uint64_t>((*xs_)[6])};
+        return {.endpoint = *value, .object = get<uint64_t>((*xs_)[6])};
       }
       return {};
     }
@@ -144,7 +144,7 @@ public:
 
     entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[6]))
-        return {*value, get<uint64_t>((*xs_)[7])};
+        return {.endpoint = *value, .object = get<uint64_t>((*xs_)[7])};
       else
         return {};
     }
@@ -196,7 +196,7 @@ public:
 
     entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3])) {
-        return {*value, get<uint64_t>((*xs_)[4])};
+        return {.endpoint = *value, .object = get<uint64_t>((*xs_)[4])};
       }
       return {};
     }
@@ -248,7 +248,7 @@ public:
 
     entity_id publisher() const {
       if (auto value = to<endpoint_id>((*xs_)[3]))
-        return {*value, get<uint64_t>((*xs_)[4])};
+        return {.endpoint = *value, .object = get<uint64_t>((*xs_)[4])};
       else
         return {};
     }

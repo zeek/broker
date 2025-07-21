@@ -48,8 +48,7 @@ std::string&& topic::move_string() && {
 }
 
 bool topic::is_prefix(std::string_view str, std::string_view prefix) noexcept {
-  return str.size() >= prefix.size()
-         && str.compare(0, prefix.size(), prefix) == 0;
+  return str.starts_with(prefix);
 }
 
 std::string_view topic::suffix() const noexcept {

@@ -28,7 +28,7 @@ public:
     // nop
   }
 
-  ~publisher_queue();
+  ~publisher_queue() override;
 
   buffer_type& buf() {
     return *buf_;

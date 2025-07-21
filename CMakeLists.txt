@@ -10,6 +10,8 @@ include(cmake/ZeekBundle.cmake)
 
 set(BROKER_TEST_TIMEOUT 60)
 
+set(BROKER_CLANG_TIDY "clang-tidy" CACHE STRING "Path to clang-tidy executable")
+
 get_directory_property(parent_dir PARENT_DIRECTORY)
 if (parent_dir)
     set(DISABLE_BROKER_EXTRA_TOOLS ON)
@@ -305,8 +307,9 @@ if (BROKER_ENABLE_TIDY)
     set(BROKER_CLANG_TIDY_DEF "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
     unset(clang_tidy_sha1)
     add_custom_target(clang_tidy_dummy DEPENDS ${tidyCfgFile})
-    set_target_properties(${BROKER_LIBRARY} PROPERTIES CXX_CLANG_TIDY
-                                                       "clang-tidy;--config-file=${tidyCfgFile}")
+    set_target_properties(
+        ${BROKER_LIBRARY} PROPERTIES CXX_CLANG_TIDY
+                                     "${BROKER_CLANG_TIDY};--config-file=${tidyCfgFile}")
     target_compile_definitions(${BROKER_LIBRARY} PRIVATE ${BROKER_CLANG_TIDY_DEF})
     configure_file(.clang-tidy .clang-tidy COPYONLY)
 endif ()

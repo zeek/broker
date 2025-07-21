@@ -66,7 +66,10 @@ bool inspect(Inspector& f, hello_msg& x) {
 
 /// @relates hello_msg
 inline hello_msg make_hello_msg(endpoint_id id) {
-  return {magic_number, id, protocol_version, protocol_version};
+  return {.magic = magic_number,
+          .sender_id = id,
+          .min_version = protocol_version,
+          .max_version = protocol_version};
 }
 
 /// Only probes connectivity without any other effect. Sent as first message by
@@ -90,7 +93,7 @@ bool inspect(Inspector& f, probe_msg& x) {
 
 /// @relates probe_msg
 inline probe_msg make_probe_msg() {
-  return {magic_number};
+  return {.magic = magic_number};
 }
 
 /// Switches to version-specific message types (Phase 2).
@@ -121,7 +124,9 @@ bool inspect(Inspector& f, version_select_msg& x) {
 
 /// @relates probe_msg
 inline version_select_msg make_version_select_msg(endpoint_id id) {
-  return {magic_number, id, protocol_version};
+  return {.magic = magic_number,
+          .sender_id = id,
+          .selected_version = protocol_version};
 }
 
 /// Aborts the handshake.
@@ -157,7 +162,10 @@ bool inspect(Inspector& f, drop_conn_msg& x) {
 /// @relates drop_conn_msg
 inline drop_conn_msg make_drop_conn_msg(endpoint_id id, ec code,
                                         std::string description) {
-  return {magic_number, id, static_cast<uint8_t>(code), std::move(description)};
+  return {.magic = magic_number,
+          .sender_id = id,
+          .code = static_cast<uint8_t>(code),
+          .description = std::move(description)};
 }
 
 // -- messages for the Broker protocol in version 1 ----------------------------
@@ -292,7 +300,7 @@ constexpr size_t responder_syn_ack_index = 6;
 constexpr size_t originator_ack_index = 7;
 
 inline var_msg make_var_msg_error(ec code, std::string description) {
-  return {var_msg_error{code, std::move(description)}};
+  return {var_msg_error{.code = code, .description = std::move(description)}};
 }
 
 /// Decodes a message from Broker's binary format.

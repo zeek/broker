@@ -1,3 +1,34 @@
+2.8.0-dev.269 | 2025-07-21 15:34:34 -0700
+
+  * Fix various clang-tidy findings in C++20 mode (Dominik Charousset, Corelight)
+
+    Major changes:
+
+    - replace `enable_if` with `requires` clauses
+    - use designated initializer list for aggregate types
+    - use `starts_with` instead of `compare` on string views
+    - use new `std::cmp_*` functions when comparing different integer types
+
+    Furthermore, disable the modernize check for range-based iterators. We
+    may want to re-visit that at some point but the suggested clang-tidy
+    fixes result in broken code. We also disable the exception escape
+    warnings for now. Some complaints from this change are legit but there
+    are also weird cases where we pass callbacks as lambda expressions and
+    clang-tidy insists that they should be `noexcept` for no apparent
+    reason. We might want to re-visit that check eventually as well.
+
+    Minor tweaks for silencing clang-tidy complaints:
+
+    - fixed unchecked optional access in `clone_actor.cc`
+    - use `remove_if` in `clone_actor.cc` since clang-tidy complains that
+      sorting pointers is nondeterministic when using `partition`, which it
+      is right to point out but we don't care in this use case
+    - fix switch statement with identical branches in `flare_actor.cc`
+    - fix 'dead store' in `sqlite_backend.cc` when compiling with
+      `BROKER_ASSERT` disabled
+    - avoid `std::endl` with `std::cout` (use '\n' instead)
+    - change some parameters from value to const reference
+
 2.8.0-dev.267 | 2025-07-21 19:39:59 +0200
 
   * variant: Allow reference access to shared_envelope (Arne Welzel, Corelight)

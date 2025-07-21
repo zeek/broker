@@ -43,16 +43,11 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
   switch (mailbox().enqueue(ptr.release())) {
-    case caf::intrusive::inbox_result::unblocked_reader: {
+    case caf::intrusive::inbox_result::unblocked_reader:
+    case caf::intrusive::inbox_result::success:
       flare_.fire();
       ++flare_count_;
       return true;
-    }
-    case caf::intrusive::inbox_result::success: {
-      flare_.fire();
-      ++flare_count_;
-      return true;
-    }
     default: // caf::detail::enqueue_result::queue_closed
       if (mid.is_request()) {
         caf::detail::sync_request_bouncer bouncer{caf::exit_reason{}};

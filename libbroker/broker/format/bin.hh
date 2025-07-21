@@ -221,8 +221,8 @@ OutIter encode(std::byte value, OutIter out) {
 
 /// Encodes `value` to its binary representation and appends it to `out`.
 template <class T, class OutIter>
-std::enable_if_t<std::is_arithmetic_v<T>, OutIter> encode(T value,
-                                                          OutIter out) {
+  requires(std::is_arithmetic_v<T>)
+OutIter encode(T value, OutIter out) {
   if constexpr (std::is_same_v<T, bool>) {
     return write_unsigned(static_cast<uint8_t>(value), out);
   } else if constexpr (std::is_floating_point_v<T>) {
@@ -338,8 +338,8 @@ OutIter encode(const variant_data& value, OutIter out) {
 
 // Note: enable_if trickery to suppress implicit conversions.
 template <class Data, class OutIter>
-std::enable_if_t<std::is_same_v<Data, data>, OutIter> encode(const Data& value,
-                                                             OutIter out);
+  requires std::is_same_v<Data, data>
+OutIter encode(const Data& value, OutIter out);
 
 template <class OutIter>
 OutIter encode(const broker::set& values, OutIter out) {
@@ -368,8 +368,8 @@ OutIter encode(const broker::vector& values, OutIter out) {
 }
 
 template <class Data, class OutIter>
-std::enable_if_t<std::is_same_v<Data, data>, OutIter> encode(const Data& value,
-                                                             OutIter out) {
+  requires std::is_same_v<Data, data>
+OutIter encode(const Data& value, OutIter out) {
   return std::visit(
     [&](const auto& x) {
       using value_type = std::decay_t<std::remove_const_t<decltype(x)>>;

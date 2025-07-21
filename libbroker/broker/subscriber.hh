@@ -119,9 +119,9 @@ public:
 
   // --- topic management ------------------------------------------------------
 
-  void add_topic(topic x, bool block = false);
+  void add_topic(const topic& x, bool block = false);
 
-  void remove_topic(topic x, bool block = false);
+  void remove_topic(const topic& x, bool block = false);
 
   // --- miscellaneous ---------------------------------------------------------
 

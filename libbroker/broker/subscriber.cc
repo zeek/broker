@@ -99,12 +99,12 @@ detail::native_socket subscriber::fd() const noexcept {
   return impl_->read_fd();
 }
 
-void subscriber::add_topic(topic x, bool block) {
+void subscriber::add_topic(const topic& x, bool block) {
   log::endpoint::info("subscriber-add-topic", "add topic {} to subscriber", x);
   impl_->subscribe(x, block);
 }
 
-void subscriber::remove_topic(topic x, bool block) {
+void subscriber::remove_topic(const topic& x, bool block) {
   log::endpoint::info("subscriber-remove-topic",
                       "remove topic {} from subscriber", x);
   impl_->unsubscribe(x, block);

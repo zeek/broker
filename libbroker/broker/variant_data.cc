@@ -371,7 +371,7 @@ bool decoder_handler_set::end_table(decoder_handler_table& other) {
 std::pair<bool, const std::byte*>
 variant_data::parse_shallow(detail::monotonic_buffer_resource& buf,
                             const std::byte* begin, const std::byte* end) {
-  decoder_handler_value handler{&buf, this};
+  decoder_handler_value handler{.buf = &buf, .result = this};
   auto [ok, pos] = format::bin::v1::decode(begin, end, handler);
   if (!ok || pos != end) {
     return {false, pos};

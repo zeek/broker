@@ -119,7 +119,8 @@ OutIter encode(none, OutIter out) {
 /// rendered using `snprintf`, whereas boolean values are rendered as `true` or
 /// `false`.
 template <class Policy = render_object, class T, class OutIter>
-std::enable_if_t<std::is_integral_v<T>, OutIter> encode(T value, OutIter out) {
+  requires std::is_integral_v<T>
+OutIter encode(T value, OutIter out) {
   using namespace std::literals;
   if constexpr (std::is_same_v<T, bool>) {
     return append_encoded<Policy>("boolean", value ? "true"sv : "false"sv, out);
@@ -303,8 +304,8 @@ OutIter encode(const variant_data::table* values, OutIter out) {
 /// Renders a `data` object to `out` by dispatching to the appropriate overload
 /// for the underlying type.
 template <class Policy = render_object, class Data, class OutIter>
-std::enable_if_t<std::is_same_v<data, Data>, OutIter> encode(const Data& value,
-                                                             OutIter out) {
+  requires(std::is_same_v<data, Data>)
+OutIter encode(const Data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode<Policy>(x, out); },
                     value.get_data());
 }

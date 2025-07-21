@@ -9,6 +9,11 @@ namespace {
 struct tbl_entry {
   caf::type_id_t type;
   caf::string_view name;
+
+  constexpr tbl_entry(caf::type_id_t type, caf::string_view name) noexcept
+    : type(type), name(name) {
+    // nop
+  }
 };
 
 constexpr tbl_entry tbl[] = {
