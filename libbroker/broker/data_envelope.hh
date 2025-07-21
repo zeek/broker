@@ -2,6 +2,8 @@
 
 #include "broker/envelope.hh"
 
+#include <memory_resource>
+
 namespace broker {
 
 /// Wraps a value of type @ref variant and associates it with a @ref topic.
@@ -44,7 +46,7 @@ public:
 
 protected:
   /// Parses the data returned from @ref raw_bytes.
-  variant_data* do_parse(detail::monotonic_buffer_resource& buf, error& err);
+  variant_data* do_parse(std::pmr::monotonic_buffer_resource& buf, error& err);
 };
 
 /// A shared pointer to a @ref data_envelope.
