@@ -1,3 +1,11 @@
+2.8.0-dev.267 | 2025-07-21 19:39:59 +0200
+
+  * variant: Allow reference access to shared_envelope (Arne Welzel, Corelight)
+
+    @bbannier pointed out that `shared_envelope()` always increments the
+    atomic ref count due to auto declaration. Switch the API to const auto& to
+    allow access without incrementing the ref count.
+
 2.8.0-dev.265 | 2025-07-12 14:14:51 +0200
 
   * Read timestamps as UTC by default (Dominik Charousset, Corelight)
