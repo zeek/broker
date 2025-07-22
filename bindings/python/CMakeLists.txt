@@ -45,15 +45,6 @@ if (APPLE)
     target_link_libraries(_broker PRIVATE "-undefined dynamic_lookup")
 endif ()
 
-# Check for Link Time Optimization support (GCC/Clang)
-include(CheckCXXCompilerFlag)
-if (NOT CMAKE_BUILD_TYPE MATCHES DEBUG)
-    check_cxx_compiler_flag("-flto" HAS_LTO_FLAG)
-    if (HAS_LTO_FLAG)
-        target_compile_options(_broker PRIVATE -flto)
-    endif ()
-endif ()
-
 # Strip unnecessary sections of the binary on Linux/Mac OS.
 if (CMAKE_STRIP)
     if (APPLE)
