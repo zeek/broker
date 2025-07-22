@@ -39,9 +39,9 @@ FIXTURE_SCOPE(status_tests, fixture)
 
 TEST(sc is convertible to and from string) {
   auto sc_from_string = [](std::string_view str) -> std::optional<sc> {
-    auto resutl = sc::unspecified;
-    if (convert(str, resutl))
-      return resutl;
+    auto result = sc::unspecified;
+    if (convert(str, result))
+      return result;
     return {};
   };
   CHECK_EQUAL(to_string(sc::unspecified), "unspecified"s);

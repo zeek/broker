@@ -24,9 +24,9 @@ FIXTURE_SCOPE(status_tests, ids_fixture)
 
 TEST(ec is convertible to and from string) {
   auto ec_from_string = [](std::string_view str) -> std::optional<ec> {
-    auto resutl = ec::none;
-    if (convert(str, resutl))
-      return resutl;
+    auto result = ec::none;
+    if (convert(str, result))
+      return result;
     return {};
   };
   CHECK_EQUAL(to_string(ec::unspecified), "unspecified"s);

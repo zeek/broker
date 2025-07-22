@@ -31,7 +31,7 @@ void convert(const network_info& x, std::string& str) {
 
 void convert(const std::optional<network_info>& x, std::string& str) {
   if (x) {
-    str = "*";
+    str += "*";
     convert(*x, str);
   } else {
     str = "null";
