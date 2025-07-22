@@ -17,6 +17,7 @@
 #include "broker/detail/assert.hh"
 #include "broker/endpoint.hh"
 #include "broker/filter_type.hh"
+#include "broker/format.hh"
 #include "broker/hub.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/hub_impl.hh"
@@ -60,7 +61,8 @@ subscriber subscriber::make(endpoint& ep, filter_type filter, size_t) {
         // OK, the core has completed the setup.
       },
       [](const caf::error& what) {
-        log::core::error("cannot-create-hub", "failed to create hub: {}", what);
+        log::core::error("cannot-create-hub", "failed to create hub: {}",
+                         caf::to_string(what));
         throw std::runtime_error("cannot create hub");
       });
   // Wrap the queues in shared pointers and create the hub.

@@ -2,6 +2,7 @@
 
 #include "broker/envelope.hh"
 #include "broker/expected.hh"
+#include "broker/format.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/native.hh"
 #include "broker/logger.hh"

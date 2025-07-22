@@ -1,13 +1,10 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <future>
 #include <map>
 #include <memory>
-#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -98,9 +95,13 @@ class intrusive_ptr;
 // -- enum classes -------------------------------------------------------------
 
 enum class backend : uint8_t;
+enum class command_tag;
 enum class ec : uint8_t;
+enum class envelope_type : uint8_t;
 enum class hub_id : uint64_t;
+enum class overflow_policy;
 enum class p2p_message_type : uint8_t;
+enum class peer_status;
 enum class sc : uint8_t;
 enum class variant_tag : uint8_t;
 
@@ -198,6 +199,14 @@ class IdentifierUpdate;
 
 } // namespace broker::zeek
 
+// -- internal utility types ---------------------------------------------------
+
+namespace broker::internal {
+
+struct expiry_formatter;
+
+} // namespace broker::internal
+
 // -- third-party types --------------------------------------------------------
 
 namespace prometheus {
@@ -212,5 +221,73 @@ class Registry;
 namespace broker {
 
 using prometheus_registry_ptr = std::shared_ptr<prometheus::Registry>;
+
+} // namespace broker
+
+// -- forward declarations for various convert overloads (needed in format.hh) -
+
+#define BROKER_CONVERT_AND_TO_STRING(type_name)                                \
+  void convert(const type_name& src, std::string& dst);                        \
+  inline std::string to_string(const type_name& src) {                         \
+    std::string result;                                                        \
+    convert(src, result);                                                      \
+    return result;                                                             \
+  }
+
+namespace broker {
+
+BROKER_CONVERT_AND_TO_STRING(ack_clone_command)
+BROKER_CONVERT_AND_TO_STRING(add_command)
+BROKER_CONVERT_AND_TO_STRING(address)
+BROKER_CONVERT_AND_TO_STRING(attach_writer_command)
+BROKER_CONVERT_AND_TO_STRING(backend)
+BROKER_CONVERT_AND_TO_STRING(clear_command)
+BROKER_CONVERT_AND_TO_STRING(command_envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(command_tag)
+BROKER_CONVERT_AND_TO_STRING(cumulative_ack_command)
+BROKER_CONVERT_AND_TO_STRING(data_envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(ec)
+BROKER_CONVERT_AND_TO_STRING(endpoint_id)
+BROKER_CONVERT_AND_TO_STRING(endpoint_info)
+BROKER_CONVERT_AND_TO_STRING(entity_id)
+BROKER_CONVERT_AND_TO_STRING(enum_value)
+BROKER_CONVERT_AND_TO_STRING(enum_value_view)
+BROKER_CONVERT_AND_TO_STRING(envelope)
+BROKER_CONVERT_AND_TO_STRING(envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(envelope_type)
+BROKER_CONVERT_AND_TO_STRING(erase_command)
+BROKER_CONVERT_AND_TO_STRING(error)
+BROKER_CONVERT_AND_TO_STRING(expire_command)
+BROKER_CONVERT_AND_TO_STRING(filter_type)
+BROKER_CONVERT_AND_TO_STRING(internal::expiry_formatter)
+BROKER_CONVERT_AND_TO_STRING(internal_command)
+BROKER_CONVERT_AND_TO_STRING(keepalive_command)
+BROKER_CONVERT_AND_TO_STRING(nack_command)
+BROKER_CONVERT_AND_TO_STRING(network_info)
+BROKER_CONVERT_AND_TO_STRING(none)
+BROKER_CONVERT_AND_TO_STRING(overflow_policy)
+BROKER_CONVERT_AND_TO_STRING(p2p_message_type)
+BROKER_CONVERT_AND_TO_STRING(peer_info)
+BROKER_CONVERT_AND_TO_STRING(peer_status)
+BROKER_CONVERT_AND_TO_STRING(ping_envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(pong_envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(port)
+BROKER_CONVERT_AND_TO_STRING(put_command)
+BROKER_CONVERT_AND_TO_STRING(put_unique_command)
+BROKER_CONVERT_AND_TO_STRING(put_unique_result_command)
+BROKER_CONVERT_AND_TO_STRING(retransmit_failed_command)
+BROKER_CONVERT_AND_TO_STRING(routing_update_envelope_ptr)
+BROKER_CONVERT_AND_TO_STRING(sc)
+BROKER_CONVERT_AND_TO_STRING(shutdown_options)
+BROKER_CONVERT_AND_TO_STRING(status)
+BROKER_CONVERT_AND_TO_STRING(subnet)
+BROKER_CONVERT_AND_TO_STRING(subtract_command)
+BROKER_CONVERT_AND_TO_STRING(topic)
+BROKER_CONVERT_AND_TO_STRING(variant)
+BROKER_CONVERT_AND_TO_STRING(variant_data)
+BROKER_CONVERT_AND_TO_STRING(variant_list)
+BROKER_CONVERT_AND_TO_STRING(variant_set)
+BROKER_CONVERT_AND_TO_STRING(variant_table)
+BROKER_CONVERT_AND_TO_STRING(worker)
 
 } // namespace broker

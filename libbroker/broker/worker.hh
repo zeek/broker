@@ -95,8 +95,6 @@ inline bool operator!=(std::nullptr_t, const worker& hdl) {
   return hdl.valid();
 }
 
-std::string to_string(const worker& x);
-
 } // namespace broker
 
 namespace std {

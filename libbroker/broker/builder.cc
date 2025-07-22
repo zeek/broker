@@ -4,6 +4,7 @@
 #include "broker/defaults.hh"
 #include "broker/envelope.hh"
 #include "broker/error.hh"
+#include "broker/format.hh"
 #include "broker/fwd.hh"
 #include "broker/topic.hh"
 
@@ -64,9 +65,8 @@ data_envelope_ptr make_builder_envelope(std::string_view topic_str,
   auto res = builder_envelope_ptr::make(topic_str, std::move(bytes), offset);
 #ifndef NDEBUG
   if (auto err = res->parse()) {
-    auto errstr = to_string(err);
-    fprintf(stderr, "make_builder_envelope received malformed data: %s\n",
-            errstr.c_str());
+    detail::println(stderr, "make_builder_envelope received malformed data: {}",
+                    err);
     abort();
   }
 #else

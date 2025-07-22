@@ -356,6 +356,6 @@ private:
   detail::weak_store_state_ptr state_;
 };
 
-std::string to_string(const store::response& x);
+BROKER_CONVERT_AND_TO_STRING(store::response)
 
 } // namespace broker

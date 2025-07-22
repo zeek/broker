@@ -38,20 +38,25 @@ struct fixture {
 FIXTURE_SCOPE(status_tests, fixture)
 
 TEST(sc is convertible to and from string) {
+  auto sc_from_string = [](std::string_view str) -> std::optional<sc> {
+    auto resutl = sc::unspecified;
+    if (convert(str, resutl))
+      return resutl;
+    return {};
+  };
   CHECK_EQUAL(to_string(sc::unspecified), "unspecified"s);
   CHECK_EQUAL(to_string(sc::peer_added), "peer_added"s);
   CHECK_EQUAL(to_string(sc::peer_removed), "peer_removed"s);
   CHECK_EQUAL(to_string(sc::peer_lost), "peer_lost"s);
-  CHECK_EQUAL(from_string<sc>("unspecified"), sc::unspecified);
   CHECK_EQUAL(to_string(sc::endpoint_discovered), "endpoint_discovered"s);
   CHECK_EQUAL(to_string(sc::endpoint_unreachable), "endpoint_unreachable"s);
-  CHECK_EQUAL(from_string<sc>("peer_added"), sc::peer_added);
-  CHECK_EQUAL(from_string<sc>("peer_removed"), sc::peer_removed);
-  CHECK_EQUAL(from_string<sc>("peer_lost"), sc::peer_lost);
-  CHECK_EQUAL(from_string<sc>("endpoint_discovered"), sc::endpoint_discovered);
-  CHECK_EQUAL(from_string<sc>("endpoint_unreachable"),
-              sc::endpoint_unreachable);
-  CHECK_EQUAL(from_string<sc>("foo"), std::nullopt);
+  CHECK_EQUAL(sc_from_string("unspecified"), sc::unspecified);
+  CHECK_EQUAL(sc_from_string("peer_added"), sc::peer_added);
+  CHECK_EQUAL(sc_from_string("peer_removed"), sc::peer_removed);
+  CHECK_EQUAL(sc_from_string("peer_lost"), sc::peer_lost);
+  CHECK_EQUAL(sc_from_string("endpoint_discovered"), sc::endpoint_discovered);
+  CHECK_EQUAL(sc_from_string("endpoint_unreachable"), sc::endpoint_unreachable);
+  CHECK_EQUAL(sc_from_string("foo"), std::nullopt);
 }
 
 TEST(status is convertible to and from data) {

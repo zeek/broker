@@ -16,6 +16,7 @@
 #include "broker/detail/sqlite_backend.hh"
 #include "broker/error.hh"
 #include "broker/expected.hh"
+#include "broker/format.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/logger.hh"
@@ -281,7 +282,8 @@ struct sqlite_backend::impl {
     if (!dir.empty()) {
       if (!detail::is_directory(dir) && !detail::mkdirs(dir)) {
         log::store::error("sqlite-create-dir-failed",
-                          "failed to create directory for database: {}", dir);
+                          "failed to create directory for database: {}",
+                          dir.native());
         return false;
       }
     }

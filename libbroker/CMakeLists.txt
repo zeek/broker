@@ -17,6 +17,7 @@ set(BROKER_SRC
     broker/address.cc
     broker/alm/multipath.cc
     broker/alm/routing_table.cc
+    broker/backend.cc
     broker/builder.cc
     broker/command_envelope.cc
     broker/configuration.cc
@@ -41,6 +42,7 @@ set(BROKER_SRC
     broker/endpoint_id.cc
     broker/endpoint_info.cc
     broker/entity_id.cc
+    broker/enum_value.cc
     broker/envelope.cc
     broker/error.cc
     broker/event_observer.cc
@@ -71,8 +73,10 @@ set(BROKER_SRC
     broker/logger.cc
     broker/mailbox.cc
     broker/network_info.cc
+    broker/none.cc
     broker/overflow_policy.cc
     broker/p2p_message_type.cc
+    broker/peer_info.cc
     broker/peer_status.cc
     broker/ping_envelope.cc
     broker/pong_envelope.cc

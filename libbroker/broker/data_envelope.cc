@@ -259,4 +259,8 @@ data_envelope_ptr data_envelope::make(std::string_view t, variant d) {
   return make(broker::topic{std::string{t}}, std::move(d));
 }
 
+void convert(const data_envelope_ptr& src, std::string& dst) {
+  convert(src.get(), dst);
+}
+
 } // namespace broker

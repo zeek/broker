@@ -65,22 +65,6 @@ topic operator/(const topic& lhs, const topic& rhs) {
   return result /= rhs;
 }
 
-void convert(const std::vector<topic>& ts, std::string& str) {
-  if (ts.empty()) {
-    str += "[]";
-    return;
-  }
-  str += '[';
-  auto i = ts.begin();
-  auto e = ts.end();
-  str += i->string();
-  for (++i; i != e; ++i) {
-    str += ", ";
-    str += i->string();
-  }
-  str += ']';
-}
-
 namespace {
 
 constexpr caf::string_view internal_prefix = "<$>/local/";

@@ -24,9 +24,6 @@ enum class envelope_type : uint8_t {
 };
 
 /// @relates envelope_type
-std::string to_string(envelope_type);
-
-/// @relates envelope_type
 bool from_string(std::string_view, envelope_type&);
 
 /// @relates envelope_type
@@ -224,16 +221,12 @@ private:
 using envelope_ptr = intrusive_ptr<const envelope>;
 
 /// @relates envelope
-inline std::string to_string(const envelope& x) {
-  return x.stringify();
-}
+void convert(const envelope& src, std::string& dst);
 
 /// @relates envelope
-inline std::string to_string(const envelope_ptr& x) {
-  if (x)
-    return x->stringify();
-  else
-    return "<null>";
-}
+void convert(const envelope* src, std::string& dst);
+
+/// @relates envelope
+void convert(const envelope_ptr& src, std::string& dst);
 
 } // namespace broker

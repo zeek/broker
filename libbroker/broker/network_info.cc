@@ -29,17 +29,19 @@ void convert(const network_info& x, std::string& str) {
   str += std::to_string(x.port);
 }
 
-std::string to_string(const network_info& x) {
-  std::string result;
-  convert(x, result);
-  return result;
+void convert(const std::optional<network_info>& x, std::string& str) {
+  if (x) {
+    str = "*";
+    convert(*x, str);
+  } else {
+    str = "null";
+  }
 }
 
 std::string to_string(const std::optional<network_info>& x) {
-  if (x)
-    return "*" + to_string(*x);
-  else
-    return "null";
+  std::string result;
+  convert(x, result);
+  return result;
 }
 
 } // namespace broker

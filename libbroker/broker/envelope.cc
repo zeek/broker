@@ -40,9 +40,9 @@ using const_byte_pointer = const std::byte*;
 
 // -- envelope_type ------------------------------------------------------------
 
-std::string to_string(envelope_type x) {
+void convert(const envelope_type& x, std::string& str) {
   // Same strings since packed_message is a subset of p2p_message.
-  return to_string(static_cast<p2p_message_type>(x));
+  convert(static_cast<p2p_message_type>(x), str);
 }
 
 bool from_string(std::string_view str, envelope_type& x) {
@@ -214,6 +214,22 @@ pong_envelope_ptr envelope::as_pong() const {
 
 envelope_type data_envelope::type() const noexcept {
   return envelope_type::data;
+}
+
+void convert(const envelope& src, std::string& dst) {
+  dst = src.stringify();
+}
+
+void convert(const envelope* src, std::string& dst) {
+  if (src) {
+    dst = src->stringify();
+  } else {
+    dst = "null";
+  }
+}
+
+void convert(const envelope_ptr& src, std::string& dst) {
+  convert(src.get(), dst);
 }
 
 } // namespace broker

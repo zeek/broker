@@ -5,6 +5,7 @@
 
 #include "broker/convert.hh"
 #include "broker/expected.hh"
+#include "broker/format.hh"
 #include "broker/format/bin.hh"
 #include "broker/format/txt.hh"
 #include "broker/internal/native.hh"
@@ -407,11 +408,18 @@ bool convert(const endpoint_id& node, data& d) {
   return true;
 }
 
+void convert(const expected<data>& x, std::string& str) {
+  if (x) {
+    convert(*x, str);
+  } else {
+    str = std::format("!{}", x.error());
+  }
+}
+
 std::string to_string(const expected<data>& x) {
-  if (x)
-    return to_string(*x);
-  else
-    return "!" + to_string(x.error());
+  std::string result;
+  convert(x, result);
+  return result;
 }
 
 } // namespace broker

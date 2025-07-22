@@ -124,7 +124,7 @@ caf::message_handler connector_adapter::message_handlers() {
         } else {
           log::core::error("unexpected-connector-message",
                            "connector_adapter received unexpected message: {}",
-                           msg);
+                           caf::to_string(msg));
         }
       } else if (auto i = pending_.find(event_id); i != pending_.end()) {
         i->second(msg);

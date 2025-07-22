@@ -9,6 +9,17 @@
 
 using namespace std::string_literals;
 
+namespace broker {
+
+void convert(const internal::expiry_formatter& x, std::string& str) {
+  if (x.expiry)
+    str += to_string(*x.expiry);
+  else
+    str += "none";
+}
+
+} // namespace broker
+
 namespace broker::internal {
 
 namespace {
@@ -53,13 +64,6 @@ void fill_vector(vector& vec, const Ts&... xs) {
 }
 
 } // namespace
-
-void convert(const expiry_formatter& x, std::string& str) {
-  if (x.expiry)
-    str += to_string(*x.expiry);
-  else
-    str += "none";
-}
 
 store_actor_state::~store_actor_state() {
   // nop

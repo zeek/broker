@@ -13,10 +13,10 @@ constexpr std::string_view p2p_message_type_names[] = {
   "originator_ack",
 };
 
-std::string to_string(p2p_message_type x) {
-  auto index = static_cast<uint8_t>(x);
+void convert(const p2p_message_type& src, std::string& dst) {
+  auto index = static_cast<uint8_t>(src);
   BROKER_ASSERT(index < std::size(p2p_message_type_names));
-  return std::string{p2p_message_type_names[index]};
+  dst = p2p_message_type_names[index];
 }
 
 bool from_string(std::string_view str, p2p_message_type& x) {

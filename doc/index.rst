@@ -48,6 +48,7 @@ Synopsis
 
   overview
   comm
+  formatting
   data
   stores
   web-socket

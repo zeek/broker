@@ -3,6 +3,7 @@
 #include "broker/data.hh"
 #include "broker/detail/assert.hh"
 #include "broker/error.hh"
+#include "broker/format.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/variant.hh"
@@ -26,10 +27,10 @@ std::string_view sc_strings[] = {
 
 } // namespace
 
-std::string to_string(sc code) {
+void convert(const sc& code, std::string& str) {
   auto index = static_cast<uint8_t>(code);
   BROKER_ASSERT(index < std::size(sc_strings));
-  return std::string{sc_strings[index]};
+  str = sc_strings[index];
 }
 
 bool convert(std::string_view str, sc& code) noexcept {
@@ -97,30 +98,24 @@ namespace {
 
 template <class StatusOrView>
 std::string status_to_string_impl(const StatusOrView& x) {
-  std::string result = to_string(x.code());
-  result += '(';
   if (auto ctx = x.context()) {
-    result += to_string(ctx->node);
     if (ctx->network) {
-      result += ", ";
-      result += to_string(*ctx->network);
+      return std::format("{}({}, {}, \"{}\")", x.code(), ctx->node,
+                         *ctx->network, *x.message());
     }
-    result += ", ";
+    return std::format("{}({}, \"{}\")", x.code(), ctx->node, *x.message());
   }
-  result += '"';
-  result += *x.message();
-  result += "\")";
-  return result;
+  return std::format("{}(\"{}\")", x.code(), *x.message());
 }
 
 } // namespace
 
-std::string to_string(const status& x) {
-  return status_to_string_impl(x);
+void convert(const status& src, std::string& dst) {
+  dst = status_to_string_impl(src);
 }
 
-std::string to_string(status_view x) {
-  return status_to_string_impl(x);
+void convert(const status_view& src, std::string& dst) {
+  dst = status_to_string_impl(src);
 }
 
 bool convertible_to_status(const vector& xs) noexcept {

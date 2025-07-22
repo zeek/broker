@@ -1,12 +1,14 @@
 #include "broker/store_event.hh"
 
+#include "broker/format.hh"
+
 #include <caf/deep_to_string.hpp>
 
 namespace broker {
 
 namespace {
 
-constexpr const char* type_strings[] = {
+constexpr std::string_view type_strings[] = {
   "insert",
   "update",
   "erase",
@@ -64,8 +66,8 @@ store_event::expire store_event::expire::make(const vector& xs) noexcept {
                   : nullptr};
 }
 
-const char* to_string(store_event::type code) noexcept {
-  return type_strings[static_cast<uint8_t>(code)];
+void convert(const store_event::type& code, std::string& dst) {
+  dst = type_strings[static_cast<uint8_t>(code)];
 }
 
 namespace {
@@ -79,47 +81,21 @@ std::string expiry_to_string(const std::optional<timespan>& x) {
 
 } // namespace
 
-std::string to_string(const store_event::insert& x) {
-  std::string result = "insert(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.value());
-  result += ", ";
-  result += expiry_to_string(x.expiry());
-  result += ", ";
-  result += caf::deep_to_string(x.publisher());
-  result += ')';
-  return result;
+void convert(const store_event::insert& x, std::string& dst) {
+  dst = std::format("insert({}, {}, {}, {}, {})", x.store_id(), x.key(),
+                    x.value(), expiry_to_string(x.expiry()),
+                    caf::deep_to_string(x.publisher()));
 }
 
-std::string to_string(const store_event::update& x) {
-  std::string result = "update(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.old_value());
-  result += ", ";
-  result += to_string(x.new_value());
-  result += ", ";
-  result += expiry_to_string(x.expiry());
-  result += ", ";
-  result += caf::deep_to_string(x.publisher());
-  result += ')';
-  return result;
+void convert(const store_event::update& x, std::string& dst) {
+  dst = std::format("update({}, {}, {}, {}, {}, {})", x.store_id(), x.key(),
+                    x.old_value(), x.new_value(), expiry_to_string(x.expiry()),
+                    caf::deep_to_string(x.publisher()));
 }
 
-std::string to_string(const store_event::erase& x) {
-  std::string result = "erase(";
-  result += x.store_id();
-  result += ", ";
-  result += to_string(x.key());
-  result += ", ";
-  result += to_string(x.publisher());
-  result += ')';
-  return result;
+void convert(const store_event::erase& x, std::string& dst) {
+  dst = std::format("erase({}, {}, {})", x.store_id(), x.key(),
+                    caf::deep_to_string(x.publisher()));
 }
 
 bool convert(const std::string& src, store_event::type& dst) noexcept {
@@ -141,8 +117,9 @@ bool convert(const data& src, store_event::type& dst) noexcept {
 }
 
 bool convertible_to_store_event_type(const data& src) noexcept {
-  if (auto str = get_if<std::string>(src)) {
-    auto predicate = [&](const char* x) { return *str == x; };
+  if (auto pstr = get_if<std::string>(src)) {
+    auto& str = *pstr;
+    auto predicate = [&str](std::string_view x) { return str == x; };
     return std::any_of(std::begin(type_strings), std::end(type_strings),
                        predicate);
   }

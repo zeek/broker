@@ -50,4 +50,20 @@ bool filter_extend(filter_type& f, const filter_type& other) {
   return count > 0;
 }
 
+void convert(const filter_type& src, std::string& dst) {
+  if (src.empty()) {
+    dst += "[]";
+    return;
+  }
+  dst = "[";
+  auto i = src.begin();
+  auto e = src.end();
+  dst += i->string();
+  for (++i; i != e; ++i) {
+    dst += ", ";
+    dst += i->string();
+  }
+  dst += "]";
+}
+
 } // namespace broker

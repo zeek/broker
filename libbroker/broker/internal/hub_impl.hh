@@ -101,7 +101,8 @@ private:
         .receive([] {},
                  [](const caf::error& err) {
                    log::core::debug("update-hub-filter",
-                                    "failed to update hub filter: {}", err);
+                                    "failed to update hub filter: {}",
+                                    caf::to_string(err));
                  });
     } else {
       caf::anon_send(core_, id_, filter_);

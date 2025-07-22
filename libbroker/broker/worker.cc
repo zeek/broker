@@ -82,8 +82,8 @@ const worker::impl* worker::native_ptr() const noexcept {
   return reinterpret_cast<const impl*>(obj_);
 }
 
-std::string to_string(const worker& x) {
-  return to_string(native(x));
+void convert(const worker& x, std::string& str) {
+  str = to_string(native(x));
 }
 
 } // namespace broker

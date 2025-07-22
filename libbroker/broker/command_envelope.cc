@@ -171,11 +171,7 @@ expected<envelope_ptr> command_envelope::deserialize(
 }
 
 void convert(const command_envelope_ptr& cmd, std::string& str) {
-  if (!cmd) {
-    str = "null";
-    return;
-  }
-  str = cmd->stringify();
+  convert(cmd.get(), str);
 }
 
 } // namespace broker

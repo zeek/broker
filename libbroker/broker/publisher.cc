@@ -59,7 +59,8 @@ publisher publisher::make(endpoint& ep, topic dst) {
         // OK, the core has completed the setup.
       },
       [](const caf::error& what) {
-        log::core::error("cannot-create-hub", "failed to create hub: {}", what);
+        log::core::error("cannot-create-hub", "failed to create hub: {}",
+                         caf::to_string(what));
         throw std::runtime_error("cannot create hub");
       });
   // Wrap the queues in shared pointers and create the hub.

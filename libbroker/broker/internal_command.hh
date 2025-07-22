@@ -26,8 +26,6 @@ enum class command_tag {
   consumer_control,
 };
 
-std::string to_string(command_tag);
-
 // -- broadcast: actions on the key-value store such as put and erase ----------
 
 /// Sets a value in the key-value store.

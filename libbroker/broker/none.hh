@@ -39,9 +39,7 @@ inline constexpr bool operator>=(none, none) noexcept {
 }
 
 /// @relates none
-inline void convert(none, std::string& str) {
-  str = "nil";
-}
+void convert(const none&, std::string& str);
 
 /// The only instance of @ref none.
 /// @relates none

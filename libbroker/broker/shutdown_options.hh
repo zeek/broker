@@ -32,6 +32,6 @@ private:
   uint8_t flags_ = 0;
 };
 
-std::string to_string(shutdown_options options);
+void convert(const shutdown_options& src, std::string& dst);
 
 } // namespace broker

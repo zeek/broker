@@ -38,7 +38,7 @@ template <sc S>
 using sc_constant = std::integral_constant<sc, S>;
 
 /// @relates sc
-std::string to_string(sc code);
+void convert(const sc& code, std::string& str);
 
 /// @relates sc
 bool convert(std::string_view str, sc& code) noexcept;
@@ -203,7 +203,7 @@ inline bool operator!=(sc lhs, const status& rhs) {
 }
 
 /// @relates status
-std::string to_string(const status& x);
+void convert(const status& src, std::string& dst);
 
 /// @relates status
 template <sc S, class... Ts>
@@ -276,7 +276,7 @@ private:
 };
 
 /// @relates status_view
-std::string to_string(status_view sv);
+void convert(const status_view& src, std::string& dst);
 
 /// @relates status_view
 inline status_view make_status_view(const data& src) {
