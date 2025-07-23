@@ -1,3 +1,7 @@
+2.8.0-dev.273 | 2025-07-23 16:51:19 +0200
+
+  * Remove building with -flto from python bindings (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.271 | 2025-07-21 15:47:49 -0700
 
   * Use the new WebSocket frame API (Dominik Charousset, Corelight)
