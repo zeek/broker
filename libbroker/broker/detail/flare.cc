@@ -80,7 +80,7 @@ flare::flare() {
   auto maybe_fds = caf::net::make_pipe();
   if (!maybe_fds) {
     log::core::critical("cannot-create-pipe", "failed to create pipe: {}",
-                        maybe_fds.error());
+                        caf::to_string(maybe_fds.error()));
     abort();
   }
   auto [first, second] = *maybe_fds;
@@ -88,13 +88,16 @@ flare::flare() {
   fds_[1] = second.id;
   if (auto err = caf::net::child_process_inherit(first, false))
     log::core::error("cannot-set-cloexec",
-                     "failed to set flare fd 0 CLOEXEC: {}", err);
+                     "failed to set flare fd 0 CLOEXEC: {}",
+                     caf::to_string(err));
   if (auto err = caf::net::child_process_inherit(second, false))
     log::core::error("cannot-set-cloexec",
-                     "failed to set flare fd 1 CLOEXEC: {}", err);
+                     "failed to set flare fd 1 CLOEXEC: {}",
+                     caf::to_string(err));
   if (auto err = caf::net::nonblocking(first, true)) {
     log::core::critical("cannot-set-nonblock",
-                        "failed to set flare fd 0 NONBLOCK: {}", err);
+                        "failed to set flare fd 0 NONBLOCK: {}",
+                        caf::to_string(err));
     std::terminate();
   }
   // Do not set the write handle to nonblock, because we want the producer to

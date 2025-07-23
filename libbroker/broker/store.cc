@@ -14,6 +14,7 @@
 #include <caf/send.hpp>
 
 #include "broker/expected.hh"
+#include "broker/format.hh"
 #include "broker/internal/flare_actor.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
@@ -324,7 +325,7 @@ store::response store::proxy::receive() {
     caf::others >> [&](caf::message& x) -> caf::skippable_result {
       log::store::error("store-obj-unexpected-response",
                         "proxy {} received an unexpected message: {}",
-                        native(proxy_).id(), x);
+                        native(proxy_).id(), caf::to_string(x));
       // We *must* make sure to consume any and all messages, because the flare
       // actor messes with the mailbox signaling. The flare fires on each
       // enqueued message and the flare actor reports data available as long as
@@ -461,7 +462,8 @@ bool store::await_idle(timespan timeout) {
       .receive([&result](atom::ok) { result = true; },
                []([[maybe_unused]] const caf::error& err) {
                  log::store::error("store-obj-await-idle",
-                                   "await_idle failed: {}", err);
+                                   "await_idle failed: {}",
+                                   caf::to_string(err));
                });
   });
   return result;
@@ -491,8 +493,8 @@ void store::reset() {
   state_.reset();
 }
 
-std::string to_string(const store::response& x) {
-  return caf::deep_to_string(std::tie(x.answer, x.id));
+void convert(const store::response& x, std::string& str) {
+  str = caf::deep_to_string(std::tie(x.answer, x.id));
 }
 
 } // namespace broker

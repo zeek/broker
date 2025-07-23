@@ -5,6 +5,7 @@
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
+#include "broker/format.hh"
 #include "broker/format/bin.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
@@ -577,16 +578,16 @@ public:
     event_id = eid;
     log::network::debug(
       "new-connection-state",
-      "created new connect_state object with event-id {} and addr {}", event_id,
-      addr);
+      "created new connect_state object with event-id {} and addr {}",
+      static_cast<uint64_t>(event_id), addr);
     this->addr = std::move(addr);
   }
 
   ~connect_state() {
     log::network::debug(
       "destroy-connection-state",
-      "destroy connect_state object with event-id {} and addr {}", event_id,
-      addr);
+      "destroy connect_state object with event-id {} and addr {}",
+      static_cast<uint64_t>(event_id), addr);
   }
 
   // -- member variables -------------------------------------------------------
@@ -694,8 +695,8 @@ public:
   void reset(socket_state st, Policy new_policy) {
     log::network::debug(
       "reset-connection-state",
-      "resetting connect_state object with event-id {} and addr {}", event_id,
-      addr);
+      "resetting connect_state object with event-id {} and addr {}",
+      static_cast<uint64_t>(event_id), addr);
     redundant = false;
     if (added_peer_status) {
       auto& psm = peer_statuses();
@@ -1100,13 +1101,14 @@ struct connect_manager {
     authority.host = state->addr.address;
     authority.port = state->addr.port;
     log::network::debug("try-connect",
-                        "try connecting to {} with a timeout of 1s", authority);
+                        "try connecting to {} with a timeout of 1s",
+                        caf::to_string(authority));
     auto event_id = state->event_id;
     if (auto sock = caf::net::make_connected_tcp_stream_socket(authority, 1s)) {
       log::network::debug("connect-ok",
                           "established connection on fd {} to {} "
                           "(initiate handshake)",
-                          sock->id, authority);
+                          sock->id, caf::to_string(authority));
       if (auto err = caf::net::nonblocking(*sock, true)) {
         auto err_str = to_string(err);
         fprintf(stderr,
@@ -1147,14 +1149,14 @@ struct connect_manager {
       if (retry_interval.count() != 0) {
         log::network::debug("connect-failed-with-retry",
                             "failed to connect to {} -> retry in {}s",
-                            authority, retry_interval);
+                            caf::to_string(authority), retry_interval);
         listener->on_peer_unavailable(state->addr);
         retry_schedule.emplace(caf::make_timestamp() + retry_interval,
                                std::move(state));
       } else if (valid(event_id)) {
         log::network::debug("connect-failed",
                             "failed to connect to {} -> fail (retry disabled)",
-                            authority);
+                            caf::to_string(authority));
         listener->on_error(event_id, caf::make_error(ec::peer_unavailable));
       } else {
         listener->on_peer_unavailable(state->addr);
@@ -1190,13 +1192,14 @@ struct connect_manager {
       } else {
         log::network::error("local_port-failed",
                             "failed to determine local port: {}",
-                            actual_port.error());
+                            caf::to_string(actual_port.error()));
         caf::net::close(*sock);
         listener->on_error(event_id, std::move(actual_port.error()));
       }
     } else {
       log::network::error("make_tcp_accept_socket-failed",
-                          "make_tcp_accept_socket failed: {}", sock.error());
+                          "make_tcp_accept_socket failed: {}",
+                          caf::to_string(sock.error()));
       listener->on_error(event_id, std::move(sock.error()));
     }
   }

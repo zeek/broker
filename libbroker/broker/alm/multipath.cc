@@ -107,8 +107,10 @@ bool multipath_node::contains(const endpoint_id& id) const noexcept {
 }
 
 void multipath_node::stringify(std::string& buf) const {
+  std::string id_str;
+  convert(id_, id_str);
   buf += '(';
-  buf += to_string(id_);
+  buf += id_str;
   if (!down_.empty()) {
     buf += ", [";
     auto i = down_.begin();

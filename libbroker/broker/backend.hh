@@ -27,11 +27,6 @@ bool inspect(Inspector& f, backend& x) {
 }
 
 /// @relates backend
-inline void convert(backend x, std::string& str) {
-  if (x == backend::memory)
-    str = "memory";
-  else if (x == backend::sqlite)
-    str = "sqlite";
-}
+void convert(const backend& x, std::string& str);
 
 } // namespace broker

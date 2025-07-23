@@ -24,6 +24,7 @@
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
 #include "broker/filter_type.hh"
+#include "broker/format.hh"
 #include "broker/hub_id.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
@@ -283,7 +284,7 @@ caf::behavior core_actor_state::make_behavior() {
       log::core::debug(
         "exit-msg",
         "shutting down after receiving an exit message with reason {}",
-        msg.reason);
+        caf::to_string(msg.reason));
       shutdown(shutdown_options{});
     }
   });
@@ -880,7 +881,7 @@ void core_actor_state::try_connect(const network_info& addr,
     },
     [this, rp, addr](const caf::error& what) mutable {
       log::core::debug("try-connect-failed", "failed to connect to {}: {}",
-                       addr, what);
+                       addr, caf::to_string(what));
       rp.deliver(what);
       peer_unavailable(addr);
     });
@@ -992,7 +993,7 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
       })
       .do_on_error([this, ptr, peer_id](const caf::error& what) {
         log::core::debug("remove-peer", "remove peer {} due to: {}", peer_id,
-                         what);
+                         caf::to_string(what));
         if (auto* lptr = logger()) {
           lptr->on_peer_disconnect(peer_id, facade(what));
         }
@@ -1093,7 +1094,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   auto& [rd_2, wr_2] = resources2;
   if (auto err = ptr->run(self->system(), std::move(rd_1), std::move(wr_2))) {
     log::core::debug("init-new-peer-failed",
-                     "failed to run pending connection: {}", err);
+                     "failed to run pending connection: {}",
+                     caf::to_string(err));
     return err;
   } else {
     // With the connected buffers, dispatch to the other overload.

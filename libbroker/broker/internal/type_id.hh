@@ -9,6 +9,8 @@
 #include "broker/internal/native.hh"
 #include "broker/time.hh"
 
+#include <future>
+
 #include <caf/config.hpp>
 #include <caf/fwd.hpp>
 #include <caf/is_error_code_enum.hpp>

@@ -218,7 +218,7 @@ template <ec Value>
 using ec_constant = std::integral_constant<ec, Value>;
 
 /// @relates ec
-std::string to_string(ec code);
+void convert(const ec& src, std::string& dst);
 
 /// @relates ec
 std::string_view enum_str(ec code);

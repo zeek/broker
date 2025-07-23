@@ -13,6 +13,7 @@
 #include "broker/detail/abstract_backend.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/die.hh"
+#include "broker/format.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/master_actor.hh"
 #include "broker/internal/metric_factory.hh"

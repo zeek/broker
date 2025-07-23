@@ -20,16 +20,20 @@ void do_stringify(const T& what, std::string& out) {
 
 } // namespace
 
-std::string to_string(command_tag x) {
+void convert(const command_tag& x, std::string& str) {
   switch (x) {
     case command_tag::action:
-      return "action";
+      str = "action";
+      break;
     case command_tag::producer_control:
-      return "producer_control";
+      str = "producer_control";
+      break;
     case command_tag::consumer_control:
-      return "consumer_control";
+      str = "consumer_control";
+      break;
     default:
-      return "???";
+      str = "???";
+      break;
   }
 }
 
