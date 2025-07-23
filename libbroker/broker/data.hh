@@ -499,28 +499,22 @@ bool convert(const endpoint_id& node, data& x);
 /// @relates data
 std::string to_string(const expected<data>& x);
 
-inline bool operator<(const data& x, const data& y) {
-  return x.get_data() < y.get_data();
+bool operator==(const data& x, const data& y);
+
+inline bool operator!=(const data& x, const data& y) {
+  return !(x == y);
 }
 
-inline bool operator<=(const data& x, const data& y) {
-  return x.get_data() <= y.get_data();
-}
+bool operator<(const data& x, const data& y);
+
+bool operator<=(const data& x, const data& y);
 
 inline bool operator>(const data& x, const data& y) {
-  return x.get_data() > y.get_data();
+  return !(x <= y);
 }
 
 inline bool operator>=(const data& x, const data& y) {
-  return x.get_data() >= y.get_data();
-}
-
-inline bool operator==(const data& x, const data& y) {
-  return x.get_data() == y.get_data();
-}
-
-inline bool operator!=(const data& x, const data& y) {
-  return x.get_data() != y.get_data();
+  return !(x < y);
 }
 
 inline bool operator<(const std::pair<const data, data>& x,

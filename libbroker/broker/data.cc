@@ -414,6 +414,18 @@ std::string to_string(const expected<data>& x) {
     return "!" + to_string(x.error());
 }
 
+bool operator==(const data& x, const data& y) {
+  return x.get_data() == y.get_data();
+}
+
+bool operator<(const data& x, const data& y) {
+  return x.get_data() < y.get_data();
+}
+
+bool operator<=(const data& x, const data& y) {
+  return x.get_data() <= y.get_data();
+}
+
 } // namespace broker
 
 namespace broker::detail {
