@@ -135,30 +135,21 @@ struct are_same<A, B, C, Ts...> {
 template <class... Ts>
 inline constexpr bool are_same_v = are_same<Ts...>::value;
 
-// Trait that checks for an overload of convert(const From&, T&).
+template <class T>
+concept bool_or_void = is_one_of_v<T, bool, void>;
+
 template <class From, class To>
-struct has_convert {
-  template <class T>
-  static auto test(const T* x)
-    -> decltype(convert(*x, std::declval<To&>()), std::true_type());
-
-  template <class T>
-  static auto test(...) -> std::false_type;
-
-  static constexpr bool value = decltype(test<From>(nullptr))::value;
+concept convertible = requires(const From& from, To& to) {
+  { convert(from, to) } -> bool_or_void;
 };
 
-template <class From, class To>
-inline constexpr bool has_convert_v = has_convert<From, To>::value;
-
-template <class U>
-auto has_apply_operator_test(U*) -> decltype(&U::operator(), std::true_type());
-
-auto has_apply_operator_test(...) -> std::false_type;
+template <class T>
+concept member_function_pointer = std::is_member_function_pointer_v<T>;
 
 template <class T>
-inline constexpr bool has_apply_operator =
-  decltype(has_apply_operator_test(std::declval<T*>()))::value;
+concept applicable = requires(T) {
+  { &T::operator() } -> member_function_pointer;
+};
 
 template <class F>
 struct normalized_signature;
@@ -206,36 +197,24 @@ struct normalized_signature<R (C::*)(Ts...) const noexcept> {
 template <class F>
 using normalized_signature_t = typename normalized_signature<F>::type;
 
-template <class F, bool HasApplyOperator = has_apply_operator<F>>
-struct signature_of_oracle;
-
-template <class F>
-struct signature_of_oracle<F, false> {
-  using type = normalized_signature_t<F>;
+template <class Fn>
+struct signature_of_oracle {
+  using type = normalized_signature_t<Fn>;
 };
 
-template <class F>
-struct signature_of_oracle<F, true> {
-  using type = normalized_signature_t<decltype(&F::operator())>;
+template <applicable Fn>
+struct signature_of_oracle<Fn> {
+  using type = normalized_signature_t<decltype(&Fn::operator())>;
 };
 
 template <class F>
 using signature_of_t = typename signature_of_oracle<F>::type;
 
-// Trait that checks whether type T has a member function named "begin".
 template <class T>
-struct has_begin {
-  template <class U>
-  static auto test(U* x) -> decltype(x->begin(), std::true_type());
-
-  template <class U>
-  static auto test(...) -> std::false_type;
-
-  static constexpr bool value = decltype(test<T>(nullptr))::value;
+concept iterable = requires(T t) {
+  { t.begin() } -> std::input_iterator;
+  { t.end() } -> std::input_iterator;
 };
-
-template <class T>
-inline constexpr bool has_begin_v = has_begin<T>::value;
 
 // Trait that checks whether T is a std::pair.
 template <class T>
@@ -257,70 +236,20 @@ struct is_tuple_oracle<std::tuple<Ts...>> : std::true_type {};
 template <class T>
 inline constexpr bool is_tuple = is_tuple_oracle<T>::value;
 
-// Trait that checks whether a type has a free to_string function.
 template <class T>
-class has_to_string {
-private:
-  template <class U>
-  static auto sfinae(const U& x) -> decltype(to_string(x));
-
-  static void sfinae(...);
-
-  using result = decltype(sfinae(std::declval<const T&>()));
-
-public:
-  static constexpr bool value = std::is_same_v<result, std::string>;
+concept has_to_string = requires(const T& t) {
+  { to_string(t) } -> std::convertible_to<std::string>;
 };
 
-// Trait that checks whether a type has a .string() member function.
 template <class T>
-class has_string_member_fn {
-private:
-  template <class U>
-  static auto sfinae(const U& x) -> decltype(x.string());
-
-  static void sfinae(...);
-
-  using result = std::decay_t<decltype(sfinae(std::declval<const T&>()))>;
-
-public:
-  static constexpr bool value = std::is_same_v<result, std::string>;
+concept has_string_getter = requires(const T& t) {
+  { t.string() } -> std::convertible_to<std::string_view>;
 };
 
 } // namespace broker::detail
 
 #define BROKER_DEF_HAS_ENCODE_IN_NS(ns_name)                                   \
   template <class T, class OutIter>                                            \
-  class has_encode_overload {                                                  \
-  private:                                                                     \
-    template <class U>                                                         \
-    static auto sfinae(U& y)                                                   \
-      -> decltype(::ns_name::encode(y, std::declval<OutIter&>()),              \
-                  std::true_type{});                                           \
-    static std::false_type sfinae(...);                                        \
-    using result_type = decltype(sfinae(std::declval<T&>()));                  \
-                                                                               \
-  public:                                                                      \
-    static constexpr bool value = result_type::value;                          \
-  };                                                                           \
-  template <class T, class OutIter>                                            \
-  inline constexpr bool has_encode_overload_v =                                \
-    has_encode_overload<T, OutIter>::value
-
-#define BROKER_DEF_HAS_DECODE_IN_NS(ns_name)                                   \
-  template <class T, class OutIter>                                            \
-  class has_decode_overload {                                                  \
-  private:                                                                     \
-    template <class U>                                                         \
-    static auto sfinae(U& y)                                                   \
-      -> decltype(::ns_name::decode(y, std::declval<OutIter&>()),              \
-                  std::true_type{});                                           \
-    static std::false_type sfinae(...);                                        \
-    using result_type = decltype(sfinae(std::declval<T&>()));                  \
-                                                                               \
-  public:                                                                      \
-    static constexpr bool value = result_type::value;                          \
-  };                                                                           \
-  template <class T, class OutIter>                                            \
-  inline constexpr bool has_decode_overload_v =                                \
-    has_decode_overload<T, OutIter>::value
+  concept has_encode_overload = requires(T t, OutIter out) {                   \
+    { ::ns_name::encode(t, out) } -> std::same_as<OutIter>;                    \
+  };
