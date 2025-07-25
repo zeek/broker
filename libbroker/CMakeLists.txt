@@ -4,15 +4,6 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/broker/config.hh.in
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/broker/config.hh DESTINATION include/broker)
 
 set(BROKER_SRC
-    # src/detail/core_recorder.cc
-    # src/detail/generator_file_reader.cc
-    # src/detail/generator_file_writer.cc
-    # src/gateway.cc
-    # src/internal/data_generator.cc
-    # src/internal/generator_file_reader.cc
-    # src/internal/generator_file_writer.cc
-    # src/internal/meta_command_writer.cc
-    # src/internal/meta_data_writer.cc
     ${OPTIONAL_SRC}
     broker/address.cc
     broker/alm/multipath.cc
@@ -142,11 +133,6 @@ if (BROKER_DISABLE_TESTS)
 endif ()
 
 set(BROKER_TEST_SRC
-    # broker/internal/data_generator.test.cc
-    # broker/internal/generator_file_writer.test.cc
-    # broker/internal/json_type_mapper.test.cc
-    # broker/internal/meta_command_writer.test.cc
-    # broker/internal/meta_data_writer.test.cc
     broker/alm/multipath.test.cc
     broker/alm/routing_table.test.cc
     broker/backend.test.cc
