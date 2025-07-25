@@ -2,7 +2,6 @@
 
 #include "broker/convert.hh"
 #include "broker/detail/comparable.hh"
-#include "broker/detail/pp.hh"
 #include "broker/endpoint_info.hh"
 #include "broker/fwd.hh"
 
@@ -370,54 +369,3 @@ inline error_view make_error_view(const data& src) {
 }
 
 } // namespace broker
-
-#define BROKER_TRY_IMPL(statement)                                             \
-  if (auto err = (statement))                                                  \
-  return err
-
-#define BROKER_TRY_1(x1) BROKER_TRY_IMPL(x1)
-
-#define BROKER_TRY_2(x1, x2)                                                   \
-  BROKER_TRY_1(x1);                                                            \
-  BROKER_TRY_IMPL(x2)
-
-#define BROKER_TRY_3(x1, x2, x3)                                               \
-  BROKER_TRY_2(x1, x2);                                                        \
-  BROKER_TRY_IMPL(x3)
-
-#define BROKER_TRY_4(x1, x2, x3, x4)                                           \
-  BROKER_TRY_3(x1, x2, x3);                                                    \
-  BROKER_TRY_IMPL(x4)
-
-#define BROKER_TRY_5(x1, x2, x3, x4, x5)                                       \
-  BROKER_TRY_4(x1, x2, x3, x4);                                                \
-  BROKER_TRY_IMPL(x5)
-
-#define BROKER_TRY_6(x1, x2, x3, x4, x5, x6)                                   \
-  BROKER_TRY_5(x1, x2, x3, x4, x5);                                            \
-  BROKER_TRY_IMPL(x6)
-
-#define BROKER_TRY_7(x1, x2, x3, x4, x5, x6, x7)                               \
-  BROKER_TRY_6(x1, x2, x3, x4, x5, x6);                                        \
-  BROKER_TRY_IMPL(x7)
-
-#define BROKER_TRY_8(x1, x2, x3, x4, x5, x6, x7, x8)                           \
-  BROKER_TRY_7(x1, x2, x3, x4, x5, x6, x7);                                    \
-  BROKER_TRY_IMPL(x8)
-
-#define BROKER_TRY_9(x1, x2, x3, x4, x5, x6, x7, x8, x9)                       \
-  BROKER_TRY_8(x1, x2, x3, x4, x5, x6, x7, x8);                                \
-  BROKER_TRY_IMPL(x9)
-
-#ifdef _MSC_VER
-
-#  define BROKER_TRY(...)                                                      \
-    BROKER_PP_CAT(BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__),   \
-                  BROKER_PP_EMPTY())
-
-#else // _MSVC_VER
-
-#  define BROKER_TRY(...)                                                      \
-    BROKER_PP_OVERLOAD(BROKER_TRY_, __VA_ARGS__)(__VA_ARGS__)
-
-#endif // _MSVC_VER

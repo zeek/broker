@@ -1,3 +1,12 @@
+2.8.0-dev.276 | 2025-07-25 17:45:20 +0200
+
+  * Remove obsolete macro utilities (Dominik Charousset, Corelight)
+
+    BROKER_TRY is no longer used in Broker. Neither are the macro utilities
+    that it relies on.
+
+  * Fix build on Clang 20 (Dominik Charousset, Corelight)
+
 2.8.0-dev.273 | 2025-07-23 16:51:19 +0200
 
   * Remove building with -flto from python bindings (Tim Wojtulewicz, Corelight)
