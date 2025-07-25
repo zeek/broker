@@ -1,3 +1,7 @@
+2.8.0-dev.280 | 2025-07-25 17:46:37 +0200
+
+  * Remove dead code (Dominik Charousset, Corelight)
+
 2.8.0-dev.278 | 2025-07-25 17:45:59 +0200
 
   * Remove stale files from the repository (Dominik Charousset, Corelight)
