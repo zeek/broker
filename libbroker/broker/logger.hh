@@ -90,14 +90,14 @@ OutputIterator fmt_to(OutputIterator out, std::string_view fmt, const T& arg,
           } else if constexpr (std::is_same_v<T, std::string>
                                || std::is_same_v<T, std::string_view>) {
             out = std::copy(arg.begin(), arg.end(), out);
-          } else if constexpr (detail::has_convert_v<T, std::string>) {
+          } else if constexpr (convertible<T, std::string>) {
             auto str = std::string{};
             convert(arg, str);
             out = std::copy(str.begin(), str.end(), out);
-          } else if constexpr (has_to_string<T>::value) {
+          } else if constexpr (has_to_string<T>) {
             auto str = to_string(arg);
             out = std::copy(str.begin(), str.end(), out);
-          } else if constexpr (has_string_member_fn<T>::value) {
+          } else if constexpr (has_string_getter<T>) {
             auto&& str = arg.string();
             out = std::copy(str.begin(), str.end(), out);
           } else {

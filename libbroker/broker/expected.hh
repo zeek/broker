@@ -12,6 +12,7 @@
 #include "broker/detail/assert.hh"
 #include "broker/error.hh"
 
+#include <concepts>
 #include <type_traits>
 
 namespace broker {
@@ -40,9 +41,8 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  template <class U>
-  expected(U x, std::enable_if_t<std::is_convertible_v<U, T>>* = nullptr)
-    : engaged_(true) {
+  template <std::convertible_to<T> U>
+  expected(U x) : engaged_(true) {
     new (std::addressof(value_)) T(std::move(x));
   }
 

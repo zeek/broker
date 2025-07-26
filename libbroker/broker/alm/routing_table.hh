@@ -9,7 +9,6 @@
 #include <unordered_map>
 #include <utility>
 
-#include "broker/detail/algorithms.hh"
 #include "broker/detail/assert.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
@@ -349,7 +348,7 @@ void revoke(routing_table& tbl, const endpoint_id& revoker,
             OnRemovePeer callback) {
   auto i = tbl.begin();
   while (i != tbl.end()) {
-    detail::erase_if(i->second.versioned_paths, [&](auto& kvp) {
+    std::erase_if(i->second.versioned_paths, [&](auto& kvp) {
       return revoked(kvp.first, kvp.second, revoker, revoke_time, hop);
     });
     if (i->second.versioned_paths.empty()) {

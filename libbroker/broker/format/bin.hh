@@ -445,7 +445,7 @@ public:
 
   template <class T>
   bool apply(const T& value) {
-    if constexpr (has_encode_overload_v<T, OutIter>) {
+    if constexpr (has_encode_overload<T, OutIter>) {
       out_ = encode(value, out_);
       return true;
     } else if constexpr (detail::is_variant<T>) {

@@ -30,7 +30,7 @@ inline void do_print(std::ostream& ostr, const caf::term& x) {
 template <class T>
   requires(!std::is_convertible_v<T, std::string_view>)
 void do_print(std::ostream& ostr, const T& x) {
-  if constexpr (detail::has_convert_v<T, std::string>) {
+  if constexpr (detail::convertible<T, std::string>) {
     std::string tmp;
     convert(x, tmp);
     do_print(ostr, tmp);
