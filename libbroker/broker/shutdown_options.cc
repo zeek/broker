@@ -17,13 +17,12 @@ void append(std::string& result, broker::shutdown_options::flag flag) {
 
 namespace broker {
 
-std::string to_string(shutdown_options options) {
-  std::string result = "shutdown_options(";
+void convert(const shutdown_options& src, std::string& dst) {
+  dst = "shutdown_options(";
   for (auto flag : {shutdown_options::await_stores_on_shutdown})
-    if (options.contains(flag))
-      append(result, flag);
-  result += ')';
-  return result;
+    if (src.contains(flag))
+      append(dst, flag);
+  dst += ')';
 }
 
 } // namespace broker

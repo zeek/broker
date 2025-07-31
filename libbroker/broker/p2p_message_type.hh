@@ -26,7 +26,7 @@ enum class p2p_message_type : uint8_t {
 };
 
 /// @relates p2p_message_type
-std::string to_string(p2p_message_type);
+void convert(const p2p_message_type& src, std::string& dst);
 
 /// @relates p2p_message_type
 bool from_string(std::string_view, p2p_message_type&);

@@ -15,7 +15,7 @@ enum class overflow_policy {
   disconnect,
 };
 
-void convert(overflow_policy src, std::string& dst);
+void convert(const overflow_policy& src, std::string& dst);
 
 bool convert(const std::string& src, overflow_policy& dst);
 

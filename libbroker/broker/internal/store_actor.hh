@@ -51,8 +51,6 @@ struct expiry_formatter {
   std::optional<timespan> expiry;
 };
 
-void convert(const expiry_formatter& x, std::string& str);
-
 class store_actor_state {
 public:
   // -- member types -----------------------------------------------------------

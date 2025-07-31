@@ -95,7 +95,7 @@ private:
 // -- free functions -----------------------------------------------------------
 
 /// @relates endpoint_id
-void convert(endpoint_id x, std::string& str);
+void convert(const endpoint_id& from, std::string& str);
 
 /// @relates endpoint_id
 bool convert(const std::string& str, endpoint_id& x);

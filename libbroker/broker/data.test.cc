@@ -1,10 +1,12 @@
 #include "broker/data.hh"
 
 #include "broker/broker-test.test.hh"
+#include "broker/format.hh"
 #include "broker/format/bin.hh"
 
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <map>
 #include <optional>
 #include <string>
@@ -20,6 +22,11 @@ static_assert(std::is_same_v<boolean, bool>);
 static_assert(std::is_same_v<integer, int64_t>);
 static_assert(std::is_same_v<count, uint64_t>);
 static_assert(std::is_same_v<real, double>);
+
+TEST(can format) {
+  auto val = data{42};
+  CHECK_EQUAL(std::format("{}", val), "42");
+}
 
 TEST(timespan) {
   auto s = timespan{42};

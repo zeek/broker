@@ -1,6 +1,7 @@
 #include "broker/internal/web_socket.hh"
 
 #include "broker/expected.hh"
+#include "broker/format.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/native.hh"
 #include "broker/logger.hh"
@@ -88,7 +89,8 @@ public:
     };
     auto on_error = [](const caf::error& reason) {
       log::network::info("wss-handshake-failed",
-                         "SSL handshake on WebSocket failed: {}", reason);
+                         "SSL handshake on WebSocket failed: {}",
+                         caf::to_string(reason));
     };
     return caf::net::openssl::async_accept(fd, mpx, std::move(policy),
                                            on_success, on_error);
@@ -132,14 +134,14 @@ expected<uint16_t> launch(caf::actor_system& sys,
   if (!fd) {
     log::network::error("ws-start-failed",
                         "failed to open WebSocket on port {} -> {}", port,
-                        fd.error());
+                        caf::to_string(fd.error()));
     return {facade(fd.error())};
   }
   auto actual_port = caf::net::local_port(*fd);
   if (!actual_port) {
     log::network::error("ws-start-failed",
                         "failed to retrieve actual port from socket: {}",
-                        actual_port.error());
+                        caf::to_string(actual_port.error()));
     return {facade(actual_port.error())};
   }
   // Callback for connecting the flows.

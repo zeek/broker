@@ -3,6 +3,7 @@
 #include "broker/convert.hh"
 #include "broker/data.hh"
 #include "broker/entity_id.hh"
+#include "broker/fwd.hh"
 
 #include <cstdint>
 #include <string>
@@ -262,17 +263,10 @@ public:
   };
 };
 
-/// @relates store_event::type
-const char* to_string(store_event::type code) noexcept;
-
-/// @relates store_event::insert
-std::string to_string(const store_event::insert& x);
-
-/// @relates store_event::update
-std::string to_string(const store_event::update& x);
-
-/// @relates store_event::erase
-std::string to_string(const store_event::erase& x);
+BROKER_CONVERT_AND_TO_STRING(store_event::type)
+BROKER_CONVERT_AND_TO_STRING(store_event::insert)
+BROKER_CONVERT_AND_TO_STRING(store_event::update)
+BROKER_CONVERT_AND_TO_STRING(store_event::erase)
 
 /// @relates store_event::type
 bool convert(const std::string& src, store_event::type& dst) noexcept;
