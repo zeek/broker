@@ -73,13 +73,15 @@ public:
   /// Bundles state for sending and receiving messages to/from a peer.
   class handler {
   public:
+    handler(endpoint_id id, std::string type) : id(id), type(std::move(type)) {}
+
     virtual ~handler();
 
     /// The ID of this handler. Can be a peer ID or a randomly generated UUID.
     endpoint_id id;
 
     /// The type of the handler, e.g. "native" or "websocket".
-    std::string type = "native";
+    std::string type;
 
     /// Called whenever dispatching a message that matches the handler's filter.
     virtual handler_result offer(const node_message& msg) = 0;
@@ -130,9 +132,11 @@ public:
 
     using buffer_consumer_ptr = caf::async::spsc_buffer_consumer_ptr<T>;
 
-    handler_impl(size_t max_buffer_size,
+    handler_impl(endpoint_id id, std::string type, size_t max_buffer_size,
                  backpressure_overflow_strategy overflow_policy)
-      : max_buffer_size(max_buffer_size), overflow_policy(overflow_policy) {
+      : super(id, std::move(type)),
+        max_buffer_size(max_buffer_size),
+        overflow_policy(overflow_policy) {
       // nop
     }
 
@@ -311,6 +315,24 @@ public:
   /// Creates a snapshot that summarizes the current status of the core.
   table status_snapshot() const;
 
+  /// Sets up a handler by connecting its input and output buffers as well as
+  /// registering it with the core actor.
+  template <class T>
+  void setup(const std::shared_ptr<handler_impl<T>>& state,
+             caf::async::consumer_resource<T> in_res,
+             caf::async::producer_resource<T> out_res,
+             const filter_type& filter) {
+    state->in = in_res.consume_on(self,
+                                  [this, state](auto&) { on_data(state); });
+    state->out = out_res.produce_on(
+      self, [this, state](auto&, size_t demand) { on_demand(state, demand); },
+      [this, state](auto&) { on_cancel(state); });
+    for (auto& sub : filter) {
+      handler_subscriptions.insert(sub.string(), state);
+    }
+    handlers.emplace(state->id, state);
+  }
+
   // -- callbacks --------------------------------------------------------------
 
   /// Called whenever the user tried to unpeer from an unknown peer.
@@ -421,6 +443,10 @@ public:
   void unpeer(const network_info& peer_addr);
 
   // -- properties -------------------------------------------------------------
+
+  size_t store_buffer_size();
+
+  backpressure_overflow_strategy store_overflow_policy();
 
   size_t peer_buffer_size();
 

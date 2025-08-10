@@ -1157,18 +1157,10 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // Assign a UUID to each WebSocket client and treat it like a peer.
   using impl_t = handler_impl<data_message>;
   auto client_id = endpoint_id::random();
-  auto state = std::make_shared<impl_t>(web_socket_buffer_size(),
+  auto state = std::make_shared<impl_t>(client_id, std::move(type),
+                                        web_socket_buffer_size(),
                                         web_socket_overflow_policy());
-  state->id = client_id;
-  state->type = std::move(type);
-  state->in = in_res.consume_on(self, [this, state](auto&) { on_data(state); });
-  state->out = out_res.produce_on(
-    self, [this, state](auto&, size_t demand) { on_demand(state, demand); },
-    [this, state](auto&) { on_cancel(state); });
-  for (auto& sub : filter) {
-    handler_subscriptions.insert(sub.string(), state);
-  }
-  handlers.emplace(client_id, state);
+  setup(state, std::move(in_res), std::move(out_res), filter);
   // Emit status updates.
   if (auto* lptr = logger()) {
     lptr->on_client_connect(client_id, addr);
@@ -1243,27 +1235,20 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   auto& [con1, prod1] = resources1;
   auto resources2 = make_spsc_buffer_resource<command_message>();
   auto& [con2, prod2] = resources2;
-  // Spin up the master and connect it to our flows.
+  // Spin up the master.
   auto hdl =
     self->system().spawn<master_actor_type>(registry, id, name, std::move(ptr),
                                             caf::actor{self}, clock,
                                             std::move(con1), std::move(prod2));
+  // Subscribe to the master topic.
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
-  command_outputs
-    .filter([xs = filter](const command_message& item) {
-      detail::prefix_matcher f;
-      return f(xs, item);
-    })
-    .subscribe(prod1);
-  auto in = self
-              ->make_observable() //
-              .from_resource(con2)
-              .map([this](const command_message& msg) { //
-                return node_message{msg};
-              })
-              .as_observable();
-  flow_inputs.push(in);
+  // Create a handler for the master.
+  using impl_t = handler_impl<command_message>;
+  auto store_id = endpoint_id::random();
+  auto state = std::make_shared<impl_t>(store_id, "master", store_buffer_size(),
+                                        store_overflow_policy());
+  setup(state, std::move(con2), std::move(prod1), filter);
   // Save the handle and monitor the new actor.
   masters.emplace(name, hdl);
   self->link_to(hdl);
@@ -1301,24 +1286,16 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
                                                     caf::actor{self}, clock,
                                                     std::move(con1),
                                                     std::move(prod2));
+  clones.emplace(name, hdl);
+  // Subscribe to the clone topic.
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
-  command_outputs
-    .filter([xs = filter](const command_message& item) {
-      detail::prefix_matcher f;
-      return f(xs, item);
-    })
-    .subscribe(prod1);
-  auto in = self
-              ->make_observable() //
-              .from_resource(con2)
-              .map([this](const command_message& msg) { //
-                return node_message{msg};
-              })
-              .as_observable();
-  flow_inputs.push(in);
-  // Save the handle for later.
-  clones.emplace(name, hdl);
+  // Create a handler for the clone.
+  using impl_t = handler_impl<command_message>;
+  auto store_id = endpoint_id::random();
+  auto state = std::make_shared<impl_t>(store_id, "clone", store_buffer_size(),
+                                        store_overflow_policy());
+  setup(state, std::move(con2), std::move(prod1), filter);
   return hdl;
 }
 
@@ -1396,6 +1373,19 @@ overflow_policy_from_string(const std::string* str, overflow_policy fallback) {
 }
 
 } // namespace
+
+size_t core_actor_state::store_buffer_size() {
+  // TODO: make configurable?
+  return defaults::peer_buffer_size;
+}
+
+caf::flow::backpressure_overflow_strategy
+core_actor_state::store_overflow_policy() {
+  // TODO: make configurable?
+  // Note: stores have a builtin mechanism for re-sending messages. Hence, we
+  //       can drop messages in case of overflow.
+  return backpressure_overflow_strategy::drop_oldest;
+}
 
 size_t core_actor_state::peer_buffer_size() {
   return caf::get_or(self->config(), "broker.peer-buffer-size",
