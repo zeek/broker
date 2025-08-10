@@ -149,6 +149,7 @@ set(BROKER_TEST_SRC
     broker/hub.test.cc
     broker/internal/channel.test.cc
     broker/internal/json.test.cc
+    broker/internal/subscription_multimap.test.cc
     broker/internal/wire_format.test.cc
     broker/peering.test.cc
     broker/radix_tree.test.cc
