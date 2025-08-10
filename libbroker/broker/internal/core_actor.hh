@@ -375,12 +375,6 @@ public:
 
   // -- flow management --------------------------------------------------------
 
-  /// Connects the input and output buffers for a new peer to our central merge
-  /// point.
-  caf::error init_new_peer(endpoint_id peer, const network_info& addr,
-                           const filter_type& filter, node_consumer_res in_res,
-                           node_producer_res out_res);
-
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            const filter_type& filter, chunk_consumer_res in_res,
                            chunk_producer_res out_res);
@@ -605,13 +599,6 @@ public:
   void drop_hub_output(hub_id id);
 
   std::unordered_map<hub_id, hub_state_ptr> hubs;
-
-private:
-  template <class T>
-  caf::error do_init_new_peer(endpoint_id peer_id, const network_info& addr,
-                              const filter_type& filter,
-                              caf::async::consumer_resource<T> in_res,
-                              caf::async::producer_resource<T> out_res);
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

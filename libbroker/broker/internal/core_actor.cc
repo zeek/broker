@@ -923,13 +923,11 @@ void core_actor_state::try_connect(const network_info& addr,
 
 // -- flow management ----------------------------------------------------------
 
-template <class T>
-caf::error
-core_actor_state::do_init_new_peer(endpoint_id peer_id,
-                                   const network_info& addr,
-                                   const filter_type& filter,
-                                   caf::async::consumer_resource<T> in_res,
-                                   caf::async::producer_resource<T> out_res) {
+caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
+                                           const network_info& addr,
+                                           const filter_type& filter,
+                                           chunk_consumer_res in_res,
+                                           chunk_producer_res out_res) {
   if (shutting_down()) {
     log::core::debug("init-new-peer-shutdown",
                      "drop incoming peering: shutting down");
@@ -965,23 +963,18 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
   }
   // Hook into the central merge point for forwarding the data to the peer.
   caf::flow::observable<node_message> in;
-  if constexpr (std::is_same_v<T, caf::chunk>) {
-    in = self->make_observable()
-           .from_resource(std::move(in_res))
-           .map([](const caf::chunk& chunk) -> node_message {
-             wire_format::v1::trait trait;
-             node_message msg;
-             if (trait.convert(chunk.bytes(), msg)) {
-               return msg;
-             }
-             return nullptr;
-           })
-           .filter([](const node_message& msg) { return msg != nullptr; })
-           .as_observable();
-  } else {
-    in =
-      self->make_observable().from_resource(std::move(in_res)).as_observable();
-  }
+  in = self->make_observable()
+         .from_resource(std::move(in_res))
+         .map([](const caf::chunk& chunk) -> node_message {
+           wire_format::v1::trait trait;
+           node_message msg;
+           if (trait.convert(chunk.bytes(), msg)) {
+             return msg;
+           }
+           return nullptr;
+         })
+         .filter([](const node_message& msg) { return msg != nullptr; })
+         .as_observable();
   auto filter_ptr = std::make_shared<filter_type>(filter);
   auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
   auto [new_in, new_out] = ptr->setup(
@@ -1034,21 +1027,17 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
         ptr->force_disconnect(to_string(what));
       })
       .as_observable());
-  if constexpr (std::is_same_v<T, caf::chunk>) {
-    new_out
-      .map([buf = caf::byte_buffer{}](const node_message& msg) mutable {
-        buf.clear();
-        wire_format::v1::trait trait;
-        if (trait.convert(msg, buf)) {
-          return caf::chunk{buf};
-        }
-        return caf::chunk{};
-      })
-      .filter([](const caf::chunk& chunk) { return !chunk.empty(); })
-      .subscribe(std::move(out_res));
-  } else {
-    new_out.subscribe(std::move(out_res));
-  }
+  new_out
+    .map([buf = caf::byte_buffer{}](const node_message& msg) mutable {
+      buf.clear();
+      wire_format::v1::trait trait;
+      if (trait.convert(msg, buf)) {
+        return caf::chunk{buf};
+      }
+      return caf::chunk{};
+    })
+    .filter([](const caf::chunk& chunk) { return !chunk.empty(); })
+    .subscribe(std::move(out_res));
   // Push messages received from the peer into the central merge point.
   flow_inputs.push( //
     new_in
@@ -1089,24 +1078,6 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
     awaited_peers.erase(first, last);
   }
   return caf::none;
-}
-
-caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
-                                           const network_info& addr,
-                                           const filter_type& filter,
-                                           chunk_consumer_res in_res,
-                                           chunk_producer_res out_res) {
-  return do_init_new_peer(peer_id, addr, filter, std::move(in_res),
-                          std::move(out_res));
-}
-
-caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
-                                           const network_info& addr,
-                                           const filter_type& filter,
-                                           node_consumer_res in_res,
-                                           node_producer_res out_res) {
-  return do_init_new_peer(peer_id, addr, filter, std::move(in_res),
-                          std::move(out_res));
 }
 
 caf::error core_actor_state::init_new_peer(endpoint_id peer,
