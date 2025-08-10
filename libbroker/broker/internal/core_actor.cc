@@ -119,6 +119,10 @@ using status_collector_actor = caf::stateful_actor<status_collector_state>;
 
 // -- constructors and destructors ---------------------------------------------
 
+core_actor_state::handler::~handler() {
+  // nop
+}
+
 core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   metric_factory factory{reg};
   // Initialize connection metrics.
@@ -196,6 +200,12 @@ caf::behavior core_actor_state::make_behavior() {
   central_merge //
     .for_each([this](const node_message& msg) {
       auto sender = get_sender(msg);
+      // Feed into our new handler abstraction.
+      handler_selection.clear();
+      handler_subscriptions.select(get_topic(msg), handler_selection);
+      for (auto& handler : handler_selection) {
+        handler->offer(msg);
+      }
       // Update metrics.
       auto& metrics = metrics_for(get_type(msg));
       metrics.processed->Increment();
@@ -324,9 +334,8 @@ caf::behavior core_actor_state::make_behavior() {
       unpeer(peer_id);
     },
     // -- non-native clients, e.g., via WebSocket API --------------------------
-    [this](atom::attach_client, const network_info& addr,
-           const std::string& type, filter_type& filter,
-           data_consumer_res& in_res,
+    [this](atom::attach_client, const network_info& addr, std::string& type,
+           filter_type& filter, data_consumer_res& in_res,
            data_producer_res& out_res) -> caf::result<void> {
       if (auto err = init_new_client(addr, type, std::move(filter),
                                      std::move(in_res), std::move(out_res)))
@@ -818,6 +827,32 @@ void core_actor_state::client_removed(endpoint_id client_id,
                    type, addr);
 }
 
+void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
+  if (peer->add_demand(demand) == handler_result::disposed) {
+    erase(peer);
+  }
+}
+
+void core_actor_state::on_cancel(const handler_ptr& peer) {
+  peer->dispose();
+  erase(peer);
+}
+
+void core_actor_state::on_data(const handler_ptr& peer) {
+  pull_buffer.clear();
+  if (peer->pull(pull_buffer) == handler_result::disposed) {
+    erase(peer);
+  }
+  for (auto& msg : pull_buffer) {
+    dispatch(msg);
+  }
+}
+
+void core_actor_state::erase(const handler_ptr& peer) {
+  handler_subscriptions.purge_value(peer);
+  handlers.erase(peer->id);
+}
+
 // -- connection management ----------------------------------------------------
 
 void core_actor_state::try_connect(const network_info& addr,
@@ -1102,8 +1137,8 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
 }
 
 caf::error core_actor_state::init_new_client(const network_info& addr,
-                                             const std::string& type,
-                                             filter_type filter,
+                                             std::string& type,
+                                             const filter_type& filter,
                                              data_consumer_res in_res,
                                              data_producer_res out_res) {
   // Fail early when shutting down.
@@ -1119,90 +1154,35 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   }
   // All sanity checks have passed, update our state.
   metrics.web_socket_connections->Increment();
-  // We cannot simply treat a client like we treat a local publisher or
-  // subscriber, because events from the client must be visible locally. Hence,
-  // we assign a UUID to each client and treat it almost like a peer.
+  // Assign a UUID to each WebSocket client and treat it like a peer.
+  using impl_t = handler_impl<data_message>;
   auto client_id = endpoint_id::random();
+  auto state = std::make_shared<impl_t>(web_socket_buffer_size(),
+                                        web_socket_overflow_policy());
+  state->id = client_id;
+  state->type = std::move(type);
+  state->in = in_res.consume_on(self, [this, state](auto&) { on_data(state); });
+  state->out = out_res.produce_on(
+    self, [this, state](auto&, size_t demand) { on_demand(state, demand); },
+    [this, state](auto&) { on_cancel(state); });
+  for (auto& sub : filter) {
+    handler_subscriptions.insert(sub.string(), state);
+  }
+  handlers.emplace(client_id, state);
+  // Emit status updates.
   if (auto* lptr = logger()) {
     lptr->on_client_connect(client_id, addr);
   }
-  // Emit status updates.
   client_added(client_id, addr, type);
-  // Hook into the central merge point for forwarding the data to the client.
-  if (out_res) {
-    auto sub =
-      central_merge
-        // Select by subscription.
-        .filter(
-          [this, filt = std::move(filter), client_id](const node_message& msg) {
-            if (get_type(msg) != packed_message_type::data
-                || get_sender(msg) == client_id)
-              return false;
-            detail::prefix_matcher f;
-            return f(filt, get_topic(msg));
-          })
-        // Deserialize payload and wrap it into a data message.
-        .map([this](const node_message& msg) { //
-          return msg->as_data();
-        })
-        .do_on_next([this, client_id](const data_message& msg) {
-          // Record messages that are pushed into the backpressure buffer.
-          if (auto* lptr = logger()) {
-            lptr->on_client_buffer_push(client_id, msg);
-          }
-        })
-        // Handle unresponsive clients.
-        .on_backpressure_buffer(web_socket_buffer_size(),
-                                web_socket_overflow_policy())
-        .do_on_next([this, client_id](const data_message& msg) {
-          // Record messages that leave the backpressure buffer.
-          if (auto* lptr = logger()) {
-            lptr->on_client_buffer_pull(client_id, msg);
-          }
-        })
-        .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-          log::core::debug("client-disconnected", "client {} disconnected",
-                           addr);
-          if (auto* lptr = logger()) {
-            lptr->on_client_disconnect(client_id, facade(reason));
-          }
-          client_removed(client_id, addr, type, reason, true);
-        })
-        // Emit values to the producer resource.
-        .subscribe(std::move(out_res));
-    subscriptions[client_id].emplace_back(sub);
-  }
-  // Push messages received from the client into the central merge point.
-  auto [in, ks] =
-    self->make_observable()
-      .from_resource(std::move(in_res))
-      // If the client closes this buffer, we assume a disconnect.
-      .do_on_complete([this, client_id, addr, type] {
-        log::core::debug("client-disconnected",
-                         "client {} of type {} at {} disconnected", client_id,
-                         type, addr);
-        client_removed(client_id, addr, type, caf::error{}, false);
-      })
-      .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-        log::core::debug("client-disconnected",
-                         "client {} of type {} at {} disconnected", client_id,
-                         type, addr);
-        client_removed(client_id, addr, type, reason, false);
-      })
-      .map([this, client_id](const data_message& msg) {
-        node_message result;
-        if (msg->sender() == client_id)
-          result = msg;
-        else
-          result = msg->with(client_id, msg->receiver());
-        return result;
-      })
-      // Ignore any errors from the client.
-      .on_error_complete()
-      .compose(add_killswitch_t{});
-  flow_inputs.push(in);
-  subscriptions[client_id].emplace_back(ks);
-  return caf::none;
+  state->on_remove = caf::make_type_erased_callback([this, state, addr]() {
+    log::core::debug("client-disconnected", "client {} disconnected", addr);
+    auto reason = caf::make_error(caf::sec::connection_closed);
+    if (auto* lptr = logger()) {
+      lptr->on_client_disconnect(state->id, facade(reason));
+    }
+    client_removed(state->id, addr, state->type, reason, true);
+  });
+  return {};
 }
 
 // -- topic management ---------------------------------------------------------
