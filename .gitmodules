@@ -4,9 +4,6 @@
 [submodule "bindings/python/3rdparty/pybind11"]
 	path = bindings/python/3rdparty/pybind11
 	url = https://github.com/pybind/pybind11.git
-[submodule "3rdparty"]
-	path = 3rdparty
-	url = https://github.com/zeek/zeek-3rdparty
 [submodule "caf"]
 	path = caf
 	url = https://github.com/zeek/actor-framework.git
