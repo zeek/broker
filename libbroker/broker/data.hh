@@ -48,45 +48,45 @@ using data_variant = std::variant<none, boolean, count, integer, real,
                                   std::string, address, subnet, port, timestamp,
                                   timespan, enum_value, set, table, vector>;
 
+template <class T>
+consteval auto data_tag_of() {
+  if constexpr (std::is_floating_point_v<T>) {
+    return detail::tag<real>{};
+  } else if constexpr (std::is_same_v<T, bool>) {
+    return detail::tag<boolean>{};
+  } else if constexpr (std::is_unsigned_v<T>) {
+    return detail::tag<count>{};
+  } else if constexpr (std::is_signed_v<T>) {
+    return detail::tag<integer>{};
+  } else if constexpr (std::is_same_v<T, std::string>
+                       || std::is_same_v<T, std::string_view>
+                       || std::is_same_v<T, char*>
+                       || std::is_same_v<T, const char*>) {
+    return detail::tag<std::string>{};
+  } else if constexpr (std::is_same_v<T, timestamp>      //
+                       || std::is_same_v<T, timespan>    //
+                       || std::is_same_v<T, enum_value>  //
+                       || std::is_same_v<T, address>     //
+                       || std::is_same_v<T, subnet>      //
+                       || std::is_same_v<T, port>        //
+                       || std::is_same_v<T, broker::set> //
+                       || std::is_same_v<T, table>       //
+                       || std::is_same_v<T, vector>) {
+    return detail::tag<T>{};
+  } else {
+    // Return 'void'.
+  }
+}
+
+template <class T>
+concept can_construct_data_from =
+  !std::is_same_v<decltype(data_tag_of<T>()), void>;
+
 /// A variant class that may store the data associated with one of several
 /// different primitive or compound types.
 class data {
 public:
   using type = variant_tag;
-
-  template <class T>
-  static constexpr auto tag_of() {
-    if constexpr (std::is_floating_point_v<T>) {
-      return detail::tag<real>{};
-    } else if constexpr (std::is_same_v<T, bool>) {
-      return detail::tag<boolean>{};
-    } else if constexpr (std::is_unsigned_v<T>) {
-      return detail::tag<count>{};
-    } else if constexpr (std::is_signed_v<T>) {
-      return detail::tag<integer>{};
-    } else if constexpr (std::is_same_v<T, std::string>
-                         || std::is_same_v<T, std::string_view>
-                         || std::is_same_v<T, char*>
-                         || std::is_same_v<T, const char*>) {
-      return detail::tag<std::string>{};
-    } else if constexpr (std::is_same_v<T, timestamp>      //
-                         || std::is_same_v<T, timespan>    //
-                         || std::is_same_v<T, enum_value>  //
-                         || std::is_same_v<T, address>     //
-                         || std::is_same_v<T, subnet>      //
-                         || std::is_same_v<T, port>        //
-                         || std::is_same_v<T, broker::set> //
-                         || std::is_same_v<T, table>       //
-                         || std::is_same_v<T, vector>) {
-      return detail::tag<T>{};
-    } else {
-      // Return 'void'.
-    }
-  }
-
-  /// SFINAE utility.
-  template <class T>
-  using from = typename decltype(tag_of<T>())::type;
 
   data() = default;
 
@@ -104,12 +104,13 @@ public:
   }
 
   /// Constructs a data value from one of the possible data types.
-  template <class T, class Converted = from<T>>
+  template <can_construct_data_from T>
   data(T x) {
-    if constexpr (std::is_same_v<T, Converted>) {
+    using tag_t = decltype(data_tag_of<T>())::type;
+    if constexpr (std::is_same_v<T, tag_t>) {
       data_ = std::move(x);
     } else {
-      data_ = Converted{std::move(x)};
+      data_ = tag_t{std::move(x)};
     }
   }
 
@@ -118,12 +119,13 @@ public:
   data& operator=(const data&) = default;
 
   /// Constructs a data value from one of the possible data types.
-  template <class T, class Converted = from<T>>
+  template <can_construct_data_from T>
   data& operator=(T x) {
-    if constexpr (std::is_same_v<T, Converted>) {
+    using tag_t = decltype(data_tag_of<T>())::type;
+    if constexpr (std::is_same_v<T, tag_t>) {
       data_ = std::move(x);
     } else {
-      data_ = Converted{std::move(x)};
+      data_ = tag_t{std::move(x)};
     }
     return *this;
   }

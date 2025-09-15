@@ -1,3 +1,7 @@
+2.8.0-dev.285 | 2025-09-15 09:00:44 -0700
+
+  * Replace SFINAE traits with concepts (Dominik Charousset, Corelight)
+
 2.8.0-dev.283 | 2025-09-15 08:59:40 -0700
 
   * Commit sqlite3 files separate from zeek-3rdparty submodule (Tim Wojtulewicz, Corelight)

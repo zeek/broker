@@ -79,7 +79,7 @@ struct eq_predicate {
       return (*this)(*lhs, rhs);
     else if constexpr (std::is_pointer_v<T2>)
       return (*this)(lhs, *rhs);
-    else if constexpr (detail::has_begin_v<T1>)
+    else if constexpr (detail::iterable<T1>)
       return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), *this);
     else if constexpr (detail::is_pair<T1>)
       return (*this)(lhs.first, rhs.first) && (*this)(lhs.second, rhs.second);
