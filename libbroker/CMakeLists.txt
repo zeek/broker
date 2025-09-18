@@ -19,7 +19,6 @@ set(BROKER_SRC
     broker/detail/flare.cc
     broker/detail/make_backend.cc
     broker/detail/memory_backend.cc
-    broker/detail/monotonic_buffer_resource.cc
     broker/detail/opaque_type.cc
     broker/detail/peer_status_map.cc
     broker/detail/prefix_matcher.cc
