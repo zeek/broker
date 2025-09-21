@@ -32,6 +32,8 @@
 #include "broker/internal/wire_format.hh"
 #include "broker/logger.hh"
 
+#include <span>
+
 using namespace std::literals;
 
 namespace broker::internal {
@@ -117,6 +119,70 @@ using status_collector_actor = caf::stateful_actor<status_collector_state>;
 
 } // namespace
 
+// -- nested classes -----------------------------------------------------------
+
+const caf::chunk& core_actor_state::message_provider::as_binary() {
+  if (!binary_) {
+    buffer_.clear();
+    wire_format::v1::trait trait;
+    if (!trait.convert(msg_, buffer_)) {
+      log::core::error("message_provider",
+                       "failed to convert message to chunk");
+      return binary_;
+    }
+    binary_ = caf::chunk{buffer_};
+  }
+  return binary_;
+}
+
+core_actor_state::handler_result
+core_actor_state::peering::offer(message_provider& provider) {
+  auto& msg = provider.get();
+  // Filter out messages from other peers unless forwarding is enabled.
+  auto&& src = get_sender(msg);
+  if (parent->disable_forwarding && src.valid() && src != parent->id) {
+    log::core::debug("offer",
+                     "forwarding disabled, {} skips message from {}: {}", id,
+                     src, msg);
+    return handler_result::ok;
+  }
+  // Filter out messages that aren't broadcasted (have no receiver) unless they
+  // are directed to this peer explicitly.
+  auto&& dst = get_receiver(msg);
+  if (dst.valid() && dst != id) {
+    log::core::debug("offer", "{} drops message addressed to {}: {}", id, dst,
+                     msg);
+    return handler_result::ok;
+  }
+  return super::offer(provider);
+}
+
+node_message core_actor_state::peering::make_bye_message() {
+  bye_token token;
+  assign_bye_token(token);
+  return make_ping_message(parent->id, id, token.data(), token.size());
+}
+
+void core_actor_state::peering::assign_bye_token(bye_token& buf) {
+  const auto* prefix = "BYE";
+  const auto* suffix = &bye_id;
+  memcpy(buf.data(), prefix, 3);
+  memcpy(buf.data() + 3, suffix, 8);
+}
+
+bool core_actor_state::peering::send_bye_message() {
+  if (!removed) {
+    peering::bye_token token;
+    assign_bye_token(token);
+    auto msg = make_ping_message(id, parent->id, token.data(), token.size());
+    parent->msg_provider.set(std::move(msg));
+    offer(parent->msg_provider);
+    removed = true;
+    return true;
+  }
+  return false;
+}
+
 // -- constructors and destructors ---------------------------------------------
 
 core_actor_state::handler::~handler() {
@@ -151,10 +217,7 @@ core_actor_state::core_actor_state(caf::event_based_actor* self, //
     clock(clock),
     registry(checked(std::move(reg),
                      "cannot construct the core actor without registry")),
-    metrics(*registry),
-    hub_inputs(self),
-    unsafe_inputs(self),
-    flow_inputs(self) {
+    metrics(*registry) {
   // Read config and check for extra configuration parameters.
   ttl = caf::get_or(self->config(), "broker.ttl", defaults::ttl);
   if (adaptation && adaptation->disable_forwarding) {
@@ -188,105 +251,6 @@ core_actor_state::~core_actor_state() {
 // -- initialization and tear down ---------------------------------------------
 
 caf::behavior core_actor_state::make_behavior() {
-  // Create the central "bus" where everything flows through.
-  hub_merge = hub_inputs.as_observable().merge().share();
-  central_merge = flow_inputs.as_observable()
-                    .merge()
-                    .merge(hub_merge.map([](const hub_input& msg) {
-                      return node_message{msg.second};
-                    }))
-                    .share();
-  // Process control messages and add instrumentation for metrics.
-  central_merge //
-    .for_each([this](const node_message& msg) {
-      auto sender = get_sender(msg);
-      // Feed into our new handler abstraction.
-      handler_selection.clear();
-      handler_subscriptions.select(get_topic(msg), handler_selection);
-      for (auto& handler : handler_selection) {
-        handler->offer(msg);
-      }
-      // Update metrics.
-      auto& metrics = metrics_for(get_type(msg));
-      metrics.processed->Increment();
-      // Ignore our own outputs.
-      if (is_local(msg))
-        return;
-      // Dispatch on the type of the message.
-      switch (get_type(msg)) {
-        default:
-          break;
-        case packed_message_type::routing_update:
-          // Deserialize payload and update peer filter.
-          if (auto i = peers.find(sender); i != peers.end()) {
-            filter_type new_filter;
-            for (auto new_topic : *msg->as_routing_update()) {
-              new_filter.emplace_back(std::string{new_topic});
-            }
-            log::core::debug("routing-update", "{} changed its filter to {}",
-                             sender, new_filter);
-            i->second->filter(std::move(new_filter));
-          }
-          // else: ignore. Probably a stale message after unpeering.
-          break;
-        case packed_message_type::ping: {
-          // Respond to PING messages with a PONG that has the same payload.
-          log::core::debug("ping",
-                           "received a PING message with a payload of {} bytes",
-                           msg->raw_bytes().second);
-          dispatch(make_pong_message(msg->as_ping()));
-          break;
-        }
-      }
-    });
-  // Initialize data_outputs and command_outputs.
-  data_outputs =
-    central_merge
-      // Drop everything but data messages and only process messages that are
-      // not meant for another peer.
-      .filter([this](const node_message& msg) {
-        // Note: local subscribers do not receive messages from local
-        // publishers. Except when the message explicitly says otherwise by
-        // setting receiver == id. This is the case for messages that were
-        // published via `(atom::publish, atom::local, ...)` message.
-        auto receiver = get_receiver(msg);
-        return get_type(msg) == packed_message_type::data
-               && (!is_local(msg) || receiver == id)
-               && (!receiver || receiver == id);
-      })
-      // Convert to data_message.
-      .map([this](const node_message& msg) { return msg->as_data(); })
-      // Convert this blueprint to a *hot* observable.
-      .share();
-  command_outputs =
-    central_merge
-      // Drop everything but command messages and only process messages that
-      // are not meant for another peer.
-      .filter([this](const node_message& msg) {
-        auto receiver = get_receiver(msg);
-        return get_type(msg) == packed_message_type::command
-               && (!receiver || receiver == id);
-      })
-      // Deserialize payload and wrap it into an actual command message.
-      .map([this](const node_message& msg) { return msg->as_command(); })
-      // Convert this blueprint to a *hot* observable.
-      .share();
-
-  // Connect data messages from the unsafe inputs to the hub merge point.
-  hub_inputs.push(unsafe_inputs.as_observable()
-                    .filter([](const node_message& msg) {
-                      return get_type(msg) == packed_message_type::data;
-                    })
-                    .map([](const node_message& msg) -> hub_input {
-                      return {hub_id::invalid, msg->as_data()};
-                    })
-                    .as_observable());
-  // Connect other messages from the unsafe inputs to the central merge point.
-  flow_inputs.push(unsafe_inputs.as_observable()
-                     .filter([](const node_message& msg) {
-                       return get_type(msg) != packed_message_type::data;
-                     })
-                     .as_observable());
   // Override the default exit handler to add logging.
   self->set_exit_handler([this](caf::exit_msg& msg) {
     if (msg.reason) {
@@ -295,13 +259,6 @@ caf::behavior core_actor_state::make_behavior() {
         "shutting down after receiving an exit message with reason {}",
         msg.reason);
       shutdown(shutdown_options{});
-    }
-  });
-  // Override the down handler to drop legacy subscribers.
-  self->set_down_handler([this](caf::down_msg& msg) {
-    if (auto i = legacy_subs.find(msg.source); i != legacy_subs.end()) {
-      i->second.sub.dispose();
-      legacy_subs.erase(i);
     }
   });
   // Create the behavior (set of message handlers / callbacks) for the actor.
@@ -337,8 +294,8 @@ caf::behavior core_actor_state::make_behavior() {
     [this](atom::attach_client, const network_info& addr, std::string& type,
            filter_type& filter, data_consumer_res& in_res,
            data_producer_res& out_res) -> caf::result<void> {
-      if (auto err = init_new_client(addr, type, std::move(filter),
-                                     std::move(in_res), std::move(out_res)))
+      if (auto err = init_new_client(addr, type, filter, std::move(in_res),
+                                     std::move(out_res)))
         return err;
       else
         return caf::unit;
@@ -346,8 +303,8 @@ caf::behavior core_actor_state::make_behavior() {
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
       std::vector<peer_info> result;
-      for (const auto& [peer_id, state] : peers) {
-        endpoint_info info{peer_id, state->addr()};
+      for (const auto& [peer_id, state] : peerings) {
+        endpoint_info info{peer_id, state->addr};
         auto status = peer_statuses->get(peer_id);
         if (status != peer_status::unknown) {
           result.emplace_back(peer_info{.peer = std::move(info),
@@ -361,19 +318,19 @@ caf::behavior core_actor_state::make_behavior() {
     // -- publishing of messages without going through a publisher -------------
     [this](atom::publish, const data_message& msg) {
       ++published_via_async_msg;
-      dispatch(msg);
+      dispatch_from(msg->with(id, endpoint_id::nil()), nullptr);
     },
     [this](atom::publish, const data_message& msg, const endpoint_info& dst) {
       ++published_via_async_msg;
-      dispatch(msg->with(id, dst.node));
+      dispatch_from(msg->with(id, dst.node), nullptr);
     },
     [this](atom::publish, const data_message& msg, endpoint_id dst) {
       ++published_via_async_msg;
-      dispatch(msg->with(id, dst));
+      dispatch_from(msg->with(id, dst), nullptr);
     },
     [this](atom::publish, atom::local, const data_message& msg) {
       ++published_via_async_msg;
-      dispatch(msg->with(id, id));
+      dispatch_from(msg->with(id, id), nullptr);
     },
     [this](atom::publish, const command_message& msg) { //
       dispatch(msg);
@@ -403,15 +360,14 @@ caf::behavior core_actor_state::make_behavior() {
         return;
       }
       auto& ptr = i->second;
-      if (ptr->filter != filter) {
-        log::core::debug("update-hub-filter", "update filter of hub {} to {}",
-                         static_cast<uint64_t>(id), filter);
-        ptr->filter = std::move(filter);
-        subscribe(ptr->filter);
+      handler_subscriptions.purge_value(ptr);
+      for (auto& sub : filter) {
+        handler_subscriptions.insert(sub.string(), ptr);
       }
+      subscribe(filter);
     },
-    [this](hub_id id, filter_type& filter, bool filter_local,
-           data_consumer_res& src, data_producer_res& snk) {
+    [this](hub_id id, filter_type& filter, bool, data_consumer_res& src,
+           data_producer_res& snk) {
       // Note: setting the filter_local flag to true means that we will not push
       //       messages from other hubs to this hub. This is used by the class
       //       `subscriber` to only receive messages from non-local messages,
@@ -422,59 +378,31 @@ caf::behavior core_actor_state::make_behavior() {
         snk.close();
         return;
       }
-      log::core::debug("add-hub", "add hub {}", static_cast<uint64_t>(id));
       if (hubs.count(id) != 0) {
+        log::core::error("add-hub", "cannot add hub with duplicate ID {}",
+                         static_cast<uint64_t>(id));
         src.cancel();
         snk.close();
         return;
       }
+      log::core::debug("add-hub", "add hub {}", static_cast<uint64_t>(id));
       subscribe(filter);
-      auto ptr = std::make_shared<hub_state>();
-      ptr->filter = std::move(filter);
-      if (src) {
-        // Connect the messages from the hub to the merge point.
-        log::core::debug("connect-hub-source", "add source for hub {}",
-                         static_cast<uint64_t>(id));
-        // For `publisher` sources, we drop the actual ID and tag the message as
-        // "local" (so a `subscriber` won't receive it) by using
-        // `hub_id::invalid`.
-        auto care_of_id = filter_local ? hub_id::invalid : id;
-        hub_inputs.push(src.observe_on(self)
-                          .compose(inject_killswitch_t{std::addressof(ptr->in)})
-                          .do_finally([this, id] { drop_hub_input(id); })
-                          .map([care_of_id](const data_message& msg) {
-                            return hub_input{care_of_id, msg};
-                          })
-                          .as_observable());
+      auto ptr = std::make_shared<hub_state>(this, hub_buffer_size(),
+                                             hub_overflow_policy());
+      if (!src) {
+        ptr->type = handler_type::subscriber;
+        detail::fmt_to(std::back_inserter(ptr->pretty_name), "subscriber-{}",
+                       static_cast<uint64_t>(id));
+      } else if (!snk) {
+        ptr->type = handler_type::publisher;
+        detail::fmt_to(std::back_inserter(ptr->pretty_name), "publisher-{}",
+                       static_cast<uint64_t>(id));
+      } else {
+        detail::fmt_to(std::back_inserter(ptr->pretty_name), "hub-{}",
+                       static_cast<uint64_t>(id));
       }
-      if (snk) {
-        log::core::debug("connect-hub-sink", "add sink for hub {}",
-                         static_cast<uint64_t>(id));
-        caf::flow::observable<data_envelope_ptr> local;
-        local = hub_merge
-                  .filter([filter_local](const hub_input& msg) {
-                    // If filter_local is set, we filter out messages from
-                    // `publisher` objects and from messages that are published
-                    // via `endpoint::publish`. Those messages will have an
-                    // invalid hub ID.
-                    return !filter_local || msg.first != hub_id::invalid;
-                  })
-                  .filter([id, ptr](const hub_input& msg) {
-                    detail::prefix_matcher f;
-                    return msg.first != id && f(ptr->filter, msg.second);
-                  })
-                  .map([](const hub_input& msg) { return msg.second; })
-                  .as_observable();
-        auto non_local = data_outputs.filter([ptr](const data_message& msg) {
-          detail::prefix_matcher f;
-          return f(ptr->filter, msg);
-        });
-        // Connect the output buffer.
-        ptr->out = local.merge(std::move(non_local))
-                     .do_finally([this, id] { drop_hub_output(id); })
-                     .subscribe(snk);
-      }
-      hubs.emplace(id, std::move(ptr));
+      setup(ptr, std::move(src), std::move(snk), filter);
+      hubs.emplace(id, ptr);
     },
     // -- data store management ------------------------------------------------
     [this](atom::data_store, atom::clone, atom::attach, const std::string& name,
@@ -505,7 +433,7 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](atom::await, endpoint_id peer_id) {
       auto rp = self->make_response_promise();
-      if (auto i = peers.find(peer_id); i != peers.end())
+      if (auto i = peerings.find(peer_id); i != peerings.end())
         rp.deliver(peer_id);
       else
         awaited_peers.emplace(peer_id, rp);
@@ -528,6 +456,7 @@ caf::behavior core_actor_state::make_behavior() {
   }
 }
 
+/*
 void core_actor_state::drop_hub_input(hub_id id) {
   // Callback that does the actual work.
   auto do_drop = [this, id] {
@@ -580,6 +509,7 @@ void core_actor_state::drop_hub_output(hub_id id) {
     self->delay_fn(do_drop);
   }
 }
+*/
 
 void core_actor_state::shutdown(shutdown_options options) {
   if (shutting_down())
@@ -589,25 +519,16 @@ void core_actor_state::shutdown(shutdown_options options) {
     adapter->async_shutdown();
   // Shut down data stores.
   shutdown_stores();
-  // We no longer add new input flows.
-  flow_inputs.close();
-  // Cancel subscriptions from clients (WebSocket clients).
-  for (auto& [id, subs] : subscriptions) {
-    for (auto& sub : subs) {
-      sub.dispose();
-    }
-  }
-  subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
   log::core::debug("shutdown", "cancel {} pending await_peer requests",
                    awaited_peers.size());
   for (auto& kvp : awaited_peers)
     kvp.second.deliver(caf::make_error(ec::shutting_down));
   awaited_peers.clear();
-  // Ignore future messages. Calling unbecome() removes our 'behavior' (set of
-  // message handlers). An actor without behavior runs as long as still has
-  // active flows. Once the last flow terminates, the actor goes down.
-  self->unbecome();
+  // Ignore future messages.
+  self->become([](int) {
+    // dummy handler to keep the actor alive until we call quit
+  });
   self->set_default_handler(
     [](caf::scheduled_actor* sptr, caf::message&) -> caf::skippable_result {
       // Usually, the default handler always produces an error. However, we
@@ -622,48 +543,44 @@ void core_actor_state::shutdown(shutdown_options options) {
     });
   // Close all peers gracefully. By disposing their outputs, we send the BYE
   // message and wait for the "ack" (via one last pong message).
-  if (peers.empty()) {
+  if (peerings.empty()) {
     // Nothing to wait for, do the final steps right away.
     finalize_shutdown();
     return;
   }
-  for (auto& kvp : peers)
-    kvp.second->remove(self, unsafe_inputs, false);
+  // Send BYE messages to all peers to trigger graceful connection shutdown.
+  for (auto& kvp : peerings) {
+    kvp.second->send_bye_message();
+  }
+  // Call `finalize_shutdown` after a timeout to ensure that we don't wait
+  // forever if the peers don't respond to the BYE messages.
   shutting_down_timeout = self->run_delayed(defaults::unpeer_timeout,
                                             [this] { finalize_shutdown(); });
 }
 
 void core_actor_state::finalize_shutdown() {
+  shutting_down_timeout.dispose();
   // Drop any remaining state of peers.
-  for (auto& kvp : peers)
-    kvp.second->force_disconnect("shutting down");
-  peers.clear();
+  for (auto& kvp : peerings) {
+    kvp.second->dispose();
+  }
+  peerings.clear();
   // Close the shared state for all peers.
   peer_statuses->close();
-  // Close all inputs.
-  hub_inputs.close();
-  unsafe_inputs.close();
   // Drop inputs from hubs.
   for (auto& kvp : hubs) {
     if (auto& ptr = kvp.second) {
-      ptr->in.dispose();
-      // Note: don't call `ptr->out.dispose();` since that might truncate
-      // messages. We want to deliver our remaining messages to the subscribers.
-      // We have closed all inputs, so the hubs will naturally receive an
-      // `on_complete` event.
+      ptr->dispose();
     }
   }
   hubs.clear();
-  // After this point, any remaining flow should stop and the actor terminate.
+  self->quit();
 }
 
 // -- convenience functions ----------------------------------------------------
 
 template <class Info, class EnumConstant>
 void core_actor_state::emit(Info&& ep, EnumConstant code, const char* msg) {
-  // Sanity checking.
-  if (!data_outputs)
-    return;
   // Pick the right topic and factory based on the event type.
   using value_type = typename EnumConstant::value_type;
   std::string str;
@@ -689,19 +606,19 @@ bool core_actor_state::has_remote_subscriber(const topic& x) const noexcept {
   auto is_subscribed = [&x](auto& kvp) {
     return kvp.second->is_subscribed_to(x);
   };
-  return std::any_of(peers.begin(), peers.end(), is_subscribed);
+  return std::any_of(peerings.begin(), peerings.end(), is_subscribed);
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
-  if (auto i = peers.find(id); i != peers.end())
-    return i->second->addr();
+  if (auto i = peerings.find(id); i != peerings.end())
+    return i->second->addr;
   else
     return std::nullopt;
 }
 
 std::vector<endpoint_id> core_actor_state::peer_ids() const {
   std::vector<endpoint_id> result;
-  for (auto& kvp : peers)
+  for (auto& kvp : peerings)
     result.emplace_back(kvp.first);
   return result;
 }
@@ -731,10 +648,8 @@ table to_vals(const flow_scope_stats& stats) {
 
 table core_actor_state::peer_stats_snapshot() const {
   table result;
-  for (auto& [pid, state_ptr] : peers) {
+  for (auto& [pid, state_ptr] : peerings) {
     table entry;
-    entry.emplace("input", to_vals(*state_ptr->input_stats()));
-    entry.emplace("output", to_vals(*state_ptr->output_stats()));
     result.emplace(to_string(pid), std::move(entry));
   }
   return result;
@@ -801,16 +716,6 @@ void core_actor_state::client_removed(endpoint_id client_id,
                                       const network_info& addr,
                                       const std::string& type,
                                       const caf::error& reason, bool removed) {
-  auto i = subscriptions.find(client_id);
-  if (i == subscriptions.end()) {
-    return;
-  }
-  disposable_list subs;
-  i->second.swap(subs);
-  subscriptions.erase(i);
-  for (auto& sub : subs) {
-    sub.dispose();
-  }
   metrics.web_socket_connections->Decrement();
   if (removed) {
     auto msg = "client removed: " + to_string(reason);
@@ -833,24 +738,124 @@ void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
   }
 }
 
-void core_actor_state::on_cancel(const handler_ptr& peer) {
-  peer->dispose();
-  erase(peer);
+void core_actor_state::on_cancel(const handler_ptr& ptr) {
+  ptr->dispose();
+  erase(ptr);
 }
 
-void core_actor_state::on_data(const handler_ptr& peer) {
+void core_actor_state::on_cancel(const peering_ptr& peer) {
+  // Dispose the peering object and remove from our state.
+  peer->dispose();
+  auto i = peerings.find(peer->id);
+  if (i == peerings.end() || i->second != peer) {
+    // Peer was already removed.
+    return;
+  }
+  peerings.erase(i);
+  // Update our 'global' state for this peer.
+  auto stat = peer_status::peered;
+  if (!peer_statuses->update(peer->id, stat, peer_status::disconnected)) {
+    if (stat == peer_status::disconnected) {
+      return;
+    }
+    log::core::error("on-cancel", "{} reports invalid status {}", peer->id,
+                     stat);
+  }
+  log::core::debug("on-cancel", "{} changed state: peered -> disconnected",
+                   peer->id);
+  // Trigger a reconnect if we have initiated the peering and did not disconnect
+  // this peer as a result of unpeering from it.
+  if (!shutting_down() && !peer->addr.address.empty()
+      && peer->addr.has_retry_time()) {
+    try_connect(peer->addr, caf::response_promise{});
+    log::core::debug("on-cancel", "try re-connecting to {}", peer->id);
+  }
+}
+
+void core_actor_state::on_data(const handler_ptr& ptr) {
+  pull_buffer.clear();
+  if (ptr->pull(pull_buffer) == handler_result::disposed) {
+    erase(ptr);
+  }
+  for (auto& msg : pull_buffer) {
+    // dispatch(msg);
+    dispatch_from(msg, ptr);
+  }
+}
+
+void core_actor_state::on_data(const hub_state_ptr& ptr) {
+  pull_buffer.clear();
+  if (ptr->pull(pull_buffer) == handler_result::disposed) {
+    erase(ptr);
+  }
+  for (auto& msg : pull_buffer) {
+    dispatch_from(msg, ptr);
+  }
+}
+
+void core_actor_state::on_data(const peering_ptr& peer) {
   pull_buffer.clear();
   if (peer->pull(pull_buffer) == handler_result::disposed) {
     erase(peer);
   }
   for (auto& msg : pull_buffer) {
-    dispatch(msg);
+    log::core::debug("on-data", "received message from peer {}: {}", peer->id,
+                     msg);
+    dispatch_from(msg, peer);
+    switch (get_type(msg)) {
+      default:
+        break;
+      case packed_message_type::routing_update: {
+        // Deserialize payload and update peer filter.
+        filter_type new_filter;
+        for (auto new_topic : *msg->as_routing_update()) {
+          new_filter.emplace_back(std::string{new_topic});
+        }
+        log::core::debug("routing-update", "{} changed its filter to {}",
+                         get_sender(msg), new_filter);
+        handler_subscriptions.purge_value(peer);
+        for (auto& sub : new_filter) {
+          handler_subscriptions.insert(sub.string(), peer);
+        }
+        // else: ignore. Probably a stale message after unpeering.
+        break;
+      }
+      case packed_message_type::ping: {
+        // Respond to PING messages with a PONG that has the same payload.
+        log::core::debug("ping",
+                         "received a PING message with a payload of {} bytes",
+                         msg->raw_bytes().second);
+        dispatch(make_pong_message(msg->as_ping()));
+        break;
+      }
+      case packed_message_type::pong: {
+        // If we receive a PONG message with the byte token, we can close the
+        // connection.
+        auto raw_bytes = msg->raw_bytes();
+        auto payload = std::span{raw_bytes.first, raw_bytes.second};
+        if (peer->removed && payload.size() == peering::bye_token_size
+            && !peer->disposed()) {
+          peering::bye_token token;
+          peer->assign_bye_token(token);
+          if (std::equal(payload.begin(), payload.end(), token.begin(),
+                         token.end())) {
+            peer->dispose();
+            handler_subscriptions.purge_value(peer);
+            peerings.erase(peer->id);
+            if (shutting_down() && peerings.empty()) {
+              finalize_shutdown();
+            }
+          }
+          break;
+        }
+      }
+    }
   }
 }
 
-void core_actor_state::erase(const handler_ptr& peer) {
-  handler_subscriptions.purge_value(peer);
-  handlers.erase(peer->id);
+void core_actor_state::erase(const handler_ptr& ptr) {
+  handler_subscriptions.purge_value(ptr);
+  generic_handlers.erase(ptr);
 }
 
 // -- connection management ----------------------------------------------------
@@ -878,7 +883,7 @@ void core_actor_state::try_connect(const network_info& addr,
     },
     [this, rp, addr](endpoint_id peer,
                      const network_info& actual_addr) mutable {
-      if (auto i = peers.find(peer); i != peers.end()) {
+      if (auto i = peerings.find(peer); i != peerings.end()) {
         log::core::debug("try-connect-redundant",
                          "dropped redundant connection to {}: tried connecting "
                          "to {}, but already connected prior via {}",
@@ -886,8 +891,8 @@ void core_actor_state::try_connect(const network_info& addr,
         // Override the address if this one has a retry field. This makes
         // sure we "prefer" a user-defined address over addresses we read
         // from sockets for incoming peerings.
-        if (actual_addr.has_retry_time() && !i->second->addr().has_retry_time())
-          i->second->addr(actual_addr);
+        if (actual_addr.has_retry_time() && !i->second->addr.has_retry_time())
+          i->second->addr = actual_addr;
         rp.deliver(atom::peer_v, atom::ok_v, peer);
       } else {
         // Race on the state. May happen if the remote peer already
@@ -897,15 +902,15 @@ void core_actor_state::try_connect(const network_info& addr,
         // we should find it in the cache.
         using namespace std::literals;
         self->run_delayed(1ms, [this, peer, addr, actual_addr, rp]() mutable {
-          if (auto i = peers.find(peer); i != peers.end()) {
+          if (auto i = peerings.find(peer); i != peerings.end()) {
             log::core::debug(
               "try-connect-redundant-delayed",
               "dropped redundant connection to {}: tried connecting "
               "to {}, but already connected prior via {}",
               peer, addr, actual_addr);
             if (actual_addr.has_retry_time()
-                && !i->second->addr().has_retry_time())
-              i->second->addr(actual_addr);
+                && !i->second->addr.has_retry_time())
+              i->second->addr = actual_addr;
             rp.deliver(atom::peer_v, atom::ok_v, peer);
           } else {
             try_connect(actual_addr, rp);
@@ -934,8 +939,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     return caf::make_error(ec::shutting_down);
   }
   // Sanity checking: make sure this isn't a repeated handshake.
-  auto i = peers.find(peer_id);
-  if (i != peers.end()) {
+  if (peerings.contains(peer_id)) {
     log::core::debug("init-new-peer-repeated",
                      "drop incoming peering: repeated handshake request");
     return caf::make_error(ec::repeated_peering_handshake_request);
@@ -961,123 +965,62 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
   if (auto* lptr = logger()) {
     lptr->on_peer_connect(peer_id, addr);
   }
-  // Hook into the central merge point for forwarding the data to the peer.
-  caf::flow::observable<node_message> in;
-  in = self->make_observable()
-         .from_resource(std::move(in_res))
-         .map([](const caf::chunk& chunk) -> node_message {
-           wire_format::v1::trait trait;
-           node_message msg;
-           if (trait.convert(chunk.bytes(), msg)) {
-             return msg;
-           }
-           return nullptr;
-         })
-         .filter([](const node_message& msg) { return msg != nullptr; })
-         .as_observable();
-  auto filter_ptr = std::make_shared<filter_type>(filter);
-  auto ptr = std::make_shared<peering>(addr, filter_ptr, id, peer_id);
-  auto [new_in, new_out] = ptr->setup(
-    self, std::move(in),
-    central_merge
-      // Select by subscription and sender/receiver fields.
-      .filter([this, pid = peer_id, filter_ptr](const node_message& msg) {
-        if (get_sender(msg) == pid)
-          return false;
-        if (disable_forwarding && !is_local(msg))
-          return false;
-        auto f = detail::prefix_matcher{};
-        auto receiver = get_receiver(msg);
-        return receiver == pid || (!receiver && f(*filter_ptr, get_topic(msg)));
-      })
-      // Override the sender field. This makes sure the sender field always
-      // reflects the last hop. Since we only need this information to avoid
-      // forwarding loops, "sender" really just means "last hop" in the current
-      // implementation.
-      .map([this](const node_message& msg) {
-        if (get_sender(msg) == id)
-          return msg;
-        return msg->with(id, msg->receiver());
-      })
-      .do_on_next([this, peer_id](const node_message& msg) {
-        // Record messages that are pushed into the backpressure buffer.
-        if (auto* lptr = logger()) {
-          lptr->on_peer_buffer_push(peer_id, msg);
-        }
-      })
-      // Handle unresponsive peers.
-      .on_backpressure_buffer(peer_buffer_size(), peer_overflow_policy())
-      .do_on_next([this, peer_id](const node_message& msg) {
-        // Record messages that leave the backpressure buffer.
-        if (auto* lptr = logger()) {
-          lptr->on_peer_buffer_pull(peer_id, msg);
-        }
-      })
-      .do_on_complete([this, peer_id] {
-        if (auto* lptr = logger()) {
-          lptr->on_peer_disconnect(peer_id, error{});
-        }
-      })
-      .do_on_error([this, ptr, peer_id](const caf::error& what) {
-        log::core::debug("remove-peer", "remove peer {} due to: {}", peer_id,
-                         what);
-        if (auto* lptr = logger()) {
-          lptr->on_peer_disconnect(peer_id, facade(what));
-        }
-        ptr->force_disconnect(to_string(what));
-      })
-      .as_observable());
-  new_out
-    .map([buf = caf::byte_buffer{}](const node_message& msg) mutable {
-      buf.clear();
-      wire_format::v1::trait trait;
-      if (trait.convert(msg, buf)) {
-        return caf::chunk{buf};
+  // Create a handler for the peer.
+  auto state = std::make_shared<peering>(this, peer_id, peer_buffer_size(),
+                                         peer_overflow_policy(), addr, filter);
+  state->bye_id = self->new_u64_id();
+  state->on_remove = caf::make_type_erased_callback([this, state, peer_id]() {
+    auto txt = std::format("ON REMOVE: {} -> {}", to_string(id),
+                           to_string(peer_id));
+
+    // Update our 'global' state for this peer.
+    auto status = peer_status::peered;
+    if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
+      log::core::debug("init-new-peer-disconnected",
+                       "{} changed state: peered -> disconnected", peer_id);
+      if (state->removed) {
+        auto msg = state->make_status_msg(endpoint_info{peer_id, state->addr},
+                                          sc_constant<sc::peer_removed>(),
+                                          "removed connection to remote peer");
+        dispatch(msg);
+      } else {
+        auto msg = state->make_status_msg(endpoint_info{peer_id, state->addr},
+                                          sc_constant<sc::peer_lost>(),
+                                          "lost connection to remote peer");
+        dispatch(msg);
       }
-      return caf::chunk{};
-    })
-    .filter([](const caf::chunk& chunk) { return !chunk.empty(); })
-    .subscribe(std::move(out_res));
-  // Push messages received from the peer into the central merge point.
-  flow_inputs.push( //
-    new_in
-      // Handle peer disconnect events.
-      .do_on_complete([this, peer_id, ptr]() mutable {
-        if (!ptr)
-          return;
-        // Update our 'global' state for this peer.
-        auto status = peer_status::peered;
-        if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
-          log::core::debug("init-new-peer-disconnected",
-                           "{} changed state: peered -> disconnected", peer_id);
-        } else {
-          log::core::error("init-new-peer-invalid-disconnected",
-                           "{} reports invalid status {}", peer_id, status);
-          // TODO: maybe we should consider this a fatal error?
-        }
-        // Clean up state our local state.
-        peers.erase(peer_id);
-        // Trigger a reconnect if we have initiated the peering and did not
-        // disconnect this peer as a result of unpeering from it.
-        if (!ptr->removed() && !ptr->addr().address.empty()
-            && ptr->addr().has_retry_time())
-          try_connect(ptr->addr(), caf::response_promise{});
-        // Shutting down? Finalize shutdown after removing the last peer.
-        if (shutting_down() && peers.empty()) {
-          shutting_down_timeout.dispose();
-          finalize_shutdown();
-        }
-        ptr = nullptr;
-      })
-      .as_observable());
-  peers.emplace(peer_id, ptr);
-  // Notify clients that wait for this peering.
-  if (auto [first, last] = awaited_peers.equal_range(peer_id); first != last) {
-    for (auto i = first; i != last; ++i)
-      i->second.deliver(peer_id);
-    awaited_peers.erase(first, last);
-  }
-  return caf::none;
+      auto msg = state->make_status_msg(endpoint_info{peer_id},
+                                        sc_constant<sc::endpoint_unreachable>(),
+                                        "lost the last path");
+      dispatch(msg);
+    } else {
+      log::core::error("init-new-peer-invalid-disconnected",
+                       "{} reports invalid status {}", peer_id, status);
+      // TODO: maybe we should consider this a fatal error?
+    }
+  });
+  detail::fmt_to(std::back_inserter(state->pretty_name), "peering-{}",
+                 to_string(peer_id));
+  setup(state, std::move(in_res), std::move(out_res), filter);
+  peerings.emplace(peer_id, state);
+  // Emit status messages.
+  auto make_status_msg = [peer_id]<class Info, sc S>(Info&& ep,
+                                                     sc_constant<S> code,
+                                                     const char* msg) {
+    auto val = status::make(code, std::forward<Info>(ep), msg);
+    auto content = get_as<data>(val);
+    auto dmsg = make_data_message(peer_id, peer_id,
+                                  topic{std::string{topic::statuses_str}},
+                                  content);
+    return node_message{std::move(dmsg)};
+  };
+  dispatch(make_status_msg(endpoint_info{peer_id},
+                           sc_constant<sc::endpoint_discovered>(),
+                           "found a new peer in the network"));
+  dispatch(make_status_msg(endpoint_info{peer_id, addr},
+                           sc_constant<sc::peer_added>(),
+                           "handshake successful"));
+  return {};
 }
 
 caf::error core_actor_state::init_new_peer(endpoint_id peer,
@@ -1087,10 +1030,10 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   // Spin up a background worker that takes care of socket I/O. We communicate
   // to this worker via producer/consumer buffer resources. The [rd_1, wr_1]
   // pair is the direction core actor -> network. The other pair is for the
-  // opposite direction. The caf::net::length_prefix_framing protocol is simple
-  // framing protocol that suffixes a message with a four-byte 'header' for the
-  // message size. So on the wire, every byte block that our trait produces gets
-  // prefixed with 32 bit with the size.
+  // opposite direction. The caf::net::length_prefix_framing protocol is
+  // simple framing protocol that suffixes a message with a four-byte 'header'
+  // for the message size. So on the wire, every byte block that our trait
+  // produces gets prefixed with 32 bit with the size.
   namespace cn = caf::net;
   // Note: structured bindings with values confuses clang-tidy's leak checker.
   auto resources1 = caf::async::make_spsc_buffer_resource<caf::chunk>();
@@ -1128,23 +1071,26 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   // Assign a UUID to each WebSocket client and treat it like a peer.
   using impl_t = handler_impl<data_message>;
   auto client_id = endpoint_id::random();
-  auto state = std::make_shared<impl_t>(client_id, std::move(type),
-                                        web_socket_buffer_size(),
+  auto state = std::make_shared<impl_t>(this, web_socket_buffer_size(),
                                         web_socket_overflow_policy());
+  detail::fmt_to(std::back_inserter(state->pretty_name), "{}-{}", type,
+                 addr.address);
   setup(state, std::move(in_res), std::move(out_res), filter);
+  generic_handlers.insert(state);
   // Emit status updates.
   if (auto* lptr = logger()) {
     lptr->on_client_connect(client_id, addr);
   }
   client_added(client_id, addr, type);
-  state->on_remove = caf::make_type_erased_callback([this, state, addr]() {
-    log::core::debug("client-disconnected", "client {} disconnected", addr);
-    auto reason = caf::make_error(caf::sec::connection_closed);
-    if (auto* lptr = logger()) {
-      lptr->on_client_disconnect(state->id, facade(reason));
-    }
-    client_removed(state->id, addr, state->type, reason, true);
-  });
+  state->on_remove =
+    caf::make_type_erased_callback([this, state, addr, type, client_id]() {
+      log::core::debug("client-disconnected", "client {} disconnected", addr);
+      auto reason = caf::make_error(caf::sec::connection_closed);
+      if (auto* lptr = logger()) {
+        lptr->on_client_disconnect(client_id, facade(reason));
+      }
+      client_removed(client_id, addr, type, reason, true);
+    });
   return {};
 }
 
@@ -1170,13 +1116,13 @@ void core_actor_state::subscribe(const filter_type& what) {
   }
 }
 
-// -- data store management --------------------------------------------------
+// -- data store management ----------------------------------------------------
 
 bool core_actor_state::has_remote_master(const std::string& name) const {
   // A master would subscribe to its 'special topic', so we would see a
   // subscription for that topic if another node has a master attached. This
-  // still has a big asterisk attached to it since the subscription message may
-  // just be in flight. This check is better than nothing, though.
+  // still has a big asterisk attached to it since the subscription message
+  // may just be in flight. This check is better than nothing, though.
   return has_remote_subscriber(name / topic::master_suffix());
 }
 
@@ -1216,10 +1162,11 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   subscribe(filter);
   // Create a handler for the master.
   using impl_t = handler_impl<command_message>;
-  auto store_id = endpoint_id::random();
-  auto state = std::make_shared<impl_t>(store_id, "master", store_buffer_size(),
+  auto state = std::make_shared<impl_t>(this, store_buffer_size(),
                                         store_overflow_policy());
+  detail::fmt_to(std::back_inserter(state->pretty_name), "master-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
+  generic_handlers.insert(state);
   // Save the handle and monitor the new actor.
   masters.emplace(name, hdl);
   self->link_to(hdl);
@@ -1242,7 +1189,7 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
                      "clone with name {} already exists", name);
     return i->second;
   }
-  // Spin up the clone and connect it to our flows.
+  // Spin up the clone and connect it to our buffers.
   log::core::info("attach-clone-new", "spawning new clone: {}", name);
   using std::chrono::duration_cast;
   // TODO: make configurable.
@@ -1263,10 +1210,11 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   subscribe(filter);
   // Create a handler for the clone.
   using impl_t = handler_impl<command_message>;
-  auto store_id = endpoint_id::random();
-  auto state = std::make_shared<impl_t>(store_id, "clone", store_buffer_size(),
+  auto state = std::make_shared<impl_t>(this, store_buffer_size(),
                                         store_overflow_policy());
+  detail::fmt_to(std::back_inserter(state->pretty_name), "clone-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
+  generic_handlers.insert(state);
   return hdl;
 }
 
@@ -1283,35 +1231,84 @@ void core_actor_state::shutdown_stores() {
   clones.clear();
 }
 
-// -- dispatching of messages to peers regardless of subscriptions ------------
+// -- dispatching of messages to peers regardless of subscriptions  ------------
 
 void core_actor_state::dispatch(const node_message& msg) {
-  unsafe_inputs.push(msg);
+  // Forward to our non-peer handlers and hubs.
+  msg_provider.set(msg);
+  handler_selection.clear();
+  handler_subscriptions.select(get_topic(msg), handler_selection);
+  log::core::debug("dispatch", "broadcasting message to {} subscribers: {}",
+                   handler_selection.size(), msg);
+  for (auto& handler : handler_selection) {
+    handler->offer(msg_provider);
+  }
+}
+
+void core_actor_state::dispatch_from(const node_message& msg,
+                                     const handler_ptr& from) {
+  auto get_pretty_name = [&from] {
+    if (!from) {
+      return "null"sv;
+    }
+    return std::string_view{from->pretty_name};
+  };
+  msg_provider.set(msg);
+  handler_selection.clear();
+  handler_subscriptions.select(get_topic(msg), handler_selection);
+  log::core::debug("dispatch-from",
+                   "dispatching message from {} to {} subscribers: {}",
+                   get_pretty_name(), handler_selection.size(), msg);
+  for (auto& handler : handler_selection) {
+    if (handler != from) {
+      // If `from == nullptr`, it means that this message was sent via
+      // endpoint::publish. We treat it as if it was published by a publisher,
+      // i.e., it's a local message and subscribers should not receive it.
+      if ((!from || from->type == handler_type::publisher)
+          && handler->type == handler_type::subscriber) {
+        continue;
+      }
+      handler->offer(msg_provider);
+    }
+  }
 }
 
 void core_actor_state::broadcast_subscriptions() {
-  auto msg = routing_update_envelope::make(filter->read());
-  for (auto& kvp : peers)
-    dispatch(msg->with(id, kvp.first));
+  // Bypass subscriptions and forward the routing update directly to all peers.
+  msg_provider.set(routing_update_envelope::make(filter->read()));
+  //->with(id, endpoint_id::nil());
+  log::core::debug("broadcast-subscriptions",
+                   "broadcasting message to {} peers: {}", peerings.size(),
+                   msg_provider.get());
+  for (auto& [pid, ptr] : peerings) {
+    ptr->offer(msg_provider);
+  }
 }
 
 // -- unpeering ----------------------------------------------------------------
 
 void core_actor_state::unpeer(endpoint_id peer_id) {
-  log::core::debug("unpeer-id", "unpeering from peer {}", peer_id);
-  if (auto i = peers.find(peer_id); i != peers.end())
-    i->second->remove(self, unsafe_inputs);
-  else
+  if (auto i = peerings.find(peer_id); i != peerings.end()) {
+    if (i->second->send_bye_message()) {
+      log::core::debug("unpeer-id", "unpeering from peer {}", peer_id);
+    }
+    // else: ignore repeated calls to unpeer
+  } else {
     cannot_remove_peer(peer_id);
+  }
 }
 
 void core_actor_state::unpeer(const network_info& addr) {
-  log::core::debug("unpeer-addr", "unpeering from peer {}", addr);
-  auto pred = [&addr](auto& kvp) { return kvp.second->addr() == addr; };
-  if (auto i = std::find_if(peers.begin(), peers.end(), pred); i != peers.end())
-    i->second->remove(self, unsafe_inputs);
-  else
+  auto pred = [&addr](auto& kvp) { return kvp.second->addr == addr; };
+  if (auto i = std::find_if(peerings.begin(), peerings.end(), pred);
+      i != peerings.end()) {
+    if (i->second->send_bye_message()) {
+      log::core::debug("unpeer-addr", "unpeering from peer {}", addr);
+    }
+    // else: ignore repeated calls to unpeer
+  } else {
     cannot_remove_peer(addr);
+  }
 }
 
 bool core_actor_state::shutting_down() {
@@ -1324,23 +1321,20 @@ bool core_actor_state::shutting_down() {
 
 namespace {
 
-caf::flow::backpressure_overflow_strategy
-overflow_policy_from_string(const std::string* str, overflow_policy fallback) {
-  using caf::flow::backpressure_overflow_strategy;
+overflow_policy overflow_policy_from_string(const std::string* str,
+                                            overflow_policy fallback) {
   if (str != nullptr) {
     if (*str == "drop_newest") {
-      return backpressure_overflow_strategy::drop_newest;
+      return overflow_policy::drop_newest;
     }
     if (*str == "drop_oldest") {
-      return backpressure_overflow_strategy::drop_oldest;
+      return overflow_policy::drop_oldest;
     }
     if (*str == "disconnect") {
-      return backpressure_overflow_strategy::fail;
+      return overflow_policy::disconnect;
     }
   }
-  // Note: overflow_policy and backpressure_overflow_strategy have the same
-  //       values. Hence, casting one to the other is safe.
-  return static_cast<backpressure_overflow_strategy>(fallback);
+  return fallback;
 }
 
 } // namespace
@@ -1350,12 +1344,11 @@ size_t core_actor_state::store_buffer_size() {
   return defaults::peer_buffer_size;
 }
 
-caf::flow::backpressure_overflow_strategy
-core_actor_state::store_overflow_policy() {
+overflow_policy core_actor_state::store_overflow_policy() {
   // TODO: make configurable?
   // Note: stores have a builtin mechanism for re-sending messages. Hence, we
   //       can drop messages in case of overflow.
-  return backpressure_overflow_strategy::drop_oldest;
+  return overflow_policy::drop_oldest;
 }
 
 size_t core_actor_state::peer_buffer_size() {
@@ -1363,8 +1356,7 @@ size_t core_actor_state::peer_buffer_size() {
                      defaults::peer_buffer_size);
 }
 
-caf::flow::backpressure_overflow_strategy
-core_actor_state::peer_overflow_policy() {
+overflow_policy core_actor_state::peer_overflow_policy() {
   auto* str = caf::get_if<std::string>(&self->config(),
                                        "broker.peer-overflow-policy");
   return overflow_policy_from_string(str, defaults::peer_overflow_policy);
@@ -1375,11 +1367,23 @@ size_t core_actor_state::web_socket_buffer_size() {
                      defaults::web_socket_buffer_size);
 }
 
-caf::flow::backpressure_overflow_strategy
-core_actor_state::web_socket_overflow_policy() {
+overflow_policy core_actor_state::web_socket_overflow_policy() {
   auto* str = caf::get_if<std::string>(&self->config(),
                                        "broker.web-socket-overflow-policy");
   return overflow_policy_from_string(str, defaults::web_socket_overflow_policy);
+}
+
+size_t core_actor_state::hub_buffer_size() {
+  return 1'000'000;
+  // return caf::get_or(self->config(), "broker.hub-buffer-size",
+  //                    defaults::hub_buffer_size);
+}
+
+overflow_policy core_actor_state::hub_overflow_policy() {
+  return overflow_policy::disconnect;
+  // auto* str = caf::get_if<std::string>(&self->config(),
+  //                                      "broker.hub-overflow-policy");
+  // return overflow_policy_from_string(str, defaults::hub_overflow_policy);
 }
 
 } // namespace broker::internal

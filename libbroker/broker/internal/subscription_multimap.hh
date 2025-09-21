@@ -59,15 +59,19 @@ public:
 
   /// Selects all values that match the given topic, i.e., appends all values
   /// from entries that have a key that is a prefix of the given topic.
-  void select(std::string_view topic, std::vector<value_type>& result) const {
+  template <class T>
+  void select(std::string_view topic, std::vector<T>& result) const {
     for (const auto& [key, values] : entries_) {
       if (topic.starts_with(key)) {
-        result.insert(result.end(), values.begin(), values.end());
+        for (const auto& value : values) {
+          result.emplace_back(value);
+        }
       }
     }
     std::sort(result.begin(), result.end());
     result.erase(std::unique(result.begin(), result.end()), result.end());
   }
+
   std::vector<value_type> select(const key_type& topic) const {
     std::vector<value_type> result;
     select(topic, result);
