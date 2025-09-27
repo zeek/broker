@@ -1,11 +1,11 @@
 #pragma once
 
+#include "broker/detail/prefix_matcher.hh"
 #include "broker/endpoint.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
 #include "broker/internal/fwd.hh"
-#include "broker/internal/peering.hh"
 #include "broker/internal/subscription_multimap.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/message.hh"
@@ -30,9 +30,6 @@ namespace broker::internal {
 class core_actor_state {
 public:
   // -- member types -----------------------------------------------------------
-
-  /// Convenience alias for a map of @ref peer_state objects.
-  using peer_state_map = std::unordered_map<endpoint_id, peering_ptr>;
 
   /// Bundles message-related metrics that have a label dimension for the type.
   struct message_metrics_t {
@@ -119,7 +116,8 @@ public:
     caf::byte_buffer buffer_;
   };
 
-  /// Bundles state for sending and receiving messages to/from a peer.
+  /// Bundles state for sending and receiving messages to/from a peer, hub,
+  /// store, or client.
   class handler {
   public:
     explicit handler(core_actor_state* parent) : parent(parent) {}
@@ -467,9 +465,6 @@ public:
 
   /// Returns the @ref network_info associated to given `id` if available.
   std::optional<network_info> addr_of(endpoint_id id) const;
-
-  /// Returns the IDs of all connected peers.
-  std::vector<endpoint_id> peer_ids() const;
 
   /// Creates a snapshot for the current values of the message metrics.
   table message_metrics_snapshot() const;

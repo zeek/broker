@@ -27,7 +27,6 @@
 #include "broker/hub_id.hh"
 #include "broker/internal/checked.hh"
 #include "broker/internal/clone_actor.hh"
-#include "broker/internal/killswitch.hh"
 #include "broker/internal/master_actor.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/logger.hh"
@@ -561,13 +560,6 @@ std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
     return std::nullopt;
 }
 
-std::vector<endpoint_id> core_actor_state::peer_ids() const {
-  std::vector<endpoint_id> result;
-  for (auto& kvp : peerings)
-    result.emplace_back(kvp.first);
-  return result;
-}
-
 table core_actor_state::message_metrics_snapshot() const {
   table result;
   for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
@@ -579,17 +571,6 @@ table core_actor_state::message_metrics_snapshot() const {
   }
   return result;
 }
-
-namespace {
-
-table to_vals(const flow_scope_stats& stats) {
-  table vals;
-  vals.emplace("requested"s, stats.requested);
-  vals.emplace("delivered"s, stats.delivered);
-  return vals;
-}
-
-} // namespace
 
 table core_actor_state::peer_stats_snapshot() const {
   table result;
