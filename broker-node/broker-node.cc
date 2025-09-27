@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cerrno>
 #include <cstddef>
@@ -10,6 +11,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -216,6 +218,19 @@ broker::variant make_stop_msg() {
 
 // -- mode implementations -----------------------------------------------------
 
+void print_rate(const std::shared_ptr<std::atomic<bool>>& stopped,
+                const std::shared_ptr<std::atomic<size_t>>& received) {
+  size_t last_count = 0;
+  auto next_print = std::chrono::system_clock::now() + 1s;
+  while (!*stopped) {
+    std::this_thread::sleep_until(next_print);
+    auto current_count = received->load();
+    verbose::println("rate: ", current_count - last_count, " messages/s");
+    last_count = current_count;
+    next_print += 1s;
+  }
+}
+
 void relay_mode(broker::endpoint& ep, topic_list topics) {
   verbose::println("relay messages");
   auto handle_message = [&](const broker::data_message& x) {
@@ -230,23 +245,23 @@ void relay_mode(broker::endpoint& ep, topic_list topics) {
     }
     return true;
   };
+  verbose::println("make subscriber for topics ", topics);
   auto in = ep.make_subscriber(std::move(topics));
   auto& cfg = broker::internal::endpoint_access{&ep}.cfg();
   if (get_or(cfg, "verbose", false) && get_or(cfg, "rate", false)) {
     auto timeout = std::chrono::system_clock::now();
     timeout += std::chrono::seconds(1);
-    size_t received = 0;
+    auto received = std::make_shared<std::atomic<size_t>>(0);
+    auto stopped = std::make_shared<std::atomic<bool>>(false);
+    auto rate_printer = std::thread{print_rate, stopped, received};
     for (;;) {
-      if (auto maybe_msg = in.get(timeout)) {
-        auto msg = std::move(*maybe_msg);
-        if (!handle_message(msg))
-          return;
-        ++received;
-      } else {
-        verbose::println(received, "/s");
-        timeout += std::chrono::seconds(1);
-        received = 0;
+      auto msg = in.get();
+      if (!handle_message(msg)) {
+        *stopped = true;
+        rate_printer.join();
+        return;
       }
+      ++*received;
     }
   } else {
     for (;;) {
