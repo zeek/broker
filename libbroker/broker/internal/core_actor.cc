@@ -456,61 +456,6 @@ caf::behavior core_actor_state::make_behavior() {
   }
 }
 
-/*
-void core_actor_state::drop_hub_input(hub_id id) {
-  // Callback that does the actual work.
-  auto do_drop = [this, id] {
-    auto i = hubs.find(id);
-    if (i == hubs.end()) {
-      return;
-    }
-    if (auto& ptr = i->second) {
-      ptr->in = nullptr; // already disposed
-      if (ptr->out) {
-        return; // keep the hub registered until the output is disposed as well
-      }
-    }
-    // Remove the hub if either 1) `ptr` is null or 2) both input and output
-    // are disposed.
-    log::core::debug("remove-hub", "removing hub {}",
-                     static_cast<uint64_t>(id));
-    hubs.erase(i);
-  };
-  // Check if the hub is registered. If it is, we schedule a delayed call to
-  // drop the input. This is necessary since we might be in the middle of a
-  // processing chain that may modify the hub state.
-  if (hubs.count(id) != 0) {
-    self->delay_fn(do_drop);
-  }
-}
-
-void core_actor_state::drop_hub_output(hub_id id) {
-  // Callback that does the actual work.
-  auto do_drop = [this, id] {
-    auto i = hubs.find(id);
-    if (i == hubs.end()) {
-      return;
-    }
-    if (auto& ptr = i->second) {
-      ptr->out = nullptr; // already disposed
-      if (ptr->in) {
-        return; // keep the hub registered until the input is disposed as well
-      }
-    }
-    // Remove the hub if either 1) `ptr` is null or 2) both input and output
-    // are disposed.
-    log::core::debug("remove-hub", "removing hub {}",
-                     static_cast<uint64_t>(id));
-    hubs.erase(i);
-  };
-  // Same as `drop_hub_input`: avoid modifying the hub state while processing
-  // messages.
-  if (hubs.count(id) != 0) {
-    self->delay_fn(do_drop);
-  }
-}
-*/
-
 void core_actor_state::shutdown(shutdown_options options) {
   if (shutting_down())
     return;
