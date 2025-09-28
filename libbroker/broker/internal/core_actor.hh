@@ -2,6 +2,7 @@
 
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/endpoint.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/internal/connector.hh"
 #include "broker/internal/connector_adapter.hh"
@@ -66,14 +67,53 @@ public:
     disconnect,
   };
 
+  /// Denotes the subtype of a handler.
   enum class handler_type {
     store,
+    master, // Subtype of store.
+    clone,  // Subtype of store.
     client,
     peering,
     hub,
-    subscriber,
-    publisher,
+    subscriber, // Subtype of hub.
+    publisher,  // Subtype of hub.
   };
+
+  /// Trait for getting the value and ID type of a handler.
+  template <handler_type>
+  struct handler_type_trait;
+
+  template <>
+  struct handler_type_trait<handler_type::store> {
+    using value_type = command_message;
+    using id_type = std::string;
+  };
+
+  template <>
+  struct handler_type_trait<handler_type::client> {
+    using value_type = data_message;
+    using id_type = endpoint_id;
+  };
+
+  template <>
+  struct handler_type_trait<handler_type::peering> {
+    using value_type = caf::chunk;
+    using id_type = endpoint_id;
+  };
+
+  template <>
+  struct handler_type_trait<handler_type::hub> {
+    using value_type = data_message;
+    using id_type = hub_id;
+  };
+
+  /// Convenience alias for the value type of a handler.
+  template <handler_type T>
+  using handler_value_type = typename handler_type_trait<T>::value_type;
+
+  /// Convenience alias for the ID type of a handler.
+  template <handler_type T>
+  using handler_id_type = typename handler_type_trait<T>::id_type;
 
   /// Wraps access to a node message and also allows converting it to a chunk.
   /// This conversion is done lazily, i.e., only when the message is actually
@@ -135,9 +175,8 @@ public:
     /// Tries to pull more messages from the handler.
     virtual handler_result pull(std::vector<node_message>& buf) = 0;
 
-    /// Disposes of the handler.
-    /// @note This function is always called implicitly if a callback returns
-    ///       `handler_result::disconnect`.
+    /// Disposes of the handler. Must be called after the handler has neither
+    /// input nor output buffers and has been removed from its container.
     virtual void dispose() = 0;
 
     virtual bool input_closed() const noexcept = 0;
@@ -179,20 +218,28 @@ public:
     bool failed = false;
   };
 
-  template <class T>
-  class handler_impl : public handler {
+  /// Base class for all handler types, implementing the common functionality.
+  template <handler_type Subtype>
+  class handler_base : public handler {
   public:
     using super = handler;
 
-    using value_type = T;
+    using value_type = handler_value_type<Subtype>;
 
-    using buffer_producer_ptr = caf::async::spsc_buffer_producer_ptr<T>;
+    using id_type = handler_id_type<Subtype>;
 
-    using buffer_consumer_ptr = caf::async::spsc_buffer_consumer_ptr<T>;
+    using buffer_producer_ptr =
+      caf::async::spsc_buffer_producer_ptr<value_type>;
 
-    handler_impl(core_actor_state* parent, size_t max_buffer_size,
-                 overflow_policy policy)
-      : super(parent), max_buffer_size(max_buffer_size), policy(policy) {
+    using buffer_consumer_ptr =
+      caf::async::spsc_buffer_consumer_ptr<value_type>;
+
+    handler_base(core_actor_state* parent, size_t max_buffer_size,
+                 overflow_policy policy, id_type id)
+      : super(parent),
+        max_buffer_size(max_buffer_size),
+        policy(policy),
+        id(std::move(id)) {
       // nop
     }
 
@@ -203,7 +250,7 @@ public:
     buffer_producer_ptr out;
 
     /// A buffer for messages that are not yet sent to the peer.
-    std::deque<T> queue;
+    std::deque<value_type> queue;
 
     /// The maximum number of messages that can be buffered.
     size_t max_buffer_size;
@@ -213,23 +260,31 @@ public:
     /// The number of messages that can be sent to the peer immediately.
     size_t demand = 0;
 
+    /// The ID of this handler. Can be a peer ID or a randomly generated UUID.
+    /// Only used for clients and peerings.
+    id_type id;
+
     /// A callback to be called when the handler is removed.
     caf::unique_callback_ptr<void()> on_dispose;
 
+    handler_type type() const noexcept override {
+      return Subtype;
+    }
+
     handler_result offer(message_provider& msg) override {
-      if constexpr (std::is_same_v<T, caf::chunk>) {
+      if constexpr (std::is_same_v<value_type, caf::chunk>) {
         if (auto& serialized = msg.as_binary()) {
           return do_offer(serialized);
         }
         // Note: the provider will log an error if the conversion fails.
-      } else if constexpr (std::is_same_v<T, node_message>) {
+      } else if constexpr (std::is_same_v<value_type, node_message>) {
         return do_offer(msg);
-      } else if constexpr (std::is_same_v<T, data_message>) {
+      } else if constexpr (std::is_same_v<value_type, data_message>) {
         if (auto dmsg = msg.as_data()) {
           return do_offer(std::move(dmsg));
         }
       } else {
-        static_assert(std::is_same_v<T, command_message>);
+        static_assert(std::is_same_v<value_type, command_message>);
         if (auto cmsg = msg.as_command()) {
           return do_offer(std::move(cmsg));
         }
@@ -248,8 +303,17 @@ public:
         auto n = std::min(demand, queue.size());
         auto i = queue.begin();
         auto e = i + static_cast<std::ptrdiff_t>(n);
-        std::vector<T> items{i, e};
+        std::vector<value_type> items{i, e};
         queue.erase(i, e);
+        if constexpr (Subtype == handler_type::peering) {
+          if (auto* lptr = logger()) {
+            lptr->on_peer_buffer_pull(id, items.size());
+          }
+        } else if constexpr (Subtype == handler_type::client) {
+          if (auto* lptr = logger()) {
+            lptr->on_client_buffer_pull(id, items.size());
+          }
+        }
         out->push(std::move(items));
         demand -= n;
       }
@@ -280,10 +344,6 @@ public:
       return !out;
     }
 
-    // bool disposed() const noexcept override {
-    //   return input_closed() && output_closed();
-    // }
-
     handler_result pull(std::vector<node_message>& buf) override {
       if (!in) {
         return handler_result::ok;
@@ -301,7 +361,7 @@ public:
         }
         return handler_result::ok;
       };
-      if constexpr (std::is_same_v<T, caf::chunk>) {
+      if constexpr (std::is_same_v<value_type, caf::chunk>) {
         std::vector<caf::chunk> chunks;
         chunks.reserve(128);
         pull_observer<caf::chunk> observer{chunks};
@@ -324,7 +384,7 @@ public:
       }
     }
 
-    handler_result do_offer(T msg) {
+    handler_result do_offer(value_type msg) {
       // If we have demand, we can send the message immediately.
       if (demand > 0) {
         out->push(std::move(msg));
@@ -335,6 +395,15 @@ public:
       // until we have demand.
       if (queue.size() < max_buffer_size) {
         queue.push_back(std::move(msg));
+        if constexpr (Subtype == handler_type::peering) {
+          if (auto* lptr = logger()) {
+            lptr->on_peer_buffer_push(id, 1);
+          }
+        } else if constexpr (Subtype == handler_type::client) {
+          if (auto* lptr = logger()) {
+            lptr->on_client_buffer_push(id, 1);
+          }
+        }
         return handler_result::ok;
       }
       // If the queue is full, we need to decide what to do with the message.
@@ -355,39 +424,48 @@ public:
 
   using handler_ptr = std::shared_ptr<handler>;
 
-  class store_handler : public handler_impl<command_message> {
+  class store_handler : public handler_base<handler_type::store> {
   public:
-    using super = handler_impl<command_message>;
+    using super = handler_base<handler_type::store>;
 
-    using super::super;
+    store_handler(core_actor_state* parent, size_t max_buffer_size,
+                  overflow_policy policy, std::string id, caf::actor hdl,
+                  handler_type subtype)
+      : super(parent, max_buffer_size, policy, std::move(id)),
+        hdl(std::move(hdl)),
+        type_(subtype) {
+      BROKER_ASSERT(subtype == handler_type::master
+                    || subtype == handler_type::clone);
+    }
 
     handler_type type() const noexcept override {
-      return handler_type::store;
+      return type_;
     }
+
+    caf::actor hdl;
+
+  private:
+    handler_type type_;
   };
 
   using store_handler_ptr = std::shared_ptr<store_handler>;
 
-  class client_handler : public handler_impl<data_message> {
+  class client_handler : public handler_base<handler_type::client> {
   public:
-    using super = handler_impl<data_message>;
+    using super = handler_base<handler_type::client>;
 
     using super::super;
-
-    handler_type type() const noexcept override {
-      return handler_type::client;
-    }
   };
 
   using client_handler_ptr = std::shared_ptr<client_handler>;
 
-  class hub_state : public handler_impl<data_message> {
+  class hub_handler : public handler_base<handler_type::hub> {
   public:
-    using super = handler_impl<data_message>;
+    using super = handler_base<handler_type::hub>;
 
-    hub_state(core_actor_state* parent, size_t max_buffer_size,
-              overflow_policy policy, hub_id hid)
-      : super(parent, max_buffer_size, policy), id_(hid) {
+    hub_handler(core_actor_state* parent, size_t max_buffer_size,
+                overflow_policy policy, hub_id hid)
+      : super(parent, max_buffer_size, policy, hid) {
       // nop
     }
 
@@ -408,40 +486,31 @@ public:
       type_ = subtype;
     }
 
-    hub_id id() const noexcept {
-      return id_;
-    }
-
   private:
     handler_type type_ = handler_type::hub;
-    hub_id id_;
   };
 
-  using hub_state_ptr = std::shared_ptr<hub_state>;
+  using hub_handler_ptr = std::shared_ptr<hub_handler>;
 
-  class peering : public handler_impl<caf::chunk> {
+  class peering_handler : public handler_base<handler_type::peering> {
   public:
     // ASCII sequence 'BYE' followed by our 64-bit bye ID.
     static constexpr size_t bye_token_size = 11;
 
-    using super = handler_impl<caf::chunk>;
+    using super = handler_base<handler_type::peering>;
 
     using bye_token = std::array<std::byte, bye_token_size>;
 
-    peering(core_actor_state* parent, endpoint_id id, size_t max_buffer_size,
-            overflow_policy policy, network_info addr, filter_type filter)
-      : super(parent, max_buffer_size, policy),
-        id(id),
+    peering_handler(core_actor_state* parent, endpoint_id id,
+                    size_t max_buffer_size, overflow_policy policy,
+                    network_info addr, filter_type filter)
+      : super(parent, max_buffer_size, policy, id),
         addr(std::move(addr)),
         filter(std::move(filter)) {
       // nop
     }
 
     handler_result offer(message_provider& msg) override;
-
-    handler_type type() const noexcept override {
-      return handler_type::peering;
-    }
 
     /// Creates a BYE message.
     node_message make_bye_message();
@@ -467,9 +536,6 @@ public:
       return f(filter, what);
     }
 
-    /// The ID of this handler. Can be a peer ID or a randomly generated UUID.
-    endpoint_id id;
-
     /// Indicates whether we are unpeering from this node and have sent a BYE
     /// message to the peer. Once the BYE handshake completes, we will call
     /// `on_peer_removed`.
@@ -487,8 +553,9 @@ public:
     uint64_t bye_id = 0;
   };
 
-  using peering_ptr = std::shared_ptr<peering>;
+  using peering_handler_ptr = std::shared_ptr<peering_handler>;
 
+  /// Calls the given function with the handler cast to the appropriate type.
   template <class Fn>
   auto with_subtype(const handler_ptr& ptr, Fn&& fn) {
     switch (ptr->type()) {
@@ -497,11 +564,11 @@ public:
       case handler_type::client:
         return fn(std::static_pointer_cast<client_handler>(ptr));
       case handler_type::peering:
-        return fn(std::static_pointer_cast<peering>(ptr));
+        return fn(std::static_pointer_cast<peering_handler>(ptr));
       case handler_type::hub:
       case handler_type::subscriber:
       case handler_type::publisher:
-        return fn(std::static_pointer_cast<hub_state>(ptr));
+        return fn(std::static_pointer_cast<hub_handler>(ptr));
       default:
         throw std::logic_error("invalid handler type");
     }
@@ -559,7 +626,7 @@ public:
   table status_snapshot() const;
 
   /// Sets up a handler by connecting its input and output buffers as well as
-  /// registering it with the core actor.
+  /// adding its subscriptions to the handler subscriptions map.
   template <class T>
   void setup(const std::shared_ptr<T>& ptr,
              caf::async::consumer_resource<typename T::value_type> in_res,
@@ -612,7 +679,7 @@ public:
   void on_data(const handler_ptr& ptr);
 
   /// Called whenever a peer signals that it enqueues new messages.
-  void on_data(const peering_ptr& peer);
+  void on_data(const peering_handler_ptr& peer);
 
   /// Called when triggering an overflow and the handler is configured to
   /// disconnect.
@@ -734,14 +801,20 @@ public:
   /// Reusable message provider.
   message_provider msg_provider;
 
-  /// Stores the state for all handlers except for peerings and hubs.
-  std::unordered_set<handler_ptr> generic_handlers;
+  /// Stores all master actors created by this endpoint.
+  std::unordered_map<std::string, store_handler_ptr> masters;
+
+  /// Stores all clone actors created by this endpoint.
+  std::unordered_map<std::string, store_handler_ptr> clones;
 
   /// Stores the state for all peerings.
-  std::unordered_map<endpoint_id, peering_ptr> peerings;
+  std::unordered_map<endpoint_id, peering_handler_ptr> peerings;
+
+  /// Stores the state for all clients.
+  std::unordered_map<endpoint_id, client_handler_ptr> clients;
 
   /// Stores the state for all hubs.
-  std::unordered_map<hub_id, hub_state_ptr> hubs;
+  std::unordered_map<hub_id, hub_handler_ptr> hubs;
 
   /// Reusable buffer for pulling messages from handlers.
   std::vector<node_message> pull_buffer;
@@ -770,12 +843,6 @@ public:
   /// Caches pointers to the Broker metrics.
   metrics_t metrics;
 
-  /// Stores all master actors created by this endpoint.
-  std::unordered_map<std::string, caf::actor> masters;
-
-  /// Stores all clone actors created by this endpoint.
-  std::unordered_map<std::string, caf::actor> clones;
-
   /// Handle to the background worker for establishing peering relations.
   std::unique_ptr<connector_adapter> adapter;
 
@@ -791,12 +858,12 @@ public:
   /// after the timeout.
   caf::disposable shutting_down_timeout;
 
-  /// Returns whether `shutdown` was called.
-  bool shutting_down();
-
   /// Counts messages that were published directly via message publishing, i.e.,
   /// without using the back-pressure of flows.
   int64_t published_via_async_msg = 0;
+
+  /// Stores whether `shutdown` was called.
+  bool shutting_down_ = false;
 };
 
 using core_actor = caf::stateful_actor<core_actor_state>;

@@ -18,13 +18,11 @@ public:
 
   /// Called by Broker to notify the observer about a new outgoing message to a
   /// peer. This function is called if the message enters the peer's buffer.
-  virtual void on_peer_buffer_push(const endpoint_id& peer,
-                                   const node_message& msg);
+  virtual void on_peer_buffer_push(const endpoint_id& peer, size_t count);
 
   /// Called by Broker to notify the observer about a new outgoing message to a
   /// peer. This function is called if the message leaves the peer's buffer.
-  virtual void on_peer_buffer_pull(const endpoint_id& peer,
-                                   const node_message& msg);
+  virtual void on_peer_buffer_pull(const endpoint_id& peer,size_t count);
 
   /// Called by Broker to notify the observer about a discarded peer connection.
   /// @param peer The ID of the peer that disconnected.
@@ -40,13 +38,11 @@ public:
 
   /// Called by Broker to notify the observer about a new outgoing message to a
   /// client. This function is called if the message enters the client's buffer.
-  virtual void on_client_buffer_push(const endpoint_id& client,
-                                     const data_message& msg);
+  virtual void on_client_buffer_push(const endpoint_id& client, size_t count);
 
   /// Called by Broker to notify the observer about a new outgoing message to a
   /// client. This function is called if the message leaves the client's buffer.
-  virtual void on_client_buffer_pull(const endpoint_id& client,
-                                     const data_message& msg);
+  virtual void on_client_buffer_pull(const endpoint_id& client, size_t count);
 
   /// Called by Broker to notify the observer about a discarded client
   /// connection.
