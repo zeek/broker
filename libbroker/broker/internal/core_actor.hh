@@ -60,15 +60,18 @@ public:
   };
 
   /// The result of invoking a callback on a handler.
-  enum class [[nodiscard]] handler_result {
+  enum class handler_result {
     /// The callback was invoked successfully.
     ok,
     /// The callback was invoked but resulted in a terminal state.
-    disposed,
+    disconnect,
   };
 
   enum class handler_type {
-    generic,
+    store,
+    client,
+    peering,
+    hub,
     subscriber,
     publisher,
   };
@@ -125,7 +128,7 @@ public:
     virtual ~handler();
 
     /// Called whenever dispatching a message that matches the handler's filter.
-    virtual handler_result offer(message_provider& msg) = 0;
+    [[nodiscard]] virtual handler_result offer(message_provider& msg) = 0;
 
     /// Callback for a downstream component demanding more messages.
     virtual handler_result add_demand(size_t demand) = 0;
@@ -142,7 +145,7 @@ public:
     core_actor_state* parent;
 
     /// The type of the handler.
-    handler_type type = handler_type::generic;
+    virtual handler_type type() const noexcept = 0;
 
     /// The name of this handler in log output.
     std::string pretty_name;
@@ -207,8 +210,8 @@ public:
     /// The number of messages that can be sent to the peer immediately.
     size_t demand = 0;
 
-    /// A callback to be called when the peer is removed.
-    caf::unique_callback_ptr<void()> on_remove;
+    /// A callback to be called when the handler is removed.
+    caf::unique_callback_ptr<void()> on_dispose;
 
     handler_result offer(message_provider& msg) override {
       if constexpr (std::is_same_v<T, caf::chunk>) {
@@ -247,9 +250,9 @@ public:
         out->push(std::move(items));
         demand -= n;
       }
-      if (queue.empty() && !in && type != handler_type::subscriber) {
+      if (queue.empty() && !in && type() != handler_type::subscriber) {
         dispose();
-        return handler_result::disposed;
+        return handler_result::disconnect;
       }
       return handler_result::ok;
     }
@@ -261,9 +264,9 @@ public:
       if (out) {
         out->dispose();
       }
-      if (on_remove) {
-        (*on_remove)();
-        on_remove = nullptr;
+      if (on_dispose) {
+        (*on_dispose)();
+        on_dispose = nullptr;
       }
     }
 
@@ -284,7 +287,7 @@ public:
           in = nullptr;
           if (queue.empty()) {
             dispose();
-            return handler_result::disposed;
+            return handler_result::disconnect;
           }
         }
         return handler_result::ok;
@@ -293,15 +296,15 @@ public:
         std::vector<caf::chunk> chunks;
         chunks.reserve(128);
         pull_observer<caf::chunk> observer{chunks};
-        if (do_pull(observer) == handler_result::disposed) {
-          return handler_result::disposed;
+        if (do_pull(observer) == handler_result::disconnect) {
+          return handler_result::disconnect;
         }
         for (auto& item : chunks) {
           wire_format::v1::trait trait;
           node_message converted;
           if (!trait.convert(item.bytes(), converted)) {
             dispose();
-            return handler_result::disposed;
+            return handler_result::disconnect;
           }
           buf.emplace_back(std::move(converted));
         }
@@ -313,19 +316,22 @@ public:
     }
 
     handler_result do_offer(T msg) {
+      // If we have demand, we can send the message immediately.
       if (demand > 0) {
         out->push(std::move(msg));
         --demand;
         return handler_result::ok;
       }
+      // As long as our queue is not full, we can store the message in our queue
+      // until we have demand.
       if (queue.size() < max_buffer_size) {
         queue.push_back(std::move(msg));
         return handler_result::ok;
       }
+      // If the queue is full, we need to decide what to do with the message.
       switch (policy) {
         default: // overflow_policy::disconnect
-          dispose();
-          return handler_result::disposed;
+          return handler_result::disconnect;
         case overflow_policy::drop_newest:
           queue.pop_back();
           queue.push_back(std::move(msg));
@@ -340,13 +346,39 @@ public:
 
   using handler_ptr = std::shared_ptr<handler>;
 
+  class store_handler : public handler_impl<command_message> {
+  public:
+    using super = handler_impl<command_message>;
+
+    using super::super;
+
+    handler_type type() const noexcept override {
+      return handler_type::store;
+    }
+  };
+
+  using store_handler_ptr = std::shared_ptr<store_handler>;
+
+  class client_handler : public handler_impl<data_message> {
+  public:
+    using super = handler_impl<data_message>;
+
+    using super::super;
+
+    handler_type type() const noexcept override {
+      return handler_type::client;
+    }
+  };
+
+  using client_handler_ptr = std::shared_ptr<client_handler>;
+
   class hub_state : public handler_impl<data_message> {
   public:
     using super = handler_impl<data_message>;
 
     hub_state(core_actor_state* parent, size_t max_buffer_size,
-              overflow_policy policy)
-      : super(parent, max_buffer_size, policy) {
+              overflow_policy policy, hub_id hid)
+      : super(parent, max_buffer_size, policy), id_(hid) {
       // nop
     }
 
@@ -356,6 +388,24 @@ public:
       }
       return handler_result::ok;
     }
+
+    handler_type type() const noexcept override {
+      return type_;
+    }
+
+    void type(handler_type subtype) noexcept {
+      BROKER_ASSERT(subtype == handler_type::subscriber
+                    || subtype == handler_type::publisher);
+      type_ = subtype;
+    }
+
+    hub_id id() const noexcept {
+      return id_;
+    }
+
+  private:
+    handler_type type_ = handler_type::hub;
+    hub_id id_;
   };
 
   using hub_state_ptr = std::shared_ptr<hub_state>;
@@ -379,6 +429,10 @@ public:
     }
 
     handler_result offer(message_provider& msg) override;
+
+    handler_type type() const noexcept override {
+      return handler_type::peering;
+    }
 
     /// Creates a BYE message.
     node_message make_bye_message();
@@ -407,9 +461,10 @@ public:
     /// The ID of this handler. Can be a peer ID or a randomly generated UUID.
     endpoint_id id;
 
-    /// Indicates whether we have explicitly removed this connection by sending
-    /// a BYE message to the peer.
-    bool removed = false;
+    /// Indicates whether we are unpeering from this node and have sent a BYE
+    /// message to the peer. Once the BYE handshake completes, we will call
+    /// `on_peer_removed`.
+    bool unpeering = false;
 
     /// Network address as reported from the transport (usually TCP).
     network_info addr;
@@ -424,6 +479,24 @@ public:
   };
 
   using peering_ptr = std::shared_ptr<peering>;
+
+  template <class Fn>
+  auto with_subtype(const handler_ptr& ptr, Fn&& fn) {
+    switch (ptr->type()) {
+      case handler_type::store:
+        return fn(std::static_pointer_cast<store_handler>(ptr));
+      case handler_type::client:
+        return fn(std::static_pointer_cast<client_handler>(ptr));
+      case handler_type::peering:
+        return fn(std::static_pointer_cast<peering>(ptr));
+      case handler_type::hub:
+      case handler_type::subscriber:
+      case handler_type::publisher:
+        return fn(std::static_pointer_cast<hub_state>(ptr));
+      default:
+        throw std::logic_error("invalid handler type");
+    }
+  }
 
   // -- constants --------------------------------------------------------------
 
@@ -482,26 +555,20 @@ public:
              caf::async::consumer_resource<typename T::value_type> in_res,
              caf::async::producer_resource<typename T::value_type> out_res,
              const filter_type& filter) {
+    // Call `on_data` whenever there is activity on the input buffer.
     if (in_res) {
       ptr->in = in_res.consume_on(self, [this, ptr](auto&) { on_data(ptr); });
     }
+    // Call `on_demand` and `on_cancel` whenever there is activity on the output
+    // buffer.
     if (out_res) {
       ptr->out = out_res.produce_on(
         self, [this, ptr](auto&, size_t demand) { on_demand(ptr, demand); },
         [this, ptr](auto&) { on_cancel(ptr); });
     }
-    if constexpr (std::is_same_v<T, peering>) {
-      for (auto& sub : filter) {
-        handler_subscriptions.insert(sub.string(), ptr);
-      }
-    } else if constexpr (std::is_same_v<T, hub_state>) {
-      for (auto& sub : filter) {
-        handler_subscriptions.insert(sub.string(), ptr);
-      }
-    } else {
-      for (auto& sub : filter) {
-        handler_subscriptions.insert(sub.string(), ptr);
-      }
+    // Extend our filter with the new handler.
+    for (auto& sub : filter) {
+      handler_subscriptions.insert(sub.string(), ptr);
     }
   }
 
@@ -545,6 +612,10 @@ public:
 
   /// Called whenever a peer signals that it enqueued new messages.
   void on_data(const peering_ptr& peer);
+
+  /// Called when triggering an overflow and the handler is configured to
+  /// disconnect.
+  void on_overflow_disconnect(const handler_ptr& ptr);
 
   /// Called to remove a state from all filters and the peer map.
   void erase(const handler_ptr& peer);
@@ -663,18 +734,12 @@ public:
   /// Reusable buffer for pulling messages from handlers.
   std::vector<node_message> pull_buffer;
 
-  /// Reusable buffer for selecting handlers.
-  std::vector<handler_ptr> handler_selection;
+  /// Reusable buffer for passing to `handler_subscriptions.select()`.
+  std::vector<handler_ptr> selection_buffer;
 
   /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
   /// node to other peers.
   bool disable_forwarding = false;
-
-  /// Checks whether a message has a local sender.
-  bool is_local(const node_message& msg) const noexcept {
-    auto sender = get_sender(msg);
-    return !sender || sender == id;
-  }
 
   /// Stores prefixes that have subscribers on this endpoint. This is shared
   /// with the connector, which needs access to the filter during handshake.
