@@ -663,57 +663,14 @@ void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
   }
 }
 
-void core_actor_state::on_cancel(const handler_ptr& ptr) {
-  ptr->dispose();
-  erase(ptr);
-}
-
-void core_actor_state::on_cancel(const peering_ptr& peer) {
-  // Dispose the peering object and remove from our state.
-  auto i = peerings.find(peer->id);
-  if (i == peerings.end() || i->second != peer) {
-    // Peer was already removed.
-    return;
-  }
-  peer->dispose();
-  peerings.erase(i);
-  // Update our 'global' state for this peer.
-  auto stat = peer_status::peered;
-  if (!peer_statuses->update(peer->id, stat, peer_status::disconnected)) {
-    if (stat == peer_status::disconnected) {
-      return;
-    }
-    log::core::error("on-cancel", "{} reports invalid status {}", peer->id,
-                     stat);
-  }
-  log::core::debug("on-cancel", "{} changed state: peered -> disconnected",
-                   peer->id);
-  // Trigger a reconnect if we have initiated the peering and did not disconnect
-  // this peer as a result of unpeering from it.
-  if (!shutting_down() && !peer->addr.address.empty()
-      && peer->addr.has_retry_time()) {
-    try_connect(peer->addr, caf::response_promise{});
-    log::core::debug("on-cancel", "try re-connecting to {}", peer->id);
-  }
-}
-
 void core_actor_state::on_data(const handler_ptr& ptr) {
   pull_buffer.clear();
-  if (ptr->pull(pull_buffer) == handler_result::disconnect) {
-    erase(ptr);
-  }
+  auto input_closed = ptr->pull(pull_buffer) == handler_result::disconnect;
   for (auto& msg : pull_buffer) {
     dispatch_from(msg, ptr);
   }
-}
-
-void core_actor_state::on_data(const hub_state_ptr& ptr) {
-  pull_buffer.clear();
-  if (ptr->pull(pull_buffer) == handler_result::disconnect) {
-    erase(ptr);
-  }
-  for (auto& msg : pull_buffer) {
-    dispatch_from(msg, ptr);
+  if (input_closed) {
+    on_input_closed(ptr);
   }
 }
 
@@ -763,16 +720,20 @@ void core_actor_state::on_data(const peering_ptr& peer) {
         // connection.
         auto raw_bytes = msg->raw_bytes();
         auto payload = std::span{raw_bytes.first, raw_bytes.second};
+        auto i = peerings.find(peer->id);
         if (peer->unpeering && payload.size() == peering::bye_token_size
-            && !peer->disposed()) {
+            && i != peerings.end() && i->second == peer) {
           peering::bye_token token;
           peer->assign_bye_token(token);
           if (std::equal(payload.begin(), payload.end(), token.begin(),
                          token.end())) {
             // Do not handle any further messages from this peer after
             // completing the BYE handshake.
-            peerings.erase(peer->id);
-            erase(peer);
+            log::core::debug("pong", "{} completed the BYE handshake",
+                             peer->id);
+            peerings.erase(i);
+            peer->dispose();
+            on_handler_disposed(peer);
             return;
           }
           break;
@@ -781,36 +742,58 @@ void core_actor_state::on_data(const peering_ptr& peer) {
     }
   }
   if (disconnected) {
-    peerings.erase(peer->id);
-    erase(peer);
+    on_input_closed(peer);
   }
 }
 
 void core_actor_state::on_overflow_disconnect(const handler_ptr& ptr) {
-  with_subtype(ptr, [this]<class T>(const std::shared_ptr<T>& ptr) {
-    if constexpr (std::is_same_v<T, peering>) {
-      log::core::error("on-overflow-disconnect",
-                       "peer {} disconnected due to overflow", ptr->id);
-      peerings.erase(ptr->id);
-    } else if constexpr (std::is_same_v<T, hub_state>) {
-      log::core::error("on-overflow-disconnect",
-                       "hub {} disconnected due to overflow",
-                       static_cast<uint64_t>(ptr->id()));
-      hubs.erase(ptr->id());
-    }
-  });
+  log::core::error("on-overflow-disconnect", "{} disconnected due to overflow",
+                   ptr->pretty_name);
   erase(ptr);
+  ptr->dispose();
+  on_handler_disposed(ptr);
 }
 
-void core_actor_state::erase(const handler_ptr& ptr) {
-  // Call cleanup code of the handler. This will call `on_dispose`. If `ptr` is
-  // a peering, this will emit status updates.
-  ptr->dispose();
+void core_actor_state::on_input_closed(const handler_ptr& ptr) {
+  BROKER_ASSERT(ptr->input_closed());
+  log::core::debug("on-input-closed", "{} closed its input buffer",
+                   ptr->pretty_name);
+  if (ptr->output_closed()) {
+    erase(ptr);
+    ptr->dispose();
+    on_handler_disposed(ptr);
+  }
+}
+
+void core_actor_state::on_output_closed(const handler_ptr& ptr) {
+  BROKER_ASSERT(ptr->output_closed());
+  log::core::debug("on-output-closed", "{} closed its output buffer",
+                   ptr->pretty_name);
+  if (ptr->input_closed()) {
+    erase(ptr);
+    ptr->dispose();
+    on_handler_disposed(ptr);
+  }
+}
+
+void core_actor_state::on_handler_disposed(const handler_ptr& ptr) {
   handler_subscriptions.purge_value(ptr);
-  generic_handlers.erase(ptr);
   if (shutting_down() && peerings.empty()) {
     finalize_shutdown();
   }
+}
+
+void core_actor_state::erase(const handler_ptr& ptr) {
+  with_subtype(ptr, [this]<class Ptr>(const Ptr& ptr) {
+    using element_type = typename Ptr::element_type;
+    if constexpr (std::is_same_v<element_type, peering>) {
+      peerings.erase(ptr->id);
+    } else if constexpr (std::is_same_v<element_type, hub_state>) {
+      hubs.erase(ptr->id());
+    } else {
+      generic_handlers.erase(ptr);
+    }
+  });
 }
 
 // -- connection management ----------------------------------------------------
@@ -925,6 +908,7 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                                          peer_overflow_policy(), addr, filter);
   state->bye_id = self->new_u64_id();
   state->on_dispose = caf::make_type_erased_callback([this, state, peer_id]() {
+    log::core::debug("on-peer-dispose", "dispose called for peer {}", peer_id);
     // Drop our 'local' state for this peer.
     if (peerings.count(peer_id) != 0) {
       log::core::error("on-peer-dispose",

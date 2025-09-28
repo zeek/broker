@@ -8,6 +8,7 @@
 #include "broker/internal/fwd.hh"
 #include "broker/internal/subscription_multimap.hh"
 #include "broker/internal/wire_format.hh"
+#include "broker/logger.hh"
 #include "broker/message.hh"
 #include "broker/overflow_policy.hh"
 
@@ -139,6 +140,10 @@ public:
     ///       `handler_result::disconnect`.
     virtual void dispose() = 0;
 
+    virtual bool input_closed() const noexcept = 0;
+
+    virtual bool output_closed() const noexcept = 0;
+
     /// The parent object.
     core_actor_state* parent;
 
@@ -249,7 +254,6 @@ public:
         demand -= n;
       }
       if (queue.empty() && !in && type() != handler_type::subscriber) {
-        dispose();
         return handler_result::disconnect;
       }
       return handler_result::ok;
@@ -268,9 +272,17 @@ public:
       }
     }
 
-    bool disposed() const {
-      return !in && !out;
+    bool input_closed() const noexcept override {
+      return !in;
     }
+
+    bool output_closed() const noexcept override {
+      return !out;
+    }
+
+    // bool disposed() const noexcept override {
+    //   return input_closed() && output_closed();
+    // }
 
     handler_result pull(std::vector<node_message>& buf) override {
       if (!in) {
@@ -284,7 +296,6 @@ public:
         if (!again) {
           in = nullptr;
           if (queue.empty()) {
-            dispose();
             return handler_result::disconnect;
           }
         }
@@ -294,19 +305,19 @@ public:
         std::vector<caf::chunk> chunks;
         chunks.reserve(128);
         pull_observer<caf::chunk> observer{chunks};
-        if (do_pull(observer) == handler_result::disconnect) {
-          return handler_result::disconnect;
-        }
+        auto result = do_pull(observer);
         for (auto& item : chunks) {
           wire_format::v1::trait trait;
           node_message converted;
           if (!trait.convert(item.bytes(), converted)) {
-            dispose();
+            log::core::error("pull",
+                             "{} failed to convert chunk to node message",
+                             pretty_name);
             return handler_result::disconnect;
           }
           buf.emplace_back(std::move(converted));
         }
-        return handler_result::ok;
+        return result;
       } else {
         pull_observer observer{buf};
         return do_pull(observer);
@@ -558,12 +569,12 @@ public:
     if (in_res) {
       ptr->in = in_res.consume_on(self, [this, ptr](auto&) { on_data(ptr); });
     }
-    // Call `on_demand` and `on_cancel` whenever there is activity on the output
-    // buffer.
+    // Call `on_demand` if the peer requests more messages and
+    // `on_output_closed` when the peer closes the output buffer.
     if (out_res) {
       ptr->out = out_res.produce_on(
         self, [this, ptr](auto&, size_t demand) { on_demand(ptr, demand); },
-        [this, ptr](auto&) { on_cancel(ptr); });
+        [this, ptr](auto&) { on_output_closed(ptr); });
     }
     // Extend our filter with the new handler.
     for (auto& sub : filter) {
@@ -597,17 +608,8 @@ public:
   /// Called whenever a peer has demand for more messages.
   void on_demand(const handler_ptr& peer, size_t demand);
 
-  /// Called whenever a generic handler or hub cancels its subscription.
-  void on_cancel(const handler_ptr& ptr);
-
-  /// Called whenever a peering cancels its subscription.
-  void on_cancel(const peering_ptr& peer);
-
   /// Called whenever a peer signals that it enqueues new messages.
   void on_data(const handler_ptr& ptr);
-
-  /// Called whenever a hub signals that it enqueues new messages.
-  void on_data(const hub_state_ptr& ptr);
 
   /// Called whenever a peer signals that it enqueues new messages.
   void on_data(const peering_ptr& peer);
@@ -616,7 +618,17 @@ public:
   /// disconnect.
   void on_overflow_disconnect(const handler_ptr& ptr);
 
-  /// Called to remove a handler from all filters and the peer map.
+  /// Called whenever a handler closes its input buffer.
+  void on_input_closed(const handler_ptr& ptr);
+
+  /// Called whenever a handler closes its output buffer.
+  void on_output_closed(const handler_ptr& ptr);
+
+  /// Called from `on_overflow_disconnect`, `on_input_closed`, or
+  /// `on_output_closed` when a handler was disposed.
+  void on_handler_disposed(const handler_ptr& ptr);
+
+  /// Called to remove a handler from its container.
   void erase(const handler_ptr& peer);
 
   // -- connection management --------------------------------------------------
