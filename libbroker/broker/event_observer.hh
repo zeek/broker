@@ -22,7 +22,7 @@ public:
 
   /// Called by Broker to notify the observer about a new outgoing message to a
   /// peer. This function is called if the message leaves the peer's buffer.
-  virtual void on_peer_buffer_pull(const endpoint_id& peer,size_t count);
+  virtual void on_peer_buffer_pull(const endpoint_id& peer, size_t count);
 
   /// Called by Broker to notify the observer about a discarded peer connection.
   /// @param peer The ID of the peer that disconnected.
