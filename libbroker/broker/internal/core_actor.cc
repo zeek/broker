@@ -197,11 +197,11 @@ core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   web_socket_connections = ws;
   // Initialize message metrics, indexes are according to packed_message_type.
   auto proc = factory.core.processed_messages_instances();
-  message_metric_sets[1].assign(proc.data);
-  message_metric_sets[2].assign(proc.command);
-  message_metric_sets[3].assign(proc.routing_update);
-  message_metric_sets[4].assign(proc.ping);
-  message_metric_sets[5].assign(proc.pong);
+  message_metric_sets[0].processed = proc.data;
+  message_metric_sets[1].processed = proc.command;
+  message_metric_sets[2].processed = proc.routing_update;
+  message_metric_sets[3].processed = proc.ping;
+  message_metric_sets[4].processed = proc.pong;
 }
 
 core_actor_state::core_actor_state(caf::event_based_actor* self, //
@@ -345,7 +345,7 @@ caf::behavior core_actor_state::make_behavior() {
     // -- subscription management ----------------------------------------------
     [this](atom::subscribe, const filter_type& filter) {
       // Subscribe to topics without actually caring about the events. This
-      // makes sure that this node receives events on the topics, which in means
+      // makes sure that this node receives events on the topics, which means
       // we can forward them.
       subscribe(filter);
     },
@@ -370,7 +370,7 @@ caf::behavior core_actor_state::make_behavior() {
            data_producer_res& snk) {
       // Note: setting the filter_local flag to true means that we will not push
       //       messages from other hubs to this hub. This is used by the class
-      //       `subscriber` to only receive messages from non-local messages,
+      //       `subscriber` to only receive messages from non-local sources,
       //       i.e., messages from other peers.
       if (id == hub_id::invalid) {
         log::core::error("add-hub", "cannot add hub with invalid ID");
@@ -459,12 +459,12 @@ caf::behavior core_actor_state::make_behavior() {
 void core_actor_state::shutdown(shutdown_options options) {
   if (shutting_down())
     return;
-  // Tell the connector to shut down. No new connection allowed.
+  // Tell the connector to shut down. No new connections allowed.
   if (adapter)
     adapter->async_shutdown();
   // Shut down data stores.
   shutdown_stores();
-  // Inform our clients that we no longer wait for any peer.
+  // Inform our clients that we are no longer waiting for any peer.
   log::core::debug("shutdown", "cancel {} pending await_peer requests",
                    awaited_peers.size());
   for (auto& kvp : awaited_peers)
@@ -472,7 +472,7 @@ void core_actor_state::shutdown(shutdown_options options) {
   awaited_peers.clear();
   // Ignore future messages.
   self->become([](int) {
-    // dummy handler to keep the actor alive until we call quit
+    // Dummy handler to keep the actor alive until we call quit
   });
   self->set_default_handler(
     [](caf::scheduled_actor* sptr, caf::message&) -> caf::skippable_result {
@@ -562,10 +562,10 @@ std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
 table core_actor_state::message_metrics_snapshot() const {
   table result;
   for (size_t msg_type = 1; msg_type < 6; ++msg_type) {
-    auto& msg_metrics = metrics.message_metric_sets[msg_type];
+    auto key = static_cast<packed_message_type>(msg_type);
+    auto& msg_metrics = metrics.metrics_for(key);
     table vals;
     vals.emplace("processed"s, msg_metrics.processed->Value());
-    auto key = static_cast<packed_message_type>(msg_type);
     result.emplace(to_string(key), std::move(vals));
   }
   return result;
@@ -1197,7 +1197,7 @@ void core_actor_state::dispatch(const node_message& msg) {
       }
     }
   };
-  // Use the re-usable buffer if it's available (i.e., empty).
+  // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
     handler_subscriptions.select(get_topic(msg), selection_buffer);
     do_dispatch(selection_buffer);
@@ -1205,7 +1205,7 @@ void core_actor_state::dispatch(const node_message& msg) {
     return;
   }
   // Otherwise, this is a nested dispatch: use a fresh buffer since
-  // handler_selection is already in use.
+  // selection_buffer is already in use.
   std::vector<handler_ptr> selection;
   selection.reserve(64); // Avoid multiple small allocations.
   handler_subscriptions.select(get_topic(msg), selection);
@@ -1240,7 +1240,7 @@ void core_actor_state::dispatch_from(const node_message& msg,
       }
     }
   };
-  // Use the re-usable buffer if it's available (i.e., empty).
+  // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
     handler_subscriptions.select(get_topic(msg), selection_buffer);
     do_dispatch(selection_buffer);
@@ -1248,7 +1248,7 @@ void core_actor_state::dispatch_from(const node_message& msg,
     return;
   }
   // Otherwise, this is a nested dispatch: use a fresh buffer since
-  // handler_selection is already in use.
+  // selection_buffer is already in use.
   std::vector<handler_ptr> selection;
   selection.reserve(64); // Avoid multiple small allocations.
   handler_subscriptions.select(get_topic(msg), selection);
@@ -1296,7 +1296,7 @@ void core_actor_state::unpeer(const network_info& addr) {
 }
 
 bool core_actor_state::shutting_down() {
-  // We call unbecome() in shutdown, which remove the behavior of the actor.
+  // We call unbecome() in shutdown, which removes the behavior of the actor.
   // Hence, a core actor without behavior indicates shutdown has been called.
   return !self->has_behavior();
 }
@@ -1330,7 +1330,7 @@ size_t core_actor_state::store_buffer_size() {
 
 overflow_policy core_actor_state::store_overflow_policy() {
   // TODO: make configurable?
-  // Note: stores have a builtin mechanism for re-sending messages. Hence, we
+  // Note: stores have a built-in mechanism for re-sending messages. Hence, we
   //       can drop messages in case of overflow.
   return overflow_policy::drop_newest;
 }

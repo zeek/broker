@@ -35,10 +35,6 @@ public:
   struct message_metrics_t {
     /// Counts how many messages were processed since starting the core.
     prometheus::Counter* processed = nullptr;
-
-    void assign(prometheus::Counter* processed_instance) noexcept {
-      processed = processed_instance;
-    }
   };
 
   /// Bundles metrics for the core.
@@ -52,10 +48,12 @@ public:
     prometheus::Gauge* web_socket_connections = nullptr;
 
     /// Stores the metrics for all message types.
-    std::array<message_metrics_t, 6> message_metric_sets;
+    std::array<message_metrics_t, 5> message_metric_sets;
 
-    message_metrics_t& metrics_for(packed_message_type msg_type) {
-      return message_metric_sets[static_cast<size_t>(msg_type)];
+    const message_metrics_t& metrics_for(packed_message_type msg_type) const {
+      // Note: the enum starts at 1. Hence, we subtract 1 to get a 0-based index
+      // into our array.
+      return message_metric_sets[static_cast<size_t>(msg_type) - 1];
     }
   };
 
@@ -76,7 +74,7 @@ public:
     publisher,
   };
 
-  /// Wraps access to a node message and also allows to convert it to a chunk.
+  /// Wraps access to a node message and also allows converting it to a chunk.
   /// This conversion is done lazily, i.e., only when the message is actually
   /// needed. Furthermore, if multiple handlers require the conversion, it is
   /// done only once and the result is cached.
@@ -138,7 +136,7 @@ public:
 
     /// Disposes of the handler.
     /// @note This function is always called implicitly if a callback returns
-    ///       `handler_result::disposed`.
+    ///       `handler_result::disconnect`.
     virtual void dispose() = 0;
 
     /// The parent object.
@@ -533,10 +531,11 @@ public:
   /// Returns whether `x` has at least one remote subscriber.
   bool has_remote_subscriber(const topic& x) const noexcept;
 
-  /// Checks whether peer with given `id` is subscribed to the topic `what`.
+  /// Checks whether the peer with the given `id` is subscribed to the topic
+  /// `what`.
   bool is_subscribed_to(endpoint_id id, const topic& what);
 
-  /// Returns the @ref network_info associated to given `id` if available.
+  /// Returns the @ref network_info associated with the given `id` if available.
   std::optional<network_info> addr_of(endpoint_id id) const;
 
   /// Creates a snapshot for the current values of the message metrics.
@@ -574,23 +573,23 @@ public:
 
   // -- callbacks --------------------------------------------------------------
 
-  /// Called whenever the user tried to unpeer from an unknown peer.
-  /// @param xs Either a peer ID, an actor handle or a network info.
+  /// Called whenever the user tries to unpeer from an unknown peer.
+  /// @param x Either a peer ID, an actor handle or a network info.
   void cannot_remove_peer(endpoint_id x);
 
-  /// Called whenever the user tried to unpeer from an unknown peer.
-  /// @param xs Either a peer ID, an actor handle or a network info.
+  /// Called whenever the user tries to unpeer from an unknown peer.
+  /// @param x Either a peer ID, an actor handle or a network info.
   void cannot_remove_peer(const network_info& x);
 
   /// Called whenever establishing a connection to a remote peer failed.
-  /// @param xs Either a peer ID or a network info.
+  /// @param x Either a peer ID or a network info.
   void peer_unavailable(const network_info& x);
 
-  /// Called whenever a new client connected.
+  /// Called whenever a new client connects.
   void client_added(endpoint_id client_id, const network_info& addr,
                     const std::string& type);
 
-  /// Called whenever a client disconnected.
+  /// Called whenever a client disconnects.
   void client_removed(endpoint_id client_id, const network_info& addr,
                       const std::string& type, const caf::error& reason,
                       bool removed);
@@ -604,20 +603,20 @@ public:
   /// Called whenever a peering cancels its subscription.
   void on_cancel(const peering_ptr& peer);
 
-  /// Called whenever a peer signals that it enqueued new messages.
+  /// Called whenever a peer signals that it enqueues new messages.
   void on_data(const handler_ptr& ptr);
 
-  /// Called whenever a hub signals that it enqueued new messages.
+  /// Called whenever a hub signals that it enqueues new messages.
   void on_data(const hub_state_ptr& ptr);
 
-  /// Called whenever a peer signals that it enqueued new messages.
+  /// Called whenever a peer signals that it enqueues new messages.
   void on_data(const peering_ptr& peer);
 
   /// Called when triggering an overflow and the handler is configured to
   /// disconnect.
   void on_overflow_disconnect(const handler_ptr& ptr);
 
-  /// Called to remove a state from all filters and the peer map.
+  /// Called to remove a handler from all filters and the peer map.
   void erase(const handler_ptr& peer);
 
   // -- connection management --------------------------------------------------
@@ -652,16 +651,16 @@ public:
 
   // -- data store management --------------------------------------------------
 
-  /// Returns whether a master for `name` probably exists already on one of our
+  /// Returns whether a master for `name` probably already exists on one of our
   /// peers.
   bool has_remote_master(const std::string& name) const;
 
-  /// Attaches a master for given store to this peer.
+  /// Attaches a master for the given store to this peer.
   caf::result<caf::actor> attach_master(const std::string& name,
                                         backend backend_type,
                                         backend_options opts);
 
-  /// Attaches a clone for given store to this peer.
+  /// Attaches a clone for the given store to this peer.
   caf::result<caf::actor> attach_clone(const std::string& name,
                                        double resync_interval,
                                        double stale_interval,
@@ -673,10 +672,11 @@ public:
 
   // -- dispatching of messages ------------------------------------------------
 
-  /// Dispatches `msg` to `receiver` regardless of its subscriptions.
-  /// @returns `true` on success, `false` if no peering to `receiver` exists.
+  /// Dispatches `msg` to all subscribers based on the message topic.
   void dispatch(const node_message& msg);
 
+  /// Dispatches `msg` to all subscribers based on the message topic, except for
+  /// `from`.
   void dispatch_from(const node_message& msg, const handler_ptr& from);
 
   /// Broadcasts the local subscriptions to all peers.
@@ -737,8 +737,8 @@ public:
   /// Reusable buffer for passing to `handler_subscriptions.select()`.
   std::vector<handler_ptr> selection_buffer;
 
-  /// Stores whether this peer disabled forwarding, i.e., only appears as leaf
-  /// node to other peers.
+  /// Stores whether this peer has disabled forwarding, i.e., only appears as a
+  /// leaf node to other peers.
   bool disable_forwarding = false;
 
   /// Stores prefixes that have subscribers on this endpoint. This is shared
@@ -746,7 +746,7 @@ public:
   shared_filter_ptr filter;
 
   /// Stores IDs of peers that we have no path to yet but some local actor is
-  /// arleady waiting for. Usually for testing purposes.
+  /// already waiting for. Usually for testing purposes.
   std::multimap<endpoint_id, caf::response_promise> awaited_peers;
 
   /// Enables manual time management by the user.
@@ -782,13 +782,8 @@ public:
   /// Returns whether `shutdown` was called.
   bool shutting_down();
 
-  /// Returns the metrics set for a given message type.
-  message_metrics_t& metrics_for(packed_message_type msg_type) {
-    return metrics.metrics_for(msg_type);
-  }
-
-  /// Counts messages that were published directly via message, i.e., without
-  /// using the back-pressure of flows.
+  /// Counts messages that were published directly via message publishing, i.e.,
+  /// without using the back-pressure of flows.
   int64_t published_via_async_msg = 0;
 };
 
