@@ -668,14 +668,12 @@ void core_actor_state::client_removed(endpoint_id client_id,
 }
 
 void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
-  if (peer->add_demand(demand) == handler_result::disconnect) {
-    erase(peer);
-  }
+  peer->add_demand(demand);
 }
 
 void core_actor_state::on_data(const handler_ptr& ptr) {
   pull_buffer.clear();
-  auto input_closed = ptr->pull(pull_buffer) == handler_result::disconnect;
+  auto input_closed = ptr->pull(pull_buffer) == handler_result::term;
   for (auto& msg : pull_buffer) {
     dispatch_from(msg, ptr);
   }
@@ -689,7 +687,7 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
   // Check if the peer got disconnected. If so, we will handle it later in order
   // to have the disconnect events be delivered after any messages that might
   // be in the buffer.
-  auto disconnected = peer->pull(pull_buffer) == handler_result::disconnect;
+  auto disconnected = peer->pull(pull_buffer) == handler_result::term;
   for (auto& msg : pull_buffer) {
     log::core::debug("on-data", "received message from peer {}: {}", peer->id,
                      msg);
@@ -720,7 +718,7 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
         auto ping = msg->as_ping();
         auto pong = make_pong_message(ping);
         msg_provider.set(pong->with(ping->receiver(), ping->sender()));
-        if (peer->offer(msg_provider) == handler_result::disconnect) {
+        if (peer->offer(msg_provider) == handler_result::term) {
           on_overflow_disconnect(peer);
         }
         break;
@@ -1212,7 +1210,7 @@ void core_actor_state::dispatch(const node_message& msg) {
     log::core::debug("dispatch", "broadcasting message to {} subscribers: {}",
                      selection.size(), msg);
     for (auto& ptr : selection) {
-      if (ptr->offer(msg_provider) == handler_result::disconnect) {
+      if (ptr->offer(msg_provider) == handler_result::term) {
         on_overflow_disconnect(ptr);
       }
     }
@@ -1258,7 +1256,7 @@ void core_actor_state::dispatch_from(const node_message& msg,
             && ptr->type() == handler_type::subscriber) {
           continue;
         }
-        if (ptr->offer(msg_provider) == handler_result::disconnect) {
+        if (ptr->offer(msg_provider) == handler_result::term) {
           on_overflow_disconnect(ptr);
         }
       }
@@ -1289,7 +1287,7 @@ void core_actor_state::broadcast_subscriptions() {
                    "broadcasting message to {} peers: {}", peerings.size(),
                    msg_provider.get());
   for (auto& [pid, ptr] : peerings) {
-    if (ptr->offer(msg_provider) == handler_result::disconnect) {
+    if (ptr->offer(msg_provider) == handler_result::term) {
       on_overflow_disconnect(ptr);
     }
   }

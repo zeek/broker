@@ -111,8 +111,9 @@ public:
   enum class handler_result {
     /// The callback was invoked successfully.
     ok,
-    /// The callback was invoked but resulted in a terminal state.
-    disconnect,
+    /// The callback was invoked but resulted in a terminal state, i.e., the
+    /// handler should not be called again.
+    term,
   };
 
   /// Wraps access to a node message and also allows converting it to a chunk.
@@ -170,10 +171,11 @@ public:
     [[nodiscard]] virtual handler_result offer(message_provider& msg) = 0;
 
     /// Callback for a downstream component demanding more messages.
-    virtual handler_result add_demand(size_t demand) = 0;
+    virtual void add_demand(size_t demand) = 0;
 
     /// Tries to pull more messages from the handler.
-    virtual handler_result pull(std::vector<node_message>& buf) = 0;
+    [[nodiscard]] virtual handler_result
+    pull(std::vector<node_message>& buf) = 0;
 
     /// Disposes of the handler. Must be called after the handler has neither
     /// input nor output buffers and has been removed from its container.
@@ -271,7 +273,7 @@ public:
       return Subtype;
     }
 
-    handler_result offer(message_provider& msg) override {
+    [[nodiscard]] handler_result offer(message_provider& msg) override {
       if constexpr (std::is_same_v<value_type, caf::chunk>) {
         if (auto& serialized = msg.as_binary()) {
           return do_offer(serialized);
@@ -294,9 +296,9 @@ public:
       return handler_result::ok;
     }
 
-    handler_result add_demand(size_t new_demand) override {
+    void add_demand(size_t new_demand) override {
       if (new_demand == 0) {
-        return handler_result::ok;
+        return;
       }
       demand += new_demand;
       while (demand > 0 && !queue.empty()) {
@@ -317,10 +319,6 @@ public:
         out->push(std::move(items));
         demand -= n;
       }
-      if (queue.empty() && !in && type() != handler_type::subscriber) {
-        return handler_result::disconnect;
-      }
-      return handler_result::ok;
     }
 
     void dispose() override {
@@ -344,7 +342,7 @@ public:
       return !out;
     }
 
-    handler_result pull(std::vector<node_message>& buf) override {
+    [[nodiscard]] handler_result pull(std::vector<node_message>& buf) override {
       if (!in) {
         return handler_result::ok;
       }
@@ -355,9 +353,7 @@ public:
         }
         if (!again) {
           in = nullptr;
-          if (queue.empty()) {
-            return handler_result::disconnect;
-          }
+          return handler_result::term;
         }
         return handler_result::ok;
       };
@@ -373,7 +369,9 @@ public:
             log::core::error("pull",
                              "{} failed to convert chunk to node message",
                              pretty_name);
-            return handler_result::disconnect;
+            in->dispose();
+            in = nullptr;
+            return handler_result::term;
           }
           buf.emplace_back(std::move(converted));
         }
@@ -384,7 +382,11 @@ public:
       }
     }
 
-    handler_result do_offer(value_type msg) {
+    [[nodiscard]] handler_result do_offer(value_type msg) {
+      // If output is closed, we can't send messages anymore
+      if (!out) {
+        return handler_result::term;
+      }
       // If we have demand, we can send the message immediately.
       if (demand > 0) {
         out->push(std::move(msg));
@@ -409,7 +411,9 @@ public:
       // If the queue is full, we need to decide what to do with the message.
       switch (policy) {
         default: // overflow_policy::disconnect
-          return handler_result::disconnect;
+          out->dispose();
+          out = nullptr;
+          return handler_result::term;
         case overflow_policy::drop_newest:
           queue.pop_back();
           queue.push_back(std::move(msg));
@@ -469,7 +473,7 @@ public:
       // nop
     }
 
-    handler_result offer(message_provider& msg) override {
+    [[nodiscard]] handler_result offer(message_provider& msg) override {
       if (auto dmsg = msg.as_data()) {
         return do_offer(std::move(dmsg));
       }
@@ -510,7 +514,7 @@ public:
       // nop
     }
 
-    handler_result offer(message_provider& msg) override;
+    [[nodiscard]] handler_result offer(message_provider& msg) override;
 
     /// Creates a BYE message.
     node_message make_bye_message();
@@ -641,7 +645,10 @@ public:
     if (out_res) {
       ptr->out = out_res.produce_on(
         self, [this, ptr](auto&, size_t demand) { on_demand(ptr, demand); },
-        [this, ptr](auto&) { on_output_closed(ptr); });
+        [this, ptr](auto&) {
+          ptr->out = nullptr;
+          on_output_closed(ptr);
+        });
     }
     // Extend our filter with the new handler.
     for (auto& sub : filter) {
