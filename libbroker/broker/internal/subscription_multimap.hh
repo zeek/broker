@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <set>
+#include <string>
 #include <vector>
 
 namespace broker::internal {

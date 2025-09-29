@@ -28,6 +28,54 @@
 
 namespace broker::internal {
 
+/// Denotes the subtype of a handler.
+enum class handler_type {
+  store,
+  master, // Subtype of store.
+  clone,  // Subtype of store.
+  client,
+  peering,
+  hub,
+  subscriber, // Subtype of hub.
+  publisher,  // Subtype of hub.
+};
+
+/// Trait for getting the value and ID type of a handler.
+template <handler_type>
+struct handler_type_trait;
+
+template <>
+struct handler_type_trait<handler_type::store> {
+  using value_type = command_message;
+  using id_type = std::string;
+};
+
+template <>
+struct handler_type_trait<handler_type::client> {
+  using value_type = data_message;
+  using id_type = endpoint_id;
+};
+
+template <>
+struct handler_type_trait<handler_type::peering> {
+  using value_type = caf::chunk;
+  using id_type = endpoint_id;
+};
+
+template <>
+struct handler_type_trait<handler_type::hub> {
+  using value_type = data_message;
+  using id_type = hub_id;
+};
+
+/// Convenience alias for the value type of a handler.
+template <handler_type T>
+using handler_value_type = typename handler_type_trait<T>::value_type;
+
+/// Convenience alias for the ID type of a handler.
+template <handler_type T>
+using handler_id_type = typename handler_type_trait<T>::id_type;
+
 /// The state of the core actor.
 class core_actor_state {
 public:
@@ -66,54 +114,6 @@ public:
     /// The callback was invoked but resulted in a terminal state.
     disconnect,
   };
-
-  /// Denotes the subtype of a handler.
-  enum class handler_type {
-    store,
-    master, // Subtype of store.
-    clone,  // Subtype of store.
-    client,
-    peering,
-    hub,
-    subscriber, // Subtype of hub.
-    publisher,  // Subtype of hub.
-  };
-
-  /// Trait for getting the value and ID type of a handler.
-  template <handler_type>
-  struct handler_type_trait;
-
-  template <>
-  struct handler_type_trait<handler_type::store> {
-    using value_type = command_message;
-    using id_type = std::string;
-  };
-
-  template <>
-  struct handler_type_trait<handler_type::client> {
-    using value_type = data_message;
-    using id_type = endpoint_id;
-  };
-
-  template <>
-  struct handler_type_trait<handler_type::peering> {
-    using value_type = caf::chunk;
-    using id_type = endpoint_id;
-  };
-
-  template <>
-  struct handler_type_trait<handler_type::hub> {
-    using value_type = data_message;
-    using id_type = hub_id;
-  };
-
-  /// Convenience alias for the value type of a handler.
-  template <handler_type T>
-  using handler_value_type = typename handler_type_trait<T>::value_type;
-
-  /// Convenience alias for the ID type of a handler.
-  template <handler_type T>
-  using handler_id_type = typename handler_type_trait<T>::id_type;
 
   /// Wraps access to a node message and also allows converting it to a chunk.
   /// This conversion is done lazily, i.e., only when the message is actually
