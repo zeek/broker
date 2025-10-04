@@ -107,6 +107,18 @@ public:
     }
   };
 
+  /// The result of invoking `offer` on a handler.
+  enum class offer_result {
+    /// The message was accepted by the handler.
+    ok,
+    /// The message was skipped (ignored) by the handler.
+    skip,
+    /// The handler hit the buffer limit and disconnected.
+    overflow_disconnect,
+    /// The handler shuts down and should not be called again.
+    term,
+  };
+
   /// The result of invoking a callback on a handler.
   enum class handler_result {
     /// The callback was invoked successfully.
@@ -168,7 +180,7 @@ public:
     virtual ~handler();
 
     /// Called whenever dispatching a message that matches the handler's filter.
-    [[nodiscard]] virtual handler_result offer(message_provider& msg) = 0;
+    [[nodiscard]] virtual offer_result offer(message_provider& msg) = 0;
 
     /// Callback for a downstream component demanding more messages.
     virtual void add_demand(size_t demand) = 0;
@@ -273,7 +285,7 @@ public:
       return Subtype;
     }
 
-    [[nodiscard]] handler_result offer(message_provider& msg) override {
+    [[nodiscard]] offer_result offer(message_provider& msg) override {
       if constexpr (std::is_same_v<value_type, caf::chunk>) {
         if (auto& serialized = msg.as_binary()) {
           return do_offer(serialized);
@@ -293,7 +305,7 @@ public:
       }
       // If we reach this point, the message is not of the expected type and we
       // simply ignore it.
-      return handler_result::ok;
+      return offer_result::skip;
     }
 
     void add_demand(size_t new_demand) override {
@@ -382,16 +394,17 @@ public:
       }
     }
 
-    [[nodiscard]] handler_result do_offer(value_type msg) {
+  private:
+    [[nodiscard]] offer_result do_offer(value_type msg) {
       // If output is closed, we can't send messages anymore
       if (!out) {
-        return handler_result::term;
+        return offer_result::term;
       }
       // If we have demand, we can send the message immediately.
       if (demand > 0) {
         out->push(std::move(msg));
         --demand;
-        return handler_result::ok;
+        return offer_result::ok;
       }
       // As long as our queue is not full, we can store the message in our queue
       // until we have demand.
@@ -406,22 +419,25 @@ public:
             lptr->on_client_buffer_push(id, 1);
           }
         }
-        return handler_result::ok;
+        return offer_result::ok;
       }
       // If the queue is full, we need to decide what to do with the message.
       switch (policy) {
         default: // overflow_policy::disconnect
+          log::core::info("offer",
+                          "{} hit the buffer limit with policy disconnect",
+                          pretty_name);
           out->dispose();
           out = nullptr;
-          return handler_result::term;
+          return offer_result::overflow_disconnect;
         case overflow_policy::drop_newest:
           queue.pop_back();
           queue.push_back(std::move(msg));
-          return handler_result::ok;
+          return offer_result::ok;
         case overflow_policy::drop_oldest:
           queue.pop_front();
           queue.push_back(std::move(msg));
-          return handler_result::ok;
+          return offer_result::ok;
       }
     }
   };
@@ -473,13 +489,6 @@ public:
       // nop
     }
 
-    [[nodiscard]] handler_result offer(message_provider& msg) override {
-      if (auto dmsg = msg.as_data()) {
-        return do_offer(std::move(dmsg));
-      }
-      return handler_result::ok;
-    }
-
     handler_type type() const noexcept override {
       return type_;
     }
@@ -514,16 +523,13 @@ public:
       // nop
     }
 
-    [[nodiscard]] handler_result offer(message_provider& msg) override;
+    [[nodiscard]] offer_result offer(message_provider& msg) override;
 
     /// Creates a BYE message.
     node_message make_bye_message();
 
     /// Assigns a BYE token to a buffer.
     void assign_bye_token(bye_token& buf);
-
-    /// Sends the BYE message to the peer.
-    bool send_bye_message();
 
     template <class Info, sc S>
     node_message make_status_msg(Info&& ep, sc_constant<S> code,
@@ -656,6 +662,12 @@ public:
     }
   }
 
+  /// Calls `offer` on the given handler with the message provider and handles
+  /// the result, removing the handler if it disconnects or terminates.
+  /// @returns `true` if the message was accepted by the handler, `false`
+  /// otherwise.
+  bool offer_msg(const handler_ptr& ptr);
+
   // -- callbacks --------------------------------------------------------------
 
   /// Called whenever the user tries to unpeer from an unknown peer.
@@ -678,6 +690,12 @@ public:
   void client_removed(endpoint_id client_id, const network_info& addr,
                       const std::string& type, const caf::error& reason,
                       bool removed);
+
+  /// Called whenever we remove a peer by demand of the user.
+  void on_peer_removed(const peering_handler_ptr& ptr);
+
+  /// Called whenever we lose connection to a peer.
+  void on_peer_lost(const peering_handler_ptr& ptr);
 
   /// Called whenever a peer has demand for more messages.
   void on_demand(const handler_ptr& peer, size_t demand);
@@ -793,6 +811,18 @@ public:
   size_t hub_buffer_size();
 
   overflow_policy hub_overflow_policy();
+
+  /// Returns the handlers for all peerings.
+  auto peering_handlers() const {
+    std::vector<peering_handler_ptr> result;
+    result.reserve(peerings.size());
+    for (auto& kvp : peerings) {
+      result.push_back(kvp.second);
+    }
+    return result;
+  }
+
+  bool send_bye_message(const peering_handler_ptr& ptr);
 
   // -- member variables -------------------------------------------------------
 

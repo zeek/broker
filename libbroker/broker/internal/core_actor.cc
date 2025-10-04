@@ -23,6 +23,7 @@
 #include "broker/detail/make_backend.hh"
 #include "broker/detail/prefix_matcher.hh"
 #include "broker/domain_options.hh"
+#include "broker/endpoint_id.hh"
 #include "broker/filter_type.hh"
 #include "broker/fwd.hh"
 #include "broker/hub_id.hh"
@@ -138,24 +139,19 @@ const caf::chunk& core_actor_state::message_provider::as_binary() {
   return binary_;
 }
 
-core_actor_state::handler_result
+core_actor_state::offer_result
 core_actor_state::peering_handler::offer(message_provider& provider) {
   auto& msg = provider.get();
   // Filter out messages from other peers unless forwarding is enabled.
   auto&& src = get_sender(msg);
   if (parent->disable_forwarding && src.valid() && src != parent->id) {
-    log::core::debug("offer",
-                     "forwarding disabled, {} skips message from {}: {}", id,
-                     src, msg);
-    return handler_result::ok;
+    return offer_result::skip;
   }
   // Filter out messages that aren't broadcasted (have no receiver) unless they
   // are directed to this peer explicitly.
   auto&& dst = get_receiver(msg);
   if (dst.valid() && dst != id) {
-    log::core::debug("offer", "{} drops message addressed to {}: {}", id, dst,
-                     msg);
-    return handler_result::ok;
+    return offer_result::skip;
   }
   return super::offer(provider);
 }
@@ -171,19 +167,6 @@ void core_actor_state::peering_handler::assign_bye_token(bye_token& buf) {
   const auto* suffix = &bye_id;
   memcpy(buf.data(), prefix, 3);
   memcpy(buf.data() + 3, suffix, 8);
-}
-
-bool core_actor_state::peering_handler::send_bye_message() {
-  if (!unpeering) {
-    peering_handler::bye_token token;
-    assign_bye_token(token);
-    auto msg = make_ping_message(parent->id, id, token.data(), token.size());
-    parent->msg_provider.set(std::move(msg));
-    offer(parent->msg_provider);
-    unpeering = true;
-    return true;
-  }
-  return false;
 }
 
 // -- constructors and destructors ---------------------------------------------
@@ -498,8 +481,10 @@ void core_actor_state::shutdown(shutdown_options options) {
     return;
   }
   // Send BYE messages to all peers to trigger graceful connection shutdown.
-  for (auto& kvp : peerings) {
-    kvp.second->send_bye_message();
+  for (const auto& ptr : peering_handlers()) {
+    if (send_bye_message(ptr)) {
+      log::core::info("unpeer-id", "unpeering from peer {}", ptr->id);
+    }
   }
   // Call `finalize_shutdown` after a timeout to ensure that we don't wait
   // forever if the peers don't respond to the BYE messages.
@@ -667,6 +652,30 @@ void core_actor_state::client_removed(endpoint_id client_id,
                    type, addr);
 }
 
+void core_actor_state::on_peer_removed(const peering_handler_ptr& ptr) {
+  log::core::info("on-peer-removed", "peer {} removed", ptr->id);
+  emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_removed>(),
+       "removed connection to remote peer");
+}
+
+void core_actor_state::on_peer_lost(const peering_handler_ptr& ptr) {
+  log::core::info("on-peer-lost", "peer {} disconnected", ptr->id);
+  emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_lost>(),
+       "lost connection to remote peer");
+  if (shutting_down_ || !ptr->addr.has_retry_time()) {
+    // Never re-connect to a peer if we are already shutting down or if the peer
+    // doesn't have a retry time.
+    log::core::debug(
+      "on-peer-lost",
+      "not re-connecting to peer {}, shutting_down = {}, has_retry_time = {}",
+      ptr->id, shutting_down_, ptr->addr.has_retry_time());
+    return;
+  }
+  log::core::debug("on-peer-lost", "try to re-connect to peer {}, addr = {}",
+                   ptr->id, ptr->addr);
+  try_connect(ptr->addr, caf::response_promise{});
+}
+
 void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
   peer->add_demand(demand);
 }
@@ -718,9 +727,7 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
         auto ping = msg->as_ping();
         auto pong = make_pong_message(ping);
         msg_provider.set(pong->with(ping->receiver(), ping->sender()));
-        if (peer->offer(msg_provider) == handler_result::term) {
-          on_overflow_disconnect(peer);
-        }
+        offer_msg(peer);
         break;
       }
       case packed_message_type::pong: {
@@ -939,14 +946,9 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     auto status = peer_status::peered;
     if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
       if (state->unpeering) {
-        log::core::debug("on-peer-removed", "peer {} removed", peer_id);
-        emit(endpoint_info{peer_id, state->addr},
-             sc_constant<sc::peer_removed>(),
-             "removed connection to remote peer");
+        on_peer_removed(state);
       } else {
-        log::core::debug("on-peer-disconnect", "peer {} disconnected", peer_id);
-        emit(endpoint_info{peer_id, state->addr}, sc_constant<sc::peer_lost>(),
-             "lost connection to remote peer");
+        on_peer_lost(state);
       }
       emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_unreachable>(),
            "lost the last path");
@@ -1203,17 +1205,44 @@ void core_actor_state::shutdown_stores() {
 
 // -- dispatching of messages to peers regardless of subscriptions  ------------
 
+bool core_actor_state::offer_msg(const handler_ptr& ptr) {
+  auto do_erase = [this, &ptr] {
+    erase(ptr);
+    ptr->dispose();
+    on_handler_disposed(ptr);
+  };
+  switch (ptr->offer(msg_provider)) {
+    case offer_result::ok:
+      return true;
+    case offer_result::overflow_disconnect:
+      log::core::error("offer-msg", "{} disconnected due to overflow",
+                       ptr->pretty_name);
+      do_erase();
+      break;
+    case offer_result::term:
+      log::core::error("offer-msg", "{} terminated while offering message",
+                       ptr->pretty_name);
+      do_erase();
+      break;
+    default: // skip
+      break;
+  }
+  return false;
+}
+
 void core_actor_state::dispatch(const node_message& msg) {
   metrics.metrics_for(msg->type()).processed->Increment();
   msg_provider.set(msg);
   auto do_dispatch = [this, &msg](auto& selection) {
-    log::core::debug("dispatch", "broadcasting message to {} subscribers: {}",
-                     selection.size(), msg);
+    auto accepted = size_t{0};
     for (auto& ptr : selection) {
-      if (ptr->offer(msg_provider) == handler_result::term) {
-        on_overflow_disconnect(ptr);
+      if (offer_msg(ptr)) {
+        ++accepted;
       }
     }
+    log::core::debug("dispatch",
+                     "offered message to {} subscribers ({} accepted): {}",
+                     selection.size(), accepted, msg);
   };
   // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
@@ -1244,23 +1273,25 @@ void core_actor_state::dispatch_from(const node_message& msg,
       }
       return std::string_view{from->pretty_name};
     };
-    log::core::debug("dispatch-from",
-                     "dispatching message from {} to {} subscribers: {}",
-                     get_pretty_name(), selection.size(), msg);
+    auto accepted = size_t{0};
     for (auto& ptr : selection) {
       if (ptr != from) {
         // If `from == nullptr`, it means that this message was sent via
         // endpoint::publish. We treat it as if it was published by a publisher,
         // i.e., it's a local message and subscribers should not receive it.
         if ((!from || from->type() == handler_type::publisher)
-            && ptr->type() == handler_type::subscriber) {
+            && ptr->type() == handler_type::subscriber
+            && get_receiver(msg) != id) {
           continue;
         }
-        if (ptr->offer(msg_provider) == handler_result::term) {
-          on_overflow_disconnect(ptr);
+        if (offer_msg(ptr)) {
+          ++accepted;
         }
       }
     }
+    log::core::debug("dispatch-from",
+                     "offered message to {} subscribers ({} accepted): {}",
+                     selection.size(), accepted, msg);
   };
   // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
@@ -1282,22 +1313,38 @@ void core_actor_state::dispatch_from(const node_message& msg,
 
 void core_actor_state::broadcast_subscriptions() {
   // Bypass subscriptions and forward the routing update directly to all peers.
-  msg_provider.set(routing_update_envelope::make(filter->read()));
+  auto msg = routing_update_envelope::make(filter->read());
+  msg_provider.set(msg->with(id, endpoint_id{}));
   log::core::debug("broadcast-subscriptions",
                    "broadcasting message to {} peers: {}", peerings.size(),
                    msg_provider.get());
   for (auto& [pid, ptr] : peerings) {
-    if (ptr->offer(msg_provider) == handler_result::term) {
-      on_overflow_disconnect(ptr);
+    offer_msg(ptr);
+  }
+}
+
+bool core_actor_state::send_bye_message(const peering_handler_ptr& ptr) {
+  if (!ptr->unpeering) {
+    peering_handler::bye_token token;
+    ptr->assign_bye_token(token);
+    auto msg = make_ping_message(id, ptr->id, token.data(), token.size());
+    msg_provider.set(std::move(msg));
+    if (offer_msg(ptr)) {
+      ptr->unpeering = true;
+      return true;
     }
   }
+  return false;
 }
 
 // -- unpeering ----------------------------------------------------------------
 
 void core_actor_state::unpeer(endpoint_id peer_id) {
   if (auto i = peerings.find(peer_id); i != peerings.end()) {
-    if (i->second->send_bye_message()) {
+    // Note: send_bye_message may modify `peerings`. Hence, we need to pass the
+    // pointer by value.
+    auto ptr = i->second;
+    if (send_bye_message(ptr)) {
       log::core::info("unpeer-id", "unpeering from peer {}", peer_id);
       return;
     }
@@ -1311,13 +1358,17 @@ void core_actor_state::unpeer(const network_info& addr) {
   auto pred = [&addr](auto& kvp) { return kvp.second->addr == addr; };
   if (auto i = std::find_if(peerings.begin(), peerings.end(), pred);
       i != peerings.end()) {
-    if (i->second->send_bye_message()) {
-      log::core::debug("unpeer-addr", "unpeering from peer {}", addr);
+    // Note: send_bye_message may modify `peerings`. Hence, we need to pass the
+    // pointer by value.
+    auto ptr = i->second;
+    if (send_bye_message(ptr)) {
+      log::core::info("unpeer-addr", "unpeering from peer {}", addr);
+      return;
     }
-    // else: ignore repeated calls to unpeer
-  } else {
-    cannot_remove_peer(addr);
+    log::core::debug("unpeer-addr", "ignore repeated call to unpeer {}", addr);
+    return;
   }
+  cannot_remove_peer(addr);
 }
 
 // -- properties ---------------------------------------------------------------
