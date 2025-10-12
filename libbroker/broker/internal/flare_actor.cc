@@ -57,19 +57,6 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
   }
 }
 
-caf::mailbox_element_ptr flare_actor::dequeue() {
-  std::unique_lock<std::mutex> lock{flare_mtx_};
-  auto rval = blocking_actor::dequeue();
-
-  if (rval) {
-    [[maybe_unused]] auto extinguished = flare_.extinguish_one();
-    BROKER_ASSERT(extinguished);
-    --flare_count_;
-  }
-
-  return rval;
-}
-
 const char* flare_actor::name() const {
   return "flare_actor";
 }
