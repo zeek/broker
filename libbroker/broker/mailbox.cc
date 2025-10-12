@@ -28,10 +28,6 @@ size_t mailbox::size() {
   return mbox.blocked() ? mbox.queue().total_task_size() : mbox.size();
 }
 
-size_t mailbox::count(size_t) {
-  return size();
-}
-
 mailbox::mailbox(internal::flare_actor* actor) : actor_{actor} {
   // nop
 }

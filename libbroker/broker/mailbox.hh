@@ -29,9 +29,6 @@ public:
   /// Returns the number of messages in the mailbox.
   size_t size();
 
-  /// Returns `size()` (backward compatibility).
-  size_t count(size_t = 0);
-
 private:
   explicit mailbox(internal::flare_actor* actor);
 
