@@ -7,6 +7,7 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/json_reader.hpp>
 
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>

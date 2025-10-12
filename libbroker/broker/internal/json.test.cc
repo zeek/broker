@@ -148,9 +148,10 @@ TEST(a data message in JSON can be rewritten to the binary format) {
   CHECK_EQ(obj.value("type").to_string(), "data-message");
   auto err = util::data_message_to_binary(obj, bin);
   CHECK(!err);
-  auto maybe_msg = data_envelope::deserialize(
-    endpoint_id::nil(), endpoint_id::nil(), defaults::ttl,
-    caf::to_string(obj.value("topic").to_string()), bin.data(), bin.size());
+  auto maybe_msg = data_envelope::deserialize(endpoint_id::nil(),
+                                              endpoint_id::nil(), defaults::ttl,
+                                              obj.value("topic").to_string(),
+                                              bin.data(), bin.size());
   REQUIRE(maybe_msg);
   CHECK_EQ((*maybe_msg)->value().to_data(), native()->value().to_data());
 }

@@ -18,7 +18,7 @@ using namespace std::literals;
 
 namespace {
 
-using std::byte_buffer;
+using caf::byte_buffer;
 using char_buffer = std::vector<char>;
 
 class serialization : public benchmark::Fixture {

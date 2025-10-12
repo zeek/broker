@@ -103,7 +103,7 @@ private:
   endpoint_id receiver_;
   std::string topic_;
   internal_command value_;
-  std::byte_buffer buf_;
+  caf::byte_buffer buf_;
 };
 
 using default_command_envelope_ptr = intrusive_ptr<default_command_envelope>;

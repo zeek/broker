@@ -8,7 +8,6 @@
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
-#include <caf/group.hpp>
 #include <caf/make_counted.hpp>
 #include <caf/none.hpp>
 #include <caf/response_promise.hpp>
@@ -33,6 +32,7 @@
 #include "broker/internal/wire_format.hh"
 #include "broker/logger.hh"
 
+#include <iostream>
 #include <span>
 
 using namespace std::literals;
@@ -1247,10 +1247,10 @@ void core_actor_state::dispatch(const node_message& msg) {
   // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
     handler_subscriptions.select(get_topic(msg), selection_buffer);
-    auto buffer_guard = caf::detail::make_scope_guard([this]() noexcept {
+    caf::detail::scope_guard buffer_guard{[this]() noexcept {
       // Clear the buffer after dispatching all of its messages.
       selection_buffer.clear();
-    });
+    }};
     do_dispatch(selection_buffer);
     return;
   }
@@ -1296,10 +1296,10 @@ void core_actor_state::dispatch_from(const node_message& msg,
   // Use the reusable buffer if it's available (i.e., empty).
   if (selection_buffer.empty()) {
     handler_subscriptions.select(get_topic(msg), selection_buffer);
-    auto buffer_guard = caf::detail::make_scope_guard([this]() noexcept {
+    caf::detail::scope_guard buffer_guard{[this]() noexcept {
       // Clear the buffer after dispatching all of its messages.
       selection_buffer.clear();
-    });
+    }};
     do_dispatch(selection_buffer);
     return;
   }

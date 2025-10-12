@@ -8,11 +8,11 @@
 
 #include <caf/actor.hpp>
 #include <caf/async/spsc_buffer.hpp>
+#include <caf/flow/multicaster.hpp>
 #include <caf/fwd.hpp>
 #include <caf/json_reader.hpp>
 #include <caf/net/web_socket/frame.hpp>
 #include <caf/scheduled_actor/flow.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 
 #include <string>
 #include <string_view>
@@ -46,7 +46,7 @@ public:
   std::vector<std::byte> buf;
   caf::json_reader reader;
   std::vector<caf::disposable> subscriptions;
-  caf::flow::item_publisher<caf::net::web_socket::frame> ctrl_msgs;
+  caf::flow::multicaster<caf::net::web_socket::frame> ctrl_msgs;
   std::vector<char> json_buf;
 
   static std::string_view default_serialization_failed_error();

@@ -278,7 +278,7 @@ namespace {
 class chunk_trait {
 public:
   /// Serializes a @ref node_message to a sequence of bytes.
-  bool convert(const caf::chunk& msg, std::byte_buffer& buf) {
+  bool convert(const caf::chunk& msg, caf::byte_buffer& buf) {
     auto bytes = msg.bytes();
     buf.insert(buf.end(), bytes.data(), bytes.data() + bytes.size());
     return true;
@@ -379,8 +379,8 @@ enum class connector_msg : uint8_t {
 };
 
 template <class... Ts>
-std::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
-  std::byte_buffer buf;
+caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
+  caf::byte_buffer buf;
   buf.reserve(128); // Pre-allocate some space.
   bin_v1::encoder snk{std::back_inserter(buf)};
   auto ok = snk.apply(static_cast<uint8_t>(tag))
@@ -514,7 +514,7 @@ private:
   }
 
   caf::net::pipe_socket sock_;
-  std::byte_buffer buf_;
+  caf::byte_buffer buf_;
   std::byte rd_buf_[512];
   bool* done_;
 };
@@ -607,10 +607,10 @@ public:
   uint32_t payload_size = 0;
 
   /// Buffer for writing bytes to the socket.
-  std::byte_buffer wr_buf;
+  caf::byte_buffer wr_buf;
 
   /// Buffer for reading bytes from the socket.
-  std::byte_buffer rd_buf;
+  caf::byte_buffer rd_buf;
 
   /// Current position in the read buffer.
   size_t read_pos = 0;

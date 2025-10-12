@@ -143,9 +143,10 @@ json_client_state::json_client_state(caf::event_based_actor* selfptr,
         return data_envelope_ptr{};
       }
       // Turn the binary data into a data envelope.
-      auto maybe_msg = data_envelope::deserialize(
-        id, endpoint_id::nil(), defaults::ttl,
-        caf::to_string(obj.value("topic").to_string()), buf.data(), buf.size());
+      auto maybe_msg =
+        data_envelope::deserialize(id, endpoint_id::nil(), defaults::ttl,
+                                   obj.value("topic").to_string(), buf.data(),
+                                   buf.size());
       if (!maybe_msg) {
         send_error("caused an internal error -> ",
                    to_string(maybe_msg.error()));

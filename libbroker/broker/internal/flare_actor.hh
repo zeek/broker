@@ -38,8 +38,6 @@ public:
 
   bool enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) override;
 
-  caf::mailbox_element_ptr dequeue() override;
-
   const char* name() const override;
 
   void extinguish_one();

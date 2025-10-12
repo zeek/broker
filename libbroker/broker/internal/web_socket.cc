@@ -16,6 +16,8 @@
 #include <caf/settings.hpp>
 #include <caf/uri.hpp>
 
+#if 0
+
 // TODO: this is very low-level code that becomes obsolete once we switch to
 //       CAF 0.19. When upgrading: drop this code and switch to the new API.
 
@@ -32,7 +34,7 @@ struct trait_t {
     return false; // We use text messages exclusively.
   }
 
-  bool convert(const caf::net::web_socket::frame&, std::byte_buffer&) {
+  bool convert(const caf::net::web_socket::frame&, caf::byte_buffer&) {
     return false; // Never serialize to binary.
   }
 
@@ -183,3 +185,5 @@ expected<uint16_t> launch(caf::actor_system& sys,
 }
 
 } // namespace broker::internal::web_socket
+
+#endif

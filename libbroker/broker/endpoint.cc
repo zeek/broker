@@ -24,6 +24,7 @@
 #include <caf/actor_system_config.hpp>
 #include <caf/config.hpp>
 #include <caf/cow_string.hpp>
+#include <caf/detail/test_coordinator.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
 #include <caf/exit_reason.hpp>
@@ -35,7 +36,6 @@
 #include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
-#include <caf/scheduler/test_coordinator.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/send.hpp>
 
@@ -53,6 +53,7 @@
 #include "broker/timeout.hh"
 
 #include <chrono>
+#include <fstream>
 #include <memory>
 #include <thread>
 
@@ -149,7 +150,7 @@ public:
     auto& sc = ctx_->sys.clock();
     auto t = sc.now() + after;
     auto me = caf::make_mailbox_element(nullptr, caf::make_message_id(),
-                                        caf::no_stages, std::move(msg));
+                                        std::move(msg));
     sc.schedule_message(t, caf::actor_cast<caf::strong_actor_ptr>(native(dest)),
                         std::move(me));
   }
@@ -213,7 +214,7 @@ public:
     // take too long.
     auto tout_mme = caf::make_mailbox_element(self->ctrl(),
                                               caf::make_message_id(),
-                                              caf::no_stages, atom::tick_v);
+                                              atom::tick_v);
     auto& caf_clock = self->clock();
     auto tout =
       caf_clock.schedule_message(caf_clock.now() + timeout::frontend,
@@ -379,7 +380,7 @@ endpoint::endpoint(configuration config, endpoint_id id,
   auto& sys = ctx_->sys;
   auto& cfg = nat_cfg(ctx_->cfg);
   // Stop immediately if any helptext was printed.
-  if (cfg.cli_helptext_printed)
+  if (cfg.helptext_printed())
     exit(0);
   // Make sure the OpenSSL config is consistent.
   if (ssl_cfg && ssl_cfg->authentication_enabled()) {
@@ -489,7 +490,7 @@ void endpoint::shutdown() {
   {
     // TODO: there's got to be a better solution than calling the test
     //       coordinator manually here.
-    using caf::scheduler::test_coordinator;
+    using caf::detail::test_coordinator;
     auto& sys = ctx_->sys;
     auto sched = dynamic_cast<test_coordinator*>(&sys.scheduler());
     caf::scoped_actor self{sys};
@@ -769,13 +770,13 @@ worker endpoint::do_subscribe(filter_type&& filter,
   obs //
     ->make_observable()
     .from_resource(con_res)
-    .subscribe(caf::flow::make_observer(
-      [sink](const data_message& msg) { sink->on_next(msg); },
-      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); },
-      [sink] {
-        error no_error;
-        sink->on_cleanup(no_error);
-      }));
+    .do_on_error(
+      [sink](const caf::error& err) { sink->on_cleanup(facade(err)); })
+    .do_on_complete([sink] {
+      error no_error;
+      sink->on_cleanup(no_error);
+    })
+    .for_each([sink](const data_message& msg) { sink->on_next(msg); });
   auto worker = caf::actor{obs};
   launch_obs();
   // Hand the producer end to the core.

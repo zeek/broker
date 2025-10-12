@@ -215,7 +215,7 @@ configuration::configuration(broker_options opts) : configuration(skip_init) {
            broker::to_string(opts.web_socket_overflow_policy));
   caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
-  impl_->config_file_path = "broker.conf";
+  impl_->config_file_path("broker.conf");
 }
 
 configuration::configuration() : configuration(skip_init) {
@@ -352,12 +352,13 @@ std::string configuration::help_text() const {
   return impl_->custom_options().help_text();
 }
 
-const std::vector<std::string>& configuration::remainder() const {
-  return impl_->remainder;
+std::vector<std::string> configuration::remainder() const {
+  auto res = impl_->remainder();
+  return std::vector(res.begin(), res.end());
 }
 
 bool configuration::cli_helptext_printed() const {
-  return impl_->cli_helptext_printed;
+  return impl_->helptext_printed();
 }
 
 std::string configuration::openssl_certificate() const {

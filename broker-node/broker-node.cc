@@ -92,15 +92,7 @@ bool convert(const caf::uri& from, network_info& to) {
   const auto& auth = from.authority();
   if (auth.empty())
     return false;
-  to.address = caf::visit(
-    [](const auto& what) {
-      using what_t = std::decay_t<decltype(what)>;
-      if constexpr (std::is_same_v<what_t, std::string>)
-        return what;
-      else
-        return to_string(what);
-    },
-    auth.host);
+  to.address = auth.host_str();
   to.port = auth.port;
   return true;
 }

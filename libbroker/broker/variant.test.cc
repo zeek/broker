@@ -28,7 +28,7 @@ using namespace std::literals;
 
 namespace {
 
-using byte_buffer = std::byte_buffer;
+using byte_buffer = caf::byte_buffer;
 
 using bin_decoder = format::bin::v1::decoder;
 
@@ -89,7 +89,7 @@ public:
 
 private:
   variant_data* root_ = nullptr;
-  std::byte_buffer bytes_;
+  caf::byte_buffer bytes_;
   detail::monotonic_buffer_resource buf_;
 };
 

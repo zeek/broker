@@ -42,7 +42,7 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};
-  switch (mailbox().enqueue(ptr.release())) {
+  switch (mailbox().push_back(std::move(ptr))) {
     case caf::intrusive::inbox_result::unblocked_reader:
     case caf::intrusive::inbox_result::success:
       flare_.fire();
@@ -55,19 +55,6 @@ bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) {
       }
       return false;
   }
-}
-
-caf::mailbox_element_ptr flare_actor::dequeue() {
-  std::unique_lock<std::mutex> lock{flare_mtx_};
-  auto rval = blocking_actor::dequeue();
-
-  if (rval) {
-    [[maybe_unused]] auto extinguished = flare_.extinguish_one();
-    BROKER_ASSERT(extinguished);
-    --flare_count_;
-  }
-
-  return rval;
 }
 
 const char* flare_actor::name() const {

@@ -1,7 +1,5 @@
 #include "broker/topic.hh"
 
-#include <caf/string_view.hpp>
-
 namespace broker {
 
 std::vector<std::string> topic::split(const topic& t) {

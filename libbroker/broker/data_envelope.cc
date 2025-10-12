@@ -103,7 +103,7 @@ namespace {
 class default_data_envelope : public data_envelope {
 public:
   default_data_envelope(endpoint_id sender, endpoint_id receiver,
-                        std::string topic_str, std::byte_buffer bytes)
+                        std::string topic_str, caf::byte_buffer bytes)
     : sender_(sender),
       receiver_(receiver),
       topic_(std::move(topic_str)),
@@ -146,7 +146,7 @@ private:
   endpoint_id receiver_;
   variant_data* root_ = nullptr;
   std::string topic_;
-  std::byte_buffer bytes_;
+  caf::byte_buffer bytes_;
   detail::monotonic_buffer_resource buf_;
 };
 
@@ -194,7 +194,7 @@ data_envelope_ptr data_envelope::make(broker::topic t, const data& d) {
 data_envelope_ptr data_envelope::make(const endpoint_id& sender,
                                       const endpoint_id& receiver,
                                       broker::topic t, const data& d) {
-  std::byte_buffer buf;
+  caf::byte_buffer buf;
   buf.reserve(512);
   format::bin::v1::encode(d, std::back_inserter(buf));
   auto res = default_data_envelope_ptr::make(sender, receiver,

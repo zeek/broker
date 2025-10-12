@@ -145,7 +145,7 @@ public:
 
   std::string help_text() const;
 
-  const std::vector<std::string>& remainder() const;
+  std::vector<std::string> remainder() const;
 
   bool cli_helptext_printed() const;
 

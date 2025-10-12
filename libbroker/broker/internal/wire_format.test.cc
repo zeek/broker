@@ -70,7 +70,7 @@ TEST(the wire format can encode and decode a data envelope) {
   CHECK_EQUAL(res->topic(), "foobar");
   CHECK_EQUAL(res->as_data()->value().to_string(), "hello world");
   MESSAGE("serialization");
-  std::byte_buffer out;
+  caf::byte_buffer out;
   CHECK(uut.convert(res, out));
-  CHECK_EQ(out, std::byte_buffer(caf_bytes.begin(), caf_bytes.end()));
+  CHECK_EQ(out, caf::byte_buffer(caf_bytes.begin(), caf_bytes.end()));
 }

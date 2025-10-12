@@ -28,7 +28,7 @@ namespace broker::detail {
 namespace {
 
 auto make_statement_guard = [](sqlite3_stmt* stmt) {
-  return caf::detail::make_scope_guard([=] { sqlite3_reset(stmt); });
+  return caf::detail::scope_guard{[=]() noexcept { sqlite3_reset(stmt); }};
 };
 
 auto to_blob(const data& x) {

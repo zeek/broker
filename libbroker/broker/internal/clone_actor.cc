@@ -16,7 +16,6 @@
 #include <caf/behavior.hpp>
 #include <caf/error.hpp>
 #include <caf/event_based_actor.hpp>
-#include <caf/make_message.hpp>
 #include <caf/message.hpp>
 #include <caf/stateful_actor.hpp>
 #include <caf/system_messages.hpp>
