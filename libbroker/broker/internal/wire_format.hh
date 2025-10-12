@@ -247,7 +247,7 @@ inline originator_ack_msg make_originator_ack_msg() {
 class trait {
 public:
   /// Serializes a @ref node_message to a sequence of bytes.
-  bool convert(const node_message& msg, caf::byte_buffer& buf);
+  bool convert(const node_message& msg, std::byte_buffer& buf);
 
   /// Deserializes a @ref node_message from a sequence of bytes.
   bool convert(caf::const_byte_span bytes, node_message& msg);

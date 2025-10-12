@@ -11,14 +11,14 @@ namespace {
 
 template <class T>
 auto apply_serialize(const T& value) {
-  std::vector<caf::byte> buf;
+  std::vector<std::byte> buf;
   caf::binary_serializer sink{nullptr, buf};
   if (!sink.apply(value))
     FAIL("serialization failed");
   return buf;
 }
 
-template <class Out = caf::byte, class T>
+template <class Out = std::byte, class T>
 auto apply_encoder(const T& value) {
   std::vector<Out> buf;
   format::bin::v1::encoder sink{std::back_inserter(buf)};
@@ -29,7 +29,7 @@ auto apply_encoder(const T& value) {
 
 template <class T>
 auto do_encode(const T& value) {
-  std::vector<caf::byte> buf;
+  std::vector<std::byte> buf;
   format::bin::v1::encode(value, std::back_inserter(buf));
   return buf;
 }

@@ -8,9 +8,9 @@ namespace {
 
 struct tbl_entry {
   caf::type_id_t type;
-  caf::string_view name;
+  std::string_view name;
 
-  constexpr tbl_entry(caf::type_id_t type, caf::string_view name) noexcept
+  constexpr tbl_entry(caf::type_id_t type, std::string_view name) noexcept
     : type(type), name(name) {
     // nop
   }
@@ -37,14 +37,14 @@ constexpr tbl_entry tbl[] = {
 
 } // namespace
 
-caf::string_view json_type_mapper::operator()(caf::type_id_t type) const {
+std::string_view json_type_mapper::operator()(caf::type_id_t type) const {
   for (auto& entry : tbl)
     if (entry.type == type)
       return entry.name;
   return caf::query_type_name(type);
 }
 
-caf::type_id_t json_type_mapper::operator()(caf::string_view name) const {
+caf::type_id_t json_type_mapper::operator()(std::string_view name) const {
   for (auto& entry : tbl)
     if (entry.name == name)
       return entry.type;

@@ -163,13 +163,13 @@ void extend_config(broker::configuration& broker_cfg) {
 // -- convenience get_or and get_if overloads for enpoint ----------------------
 
 template <class T>
-auto get_or(broker::endpoint& d, string_view key, const T& default_value) {
+auto get_or(broker::endpoint& d, std::string_view key, const T& default_value) {
   auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_or(cfg, key, default_value);
 }
 
 template <class T>
-auto get_as(broker::endpoint& d, string_view key) {
+auto get_as(broker::endpoint& d, std::string_view key) {
   auto& cfg = broker::internal::endpoint_access(&d).cfg();
   return caf::get_as<T>(cfg, key);
 }

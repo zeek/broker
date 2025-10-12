@@ -32,7 +32,7 @@ struct trait_t {
     return false; // We use text messages exclusively.
   }
 
-  bool convert(const caf::net::web_socket::frame&, caf::byte_buffer&) {
+  bool convert(const caf::net::web_socket::frame&, std::byte_buffer&) {
     return false; // Never serialize to binary.
   }
 
@@ -50,7 +50,7 @@ struct trait_t {
     return false;
   }
 
-  bool convert(caf::string_view input, caf::net::web_socket::frame& frame) {
+  bool convert(std::string_view input, caf::net::web_socket::frame& frame) {
     frame =
       caf::net::web_socket::frame(std::string_view{input.data(), input.size()});
     return true;

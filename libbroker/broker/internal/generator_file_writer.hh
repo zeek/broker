@@ -32,7 +32,7 @@ public:
       command_message,
     };
 
-    static std::array<caf::byte, header_size> header();
+    static std::array<std::byte, header_size> header();
   };
 
   using data_or_command_message = std::variant<data_message, command_message>;

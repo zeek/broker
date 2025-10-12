@@ -168,7 +168,7 @@ public:
 
     /// Buffer for serializing the message to a chunk. Re-used for multiple
     /// conversions to avoid allocating a new buffer for each conversion.
-    caf::byte_buffer buffer_;
+    std::byte_buffer buffer_;
   };
 
   /// Bundles state for sending and receiving messages to/from a peer, hub,

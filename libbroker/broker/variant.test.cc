@@ -28,7 +28,7 @@ using namespace std::literals;
 
 namespace {
 
-using byte_buffer = caf::byte_buffer;
+using byte_buffer = std::byte_buffer;
 
 using bin_decoder = format::bin::v1::decoder;
 
@@ -40,7 +40,7 @@ std::string to_hex(const byte_buffer& buf) {
 
 template <class... Ts>
 byte_buffer make_bytes(Ts... xs) {
-  return {static_cast<caf::byte>(xs)...};
+  return {static_cast<std::byte>(xs)...};
 }
 
 bool convert(const byte_buffer& bytes, data& value) {
@@ -89,7 +89,7 @@ public:
 
 private:
   variant_data* root_ = nullptr;
-  caf::byte_buffer bytes_;
+  std::byte_buffer bytes_;
   detail::monotonic_buffer_resource buf_;
 };
 
@@ -208,8 +208,8 @@ TEST(parsing a string) {
 
 TEST(parsing an address) {
   byte_buffer bytes;
-  bytes.push_back(static_cast<caf::byte>(type::address));
-  auto* begin = reinterpret_cast<const caf::byte*>(localhost.bytes().data());
+  bytes.push_back(static_cast<std::byte>(type::address));
+  auto* begin = reinterpret_cast<const std::byte*>(localhost.bytes().data());
   bytes.insert(bytes.end(), begin, begin + localhost.bytes().size());
   auto cpy = parse_bytes(bytes);
   CHECK(cpy.is_address());

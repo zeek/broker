@@ -394,7 +394,7 @@ endpoint::endpoint(configuration config, endpoint_id id,
   }
   // Create a directory for storing the meta data if requested.
   auto meta_dir = get_or(cfg, "broker.recording-directory",
-                         caf::string_view{defaults::recording_directory});
+                         std::string_view{defaults::recording_directory});
   if (!meta_dir.empty()) {
     if (detail::is_directory(meta_dir))
       detail::remove_all(meta_dir);

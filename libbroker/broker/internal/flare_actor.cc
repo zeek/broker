@@ -1,9 +1,9 @@
 #include "broker/internal/flare_actor.hh"
 
 #include <caf/detail/sync_request_bouncer.hpp>
-#include <caf/execution_unit.hpp>
 #include <caf/intrusive/inbox_result.hpp>
 #include <caf/mailbox_element.hpp>
+#include <caf/scheduler.hpp>
 
 #include "broker/detail/assert.hh"
 
@@ -11,7 +11,7 @@ namespace broker::internal {
 
 flare_actor::flare_actor(caf::actor_config& sys) : blocking_actor{sys} {}
 
-void flare_actor::launch(caf::execution_unit*, bool, bool) {
+void flare_actor::launch(caf::scheduler*, bool, bool) {
   // Nothing todo here since we only extract messages via receive() calls.
 }
 
@@ -38,7 +38,7 @@ bool flare_actor::await_data(timeout_type timeout) {
   return res;
 }
 
-bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) {
+bool flare_actor::enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) {
   auto mid = ptr->mid;
   auto sender = ptr->sender;
   std::unique_lock<std::mutex> lock{flare_mtx_};

@@ -32,7 +32,7 @@ auto make_statement_guard = [](sqlite3_stmt* stmt) {
 };
 
 auto to_blob(const data& x) {
-  std::vector<caf::byte> buf;
+  std::vector<std::byte> buf;
   buf.reserve(128); // Pre-allocate some space.
   format::bin::v1::encode(x, std::back_inserter(buf));
   return buf;

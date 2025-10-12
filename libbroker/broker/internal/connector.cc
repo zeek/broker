@@ -1,33 +1,35 @@
 #include "broker/internal/connector.hh"
 
-#include "broker/detail/assert.hh"
-#include "broker/detail/overload.hh"
-#include "broker/endpoint.hh"
-#include "broker/error.hh"
-#include "broker/filter_type.hh"
-#include "broker/format/bin.hh"
-#include "broker/internal/type_id.hh"
-#include "broker/internal/wire_format.hh"
-#include "broker/lamport_timestamp.hh"
-#include "broker/logger.hh"
-#include "broker/message.hh"
+#if 0
 
-#include <caf/async/spsc_buffer.hpp>
-#include <caf/chunk.hpp>
-#include <caf/config.hpp>
-#include <caf/detail/scope_guard.hpp>
-#include <caf/expected.hpp>
-#include <caf/net/length_prefix_framing.hpp>
-#include <caf/net/middleman.hpp>
-#include <caf/net/openssl_transport.hpp>
-#include <caf/net/pipe_socket.hpp>
-#include <caf/net/tcp_accept_socket.hpp>
-#include <caf/net/tcp_stream_socket.hpp>
+#  include "broker/detail/assert.hh"
+#  include "broker/detail/overload.hh"
+#  include "broker/endpoint.hh"
+#  include "broker/error.hh"
+#  include "broker/filter_type.hh"
+#  include "broker/format/bin.hh"
+#  include "broker/internal/type_id.hh"
+#  include "broker/internal/wire_format.hh"
+#  include "broker/lamport_timestamp.hh"
+#  include "broker/logger.hh"
+#  include "broker/message.hh"
 
-#include <cstdio>
-#include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
+#  include <caf/async/spsc_buffer.hpp>
+#  include <caf/chunk.hpp>
+#  include <caf/config.hpp>
+#  include <caf/detail/scope_guard.hpp>
+#  include <caf/expected.hpp>
+#  include <caf/net/length_prefix_framing.hpp>
+#  include <caf/net/middleman.hpp>
+#  include <caf/net/openssl_transport.hpp>
+#  include <caf/net/pipe_socket.hpp>
+#  include <caf/net/tcp_accept_socket.hpp>
+#  include <caf/net/tcp_stream_socket.hpp>
+
+#  include <cstdio>
+#  include <type_traits>
+#  include <unordered_map>
+#  include <unordered_set>
 
 // -- platform setup -----------------------------------------------------------
 
@@ -57,21 +59,21 @@
 
 namespace {
 
-#ifndef POLLRDHUP
-#  define POLLRDHUP POLLHUP
-#endif
+#  ifndef POLLRDHUP
+#    define POLLRDHUP POLLHUP
+#  endif
 
-#ifndef POLLPRI
-#  define POLLPRI POLLIN
-#endif
+#  ifndef POLLPRI
+#    define POLLPRI POLLIN
+#  endif
 
-#ifdef CAF_WINDOWS
+#  ifdef CAF_WINDOWS
 // From the MSDN: If the POLLPRI flag is set on a socket for the Microsoft
 //                Winsock provider, the WSAPoll function will fail.
 constexpr short read_mask = POLLIN;
-#else
+#  else
 constexpr short read_mask = POLLIN | POLLPRI;
-#endif
+#  endif
 
 constexpr short write_mask = POLLOUT;
 
@@ -81,11 +83,11 @@ constexpr short rw_mask = read_mask | write_mask;
 
 } // namespace
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 struct CRYPTO_dynlock_value {
   std::mutex mtx;
 };
-#endif
+#  endif
 
 namespace bin_v1 = broker::format::bin::v1;
 
@@ -109,7 +111,7 @@ constexpr size_t max_ssl_passphrase_size = 127;
 /// read by the callback we provide to SSL_CTX_set_default_passwd_cb.
 char ssl_passphrase_buf[max_ssl_passphrase_size + 1]; // One extra for '\0'.
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 std::unique_ptr<std::mutex[]> ssl_mtx_tbl;
 
@@ -135,7 +137,7 @@ void ssl_dynlock_destroy(CRYPTO_dynlock_value* ptr, const char*, int) {
   delete ptr;
 }
 
-#endif // OPENSSL_VERSION_NUMBER < 0x10100000L
+#  endif // OPENSSL_VERSION_NUMBER < 0x10100000L
 
 bool init_ssl_api_called;
 
@@ -143,7 +145,7 @@ bool init_ssl_api_called;
 
 namespace broker {
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#  if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 void endpoint::init_ssl_api() {
   BROKER_ASSERT(!init_ssl_api_called);
@@ -172,7 +174,7 @@ void endpoint::deinit_ssl_api() {
   ssl_mtx_tbl.reset();
 }
 
-#else
+#  else
 
 void endpoint::init_ssl_api() {
   BROKER_ASSERT(!init_ssl_api_called);
@@ -187,7 +189,7 @@ void endpoint::deinit_ssl_api() {
   CRYPTO_cleanup_all_ex_data();
 }
 
-#endif
+#  endif
 
 } // namespace broker
 
@@ -200,11 +202,11 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
     log::network::debug("no-ssl-config", "run without SSL (no SSL config)");
     return nullptr;
   }
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#  if OPENSSL_VERSION_NUMBER >= 0x10100000L
   auto method = TLS_method();
-#else
+#  else
   auto method = TLSv1_2_method();
-#endif
+#  endif
   auto ctx = caf::net::openssl::make_ctx(method);
   if (cfg->authentication_enabled()) {
     log::network::debug("ssl-enable-authentication",
@@ -245,22 +247,22 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
                         "disable SSL authentication");
     ERR_clear_error();
     SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
-#if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#  if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
     SSL_CTX_set_ecdh_auto(ctx.get(), 1);
-#elif OPENSSL_VERSION_NUMBER < 0x10101000L
+#  elif OPENSSL_VERSION_NUMBER < 0x10101000L
     auto ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
     if (!ecdh)
       throw ssl_error("failed to get ECDH curve");
     SSL_CTX_set_tmp_ecdh(ctx.get(), ecdh);
     EC_KEY_free(ecdh);
-#else // OPENSSL_VERSION_NUMBER < 0x10101000L
+#  else // OPENSSL_VERSION_NUMBER < 0x10101000L
     SSL_CTX_set1_groups_list(ctx.get(), "P-384");
-#endif
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#  endif
+#  if OPENSSL_VERSION_NUMBER >= 0x10100000L
     const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
-#else
+#  else
     const char* cipher = "AECDH-AES256-SHA";
-#endif
+#  endif
     if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
       throw ssl_error("failed to set anonymous cipher");
   }
@@ -276,7 +278,7 @@ namespace {
 class chunk_trait {
 public:
   /// Serializes a @ref node_message to a sequence of bytes.
-  bool convert(const caf::chunk& msg, caf::byte_buffer& buf) {
+  bool convert(const caf::chunk& msg, std::byte_buffer& buf) {
     auto bytes = msg.bytes();
     buf.insert(buf.end(), bytes.data(), bytes.data() + bytes.size());
     return true;
@@ -377,8 +379,8 @@ enum class connector_msg : uint8_t {
 };
 
 template <class... Ts>
-caf::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
-  caf::byte_buffer buf;
+std::byte_buffer to_buf(connector_msg tag, Ts&&... xs) {
+  std::byte_buffer buf;
   buf.reserve(128); // Pre-allocate some space.
   bin_v1::encoder snk{std::back_inserter(buf)};
   auto ok = snk.apply(static_cast<uint8_t>(tag))
@@ -512,8 +514,8 @@ private:
   }
 
   caf::net::pipe_socket sock_;
-  caf::byte_buffer buf_;
-  caf::byte rd_buf_[512];
+  std::byte_buffer buf_;
+  std::byte rd_buf_[512];
   bool* done_;
 };
 
@@ -605,10 +607,10 @@ public:
   uint32_t payload_size = 0;
 
   /// Buffer for writing bytes to the socket.
-  caf::byte_buffer wr_buf;
+  std::byte_buffer wr_buf;
 
   /// Buffer for reading bytes from the socket.
-  caf::byte_buffer rd_buf;
+  std::byte_buffer rd_buf;
 
   /// Current position in the read buffer.
   size_t read_pos = 0;
@@ -770,12 +772,12 @@ public:
   template <bool IsServer>
   read_result do_transport_handshake_rd(stream_socket fd);
 
-  ptrdiff_t do_write(stream_socket fd, caf::span<const caf::byte> buf) {
+  ptrdiff_t do_write(stream_socket fd, caf::span<const std::byte> buf) {
     return std::visit([fd, buf](auto& pl) { return pl.write(fd, buf); },
                       sck_policy);
   }
 
-  ptrdiff_t do_read(stream_socket fd, caf::span<caf::byte> buf) {
+  ptrdiff_t do_read(stream_socket fd, caf::span<std::byte> buf) {
     return std::visit([fd, buf](auto& pl) { return pl.read(fd, buf); },
                       sck_policy);
   }
@@ -1173,12 +1175,12 @@ struct connect_manager {
     caf::uri::authority_type authority;
     authority.host = addr;
     authority.port = port;
-#ifdef BROKER_WINDOWS
+#  ifdef BROKER_WINDOWS
     // SO_REUSEADDR behaves quite differently on Windows. CAF currently does not
     // differentiate between UNIX and Windows in this regard, so we'll force
     // this option to false on Windows in the meantime.
     reuse_addr = false;
-#endif
+#  endif
     if (auto sock = caf::net::make_tcp_accept_socket(authority, reuse_addr)) {
       if (auto actual_port = caf::net::local_port(*sock)) {
         log::network::debug("started-listening",
@@ -1413,13 +1415,13 @@ struct connect_manager {
     auto is_done = [](auto& x) { return x.events == 0; };
     auto new_end = std::remove_if(fdset.begin(), fdset.end(), is_done);
     if (new_end != fdset.end()) {
-#if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
+#  if CAF_LOG_LEVEL >= CAF_LOG_LEVEL_DEBUG
       std::for_each(new_end, fdset.end(), [](auto& x) {
         if (x.fd != detail::invalid_native_socket)
           log::network::debug("drop-completed-socket",
                               "drop completed socket {} from pollset", x.fd);
       });
-#endif
+#  endif
       fdset.erase(new_end, fdset.end());
     }
     if (!pending_fdset.empty()) {
@@ -1870,7 +1872,7 @@ void connector::async_shutdown() {
   write_to_pipe(buf, true);
 }
 
-void connector::write_to_pipe(caf::span<const caf::byte> bytes,
+void connector::write_to_pipe(caf::span<const std::byte> bytes,
                               bool shutdown_after_write) {
   std::unique_lock guard{mtx_};
   if (shutting_down_) {
@@ -1977,13 +1979,13 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   // Loop until we receive a shutdown via the pipe.
   while (!done) {
     int presult =
-#ifdef CAF_WINDOWS
+#  ifdef CAF_WINDOWS
       ::WSAPoll(fdset.data(), static_cast<ULONG>(fdset.size()),
                 mgr.next_timeout());
-#else
+#  else
       ::poll(fdset.data(), static_cast<nfds_t>(fdset.size()),
              mgr.next_timeout());
-#endif
+#  endif
     if (presult < 0) {
       switch (caf::net::last_socket_error()) {
         case std::errc::interrupted:
@@ -2029,3 +2031,5 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
 }
 
 } // namespace broker::internal
+
+#endif

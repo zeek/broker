@@ -83,7 +83,7 @@ void convert(const std::vector<topic>& ts, std::string& str) {
 
 namespace {
 
-constexpr caf::string_view internal_prefix = "<$>/local/";
+constexpr std::string_view internal_prefix = "<$>/local/";
 
 } // namespace
 
@@ -91,7 +91,7 @@ bool is_internal(const topic& x) {
   const auto& str = x.string();
   auto pre = internal_prefix;
   return str.size() >= pre.size()
-         && caf::string_view{str.data(), pre.size()} == pre;
+         && std::string_view{str.data(), pre.size()} == pre;
 }
 
 topic topic::master_suffix() {

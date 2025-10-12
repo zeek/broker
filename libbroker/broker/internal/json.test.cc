@@ -10,7 +10,7 @@ using namespace broker;
 namespace {
 
 // A data message that has one of everything.
-constexpr caf::string_view json = R"_({
+constexpr std::string_view json = R"_({
   "type": "data-message",
   "topic": "/test/cpp/internal/json-type-mapper",
   "@data-type": "vector",

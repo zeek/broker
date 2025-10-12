@@ -5,6 +5,7 @@
 #include <mutex>
 
 #include <caf/blocking_actor.hpp>
+#include <caf/fwd.hpp>
 
 #include "broker/detail/flare.hh"
 
@@ -27,7 +28,7 @@ class flare_actor : public caf::blocking_actor {
 public:
   flare_actor(caf::actor_config& sys);
 
-  void launch(caf::execution_unit*, bool, bool) override;
+  void launch(caf::scheduler*, bool, bool) override;
 
   void act() override;
 
@@ -35,7 +36,7 @@ public:
 
   bool await_data(timeout_type timeout) override;
 
-  bool enqueue(caf::mailbox_element_ptr ptr, caf::execution_unit*) override;
+  bool enqueue(caf::mailbox_element_ptr ptr, caf::scheduler*) override;
 
   caf::mailbox_element_ptr dequeue() override;
 

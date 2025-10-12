@@ -72,7 +72,7 @@ auto concat(const Ts&... xs) {
   throw std::invalid_argument(what);
 }
 
-bool valid_log_level(caf::string_view x) {
+bool valid_log_level(std::string_view x) {
   return x == "trace" || x == "debug" || x == "info" || x == "warning"
          || x == "error" || x == "quiet";
 }
@@ -92,7 +92,7 @@ std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
   };
   auto is_empty = [](const std::string& x) { return x.empty(); };
   std::vector<std::string> result;
-  caf::split(result, caf::string_view{str, strlen(str)}, delim,
+  caf::split(result, std::string_view{str, strlen(str)}, delim,
              caf::token_compress_on);
   std::for_each(result.begin(), result.end(), trim);
   result.erase(std::remove_if(result.begin(), result.end(), is_empty),
