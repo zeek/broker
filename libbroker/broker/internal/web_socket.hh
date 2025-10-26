@@ -9,6 +9,8 @@
 
 #include <functional>
 
+#if 0
+
 namespace broker::internal::web_socket {
 
 using pull_t = caf::async::consumer_resource<caf::net::web_socket::frame>;
@@ -26,3 +28,5 @@ expected<uint16_t> launch(caf::actor_system& sys,
                           on_connect_t on_connect);
 
 } // namespace broker::internal::web_socket
+
+#endif

@@ -53,6 +53,7 @@ set(BROKER_SRC
     broker/internal/pending_connection.cc
     broker/internal/println.cc
     broker/internal/publisher_queue.cc
+    broker/internal/ssl_context_from_options.cc
     broker/internal/store_actor.cc
     broker/internal/subscriber_queue.cc
     broker/internal/web_socket.cc

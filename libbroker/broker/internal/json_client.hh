@@ -53,8 +53,12 @@ public:
 
   void init(const filter_type& filter, const out_t& out,
             caf::async::consumer_resource<data_message> core_pull);
-};
 
-using json_client_actor = caf::stateful_actor<json_client_state>;
+  caf::behavior make_behavior() {
+    // Note: we set up a flow in the constructor which will keep the actor
+    // alive. Hence, no need for an actual behavior.
+    return {};
+  }
+};
 
 } // namespace broker::internal

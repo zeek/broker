@@ -9,8 +9,8 @@
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
 #include "broker/internal/json_client.hh"
+#include "broker/internal/ssl_context_from_options.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/internal/web_socket.hh"
 #include "broker/logger.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
@@ -20,6 +20,7 @@
 #include "broker/zeek.hh"
 
 #include <caf/actor.hpp>
+#include <caf/actor_from_state.hpp>
 #include <caf/actor_system.hpp>
 #include <caf/actor_system_config.hpp>
 #include <caf/config.hpp>
@@ -32,8 +33,11 @@
 #include <caf/io/network/default_multiplexer.hpp>
 #include <caf/message.hpp>
 #include <caf/net/middleman.hpp>
+#include <caf/net/network_socket.hpp>
+#include <caf/net/socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 #include <caf/net/web_socket/server.hpp>
+#include <caf/net/web_socket/with.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scoped_actor.hpp>
@@ -646,6 +650,64 @@ std::vector<peer_info> endpoint::peers() const {
 
 uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
                                      error* err, bool reuse_addr) {
+  auto ssl_ctx =
+    internal::ssl_context_from_options(ctx_->cfg.openssl_options());
+  if (ssl_ctx) {
+    log::network::debug("ssl-enable-authentication",
+                        "enable SSL authentication on WebSocket server");
+  } else if (ssl_ctx.error()) {
+    log::network::error("ssl-enable-authentication",
+                        "failed to create SSL context: {}", ssl_ctx.error());
+    return 0;
+  }
+  auto server =
+    caf::net::web_socket::with(ctx_->sys)
+      .context(std::move(ssl_ctx))
+      .accept(port, address)
+      .reuse_address(true)
+      .on_request([](caf::net::web_socket::acceptor<network_info>& acc) {
+        // Check if the path from the HTTP header is valid.
+        if (acc.header().path() != "/v1/messages/json") {
+          auto err = caf::make_error(caf::sec::invalid_argument,
+                                     "invalid path");
+          acc.reject(std::move(err));
+          return;
+        }
+        // Get the network information from the socket and accept the client.
+        auto fd = caf::net::socket_cast<caf::net::network_socket>(acc.socket());
+        network_info net_info{};
+        if (auto addr = caf::net::remote_addr(fd)) {
+          net_info.address = std::move(*addr);
+        }
+        if (auto port = caf::net::remote_port(fd)) {
+          net_info.port = *port;
+        }
+        acc.accept(std::move(net_info));
+      })
+      .start([this](auto events) {
+        // Spin up an actor that handles incoming connections and spawns a new
+        // JSON client actor per connection.
+        auto nid = id_;
+        auto core = native(core_);
+        auto fn = [events, nid, core](caf::event_based_actor* self) {
+          self->make_observable().from_resource(events).for_each(
+            [self, nid, core](auto events) {
+              auto [pull, push, net_info] = events.data();
+              auto impl = caf::actor_from_state<internal::json_client_state>;
+              self->spawn(impl, nid, core, net_info, std::move(pull),
+                          std::move(push));
+            });
+        };
+        ctx_->sys.spawn(fn);
+      });
+  if (!server) {
+    return 0;
+  }
+  return port;
+
+// OLD
+#if 0
+
   auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
                       const caf::settings& hdr,
                       internal::web_socket::connect_event_t& ev) {
@@ -672,6 +734,7 @@ uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
       *err = std::move(res.error());
     return 0;
   }
+#endif
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {
