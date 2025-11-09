@@ -1,11 +1,11 @@
 #include "broker/internal/connector.hh"
 
 #include "broker/detail/assert.hh"
-#include "broker/detail/overload.hh"
 #include "broker/endpoint.hh"
 #include "broker/error.hh"
 #include "broker/filter_type.hh"
 #include "broker/format/bin.hh"
+#include "broker/internal/ssl_context_from_options.hh"
 #include "broker/internal/type_id.hh"
 #include "broker/internal/wire_format.hh"
 #include "broker/logger.hh"
@@ -437,6 +437,18 @@ static constexpr size_t handshake_first_msg_size = handshake_prefix_size + 9;
 
 struct connect_manager;
 
+enum class write_result {
+  again,
+  stop,
+  want_read,
+};
+
+enum class read_result {
+  again,
+  stop,
+  want_write,
+};
+
 class connect_state : public std::enable_shared_from_this<connect_state> {
 public:
   // -- member types -----------------------------------------------------------
@@ -460,8 +472,7 @@ public:
 
   // -- constructors, destructors, and assignment operators --------------------
 
-  connect_state(connect_manager* mgr)
-    : mgr(mgr), connection(std::move(conn)), fn(&connect_state::err) {
+  connect_state(connect_manager* mgr) : mgr(mgr), fn(&connect_state::err) {
     wr_buf.reserve(128);
     rd_buf.reserve(128);
     reset(socket_state::running, nil);
@@ -470,7 +481,7 @@ public:
   }
 
   connect_state(connect_manager* mgr, connector_event_id eid, network_info addr)
-    : mgr(mgr), connection(std::move(conn)), fn(&connect_state::err) {
+    : mgr(mgr), fn(&connect_state::err) {
     wr_buf.reserve(128);
     rd_buf.reserve(128);
     reset(socket_state::running, nil);
@@ -597,7 +608,6 @@ public:
   /// Resets the state after a connection attempt has failed before trying to
   /// reconnect.
   template <class Connection>
-    requires std::constructible_from<connection_t, Connection>
   void reset(socket_state st, Connection conn) {
     log::network::debug(
       "reset-connection-state",
@@ -640,111 +650,144 @@ public:
     return std::visit(do_make, connection);
   }
 
-  stream_transport_error get_last_error(ptrdiff_t ret) {
-    auto do_get = [this]<class Conn>(Conn& conn) {
+  write_result handle_write_result(ptrdiff_t ret) {
+    auto fn = [this, ret]<class Conn>(Conn& conn) {
       if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
-        return caf::net::last_error(conn, ret);
-      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
-        return conn.last_error(ret);
-      } else {
-        return stream_transport_error::permanent;
-      }
-    };
-    return std::visit(do_get, connection);
-  }
-
-  write_result write_result_from_last_error(ptrdiff_t ret) {
-    switch (get_last_error(fd, ret)) {
-      case stream_transport_error::temporary:
-      case stream_transport_error::want_write:
-        return write_result::again;
-      case stream_transport_error::want_read:
-        return write_result::want_read;
-      default: // permanent error
+        if (caf::net::last_socket_error_is_temporary()) {
+          return write_result::again;
+        }
         transition(&connect_state::err);
         return write_result::stop;
-    }
+      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        using ssl_errc = caf::net::ssl::errc;
+        switch (conn.last_error(ret)) {
+          case ssl_errc::none:
+          case ssl_errc::want_write:
+            return write_result::again;
+          case ssl_errc::want_read:
+            return write_result::want_read;
+          default: // permanent error
+            transition(&connect_state::err);
+            return write_result::stop;
+        }
+      } else {
+        transition(&connect_state::err);
+        return write_result::stop;
+      }
+    };
+    return std::visit(fn, connection);
   }
 
-  read_result read_result_from_last_error(stream_socket fd, ptrdiff_t ret) {
-    switch (get_last_error(fd, ret)) {
-      case stream_transport_error::temporary:
-      case stream_transport_error::want_read:
-        return read_result::again;
-      case stream_transport_error::want_write:
-        return read_result::want_write;
-      default: // permanent error
+  read_result handle_read_result(ptrdiff_t ret) {
+    auto fn = [this, ret]<class Conn>(Conn& conn) {
+      if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
+        if (caf::net::last_socket_error_is_temporary()) {
+          return read_result::again;
+        }
         transition(&connect_state::err);
         return read_result::stop;
-    }
+      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        using ssl_errc = caf::net::ssl::errc;
+        switch (conn.last_error(ret)) {
+          case ssl_errc::none:
+          case ssl_errc::want_read:
+            return read_result::again;
+          case ssl_errc::want_write:
+            return read_result::want_write;
+          default: // permanent error
+            transition(&connect_state::err);
+            return read_result::stop;
+        }
+      } else {
+        transition(&connect_state::err);
+        return read_result::stop;
+      }
+    };
+    return std::visit(fn, connection);
   }
 
   bool must_read_more();
 
   template <bool IsServer>
-  write_result do_transport_handshake_wr(stream_socket fd);
+  write_result do_transport_handshake_wr();
 
   template <bool IsServer>
-  read_result do_transport_handshake_rd(stream_socket fd);
+  read_result do_transport_handshake_rd();
 
-  ptrdiff_t do_write(stream_socket fd, caf::span<const std::byte> buf) {
-    return std::visit([fd, buf](auto& pl) { return pl.write(fd, buf); },
-                      sck_policy);
+  auto fd_id() const {
+    auto fn = []<class Conn>(Conn& conn) {
+      if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
+        return conn.id;
+      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        return conn.fd().id;
+      } else {
+        return caf::net::invalid_socket_id;
+      }
+    };
+    return std::visit(fn, connection);
   }
 
-  ptrdiff_t do_read(stream_socket fd, caf::span<std::byte> buf) {
-    return std::visit([fd, buf](auto& pl) { return pl.read(fd, buf); },
-                      sck_policy);
+  ptrdiff_t do_write(caf::span<const std::byte> buf) {
+    auto fn = [this, buf]<class Conn>(Conn& conn) {
+      if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
+        return caf::net::write(conn, buf);
+      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        return conn.write(buf);
+      } else {
+        return ptrdiff_t{0};
+      }
+    };
+    return std::visit(fn, connection);
   }
 
-  write_result continue_writing(stream_socket fd) {
+  ptrdiff_t do_read(caf::span<std::byte> buf) {
+    auto fn = [this, buf]<class Conn>(Conn& conn) {
+      if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
+        return caf::net::read(conn, buf);
+      } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        return conn.read(buf);
+      } else {
+        return ptrdiff_t{0};
+      }
+    };
+    return std::visit(fn, connection);
+  }
+
+  write_result continue_writing() {
     switch (sck_state) {
       case socket_state::accepting:
-        return do_transport_handshake_wr<true>(fd);
+        return do_transport_handshake_wr<true>();
       case socket_state::connecting:
-        return do_transport_handshake_wr<false>(fd);
+        return do_transport_handshake_wr<false>();
       default:
         break;
     }
     if (wr_buf.empty())
       return write_result::stop;
-    if (auto res = do_write(fd, wr_buf); res > 0) {
+    auto res = do_write(wr_buf);
+    if (res > 0) {
       wr_buf.erase(wr_buf.begin(), wr_buf.begin() + res);
       if (wr_buf.empty()) {
         log::network::debug("write-finished",
                             "finished sending message to peer");
         return write_result::stop;
-      } else {
-        return write_result::again;
       }
-    } else if (res < 0) {
-      switch (get_last_error(fd, res)) {
-        case stream_transport_error::temporary:
-        case stream_transport_error::want_write:
-          return write_result::again;
-        case stream_transport_error::want_read:
-          return write_result::want_read;
-        default: // permanent error
-          transition(&connect_state::err);
-          return write_result::stop;
-      }
-    } else {
-      // Socket closed (treat as error).
-      transition(&connect_state::err);
-      return write_result::stop;
+      return write_result::again;
     }
+    if (res < 0) {
+      return handle_write_result(res);
+    }
+    // Socket closed (treat as error).
+    transition(&connect_state::err);
+    return write_result::stop;
   }
 
-  write_result continue_writing(caf::net::socket_id fd) {
-    return continue_writing(stream_socket{fd});
-  }
-
-  read_result continue_reading(stream_socket fd) {
+  read_result continue_reading() {
     switch (sck_state) {
       case socket_state::accepting:
-        return do_transport_handshake_rd<true>(fd);
+        return do_transport_handshake_rd<true>();
       case socket_state::connecting:
-        return do_transport_handshake_rd<false>(fd);
+        return do_transport_handshake_rd<false>();
       default:
         break;
     }
@@ -752,75 +795,70 @@ public:
       auto read_size = payload_size + 4;
       log::network::debug(
         "try-read-more",
-        "try reading more bytes from fd {}: got {} bytes, want {} bytes", fd.id,
-        read_pos, read_size);
-      auto res = do_read(fd, caf::make_span(rd_buf.data() + read_pos,
-                                            read_size - read_pos));
+        "try reading more bytes from fd {}: got {} bytes, want {} bytes",
+        fd_id(), read_pos, read_size);
+      auto res =
+        do_read(caf::make_span(rd_buf.data() + read_pos, read_size - read_pos));
       log::network::debug("try-read-more-result", "do_read returned {}", res);
       if (res < 0) {
-        return read_result_from_last_error(fd, res);
-      } else if (res == 0) {
+        return handle_read_result(res);
+      }
+      if (res == 0) {
         // Socket closed (treat as error).
         transition(&connect_state::err);
         return read_result::stop;
-      } else {
-        auto ures = static_cast<size_t>(res);
-        read_pos += ures;
-        if (read_pos == 4) {
-          BROKER_ASSERT(payload_size == 0);
-          format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
-          [[maybe_unused]] auto ok = src.apply(payload_size);
-          BROKER_ASSERT(ok);
-          if (payload_size == 0) {
-            log::network::debug("empty-payload",
-                                "received message with payload size 0, drop");
-            transition(&connect_state::err);
-            return read_result::stop;
-          }
-          log::network::debug("wait-for-payload", "wait for payload of size {}",
-                              payload_size);
-          rd_buf.resize(payload_size + 4);
-          return continue_reading(fd);
-        } else if (read_pos == read_size) {
-          // Double check the payload size.
-          uint32_t pl_size = 0;
-          format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
-          [[maybe_unused]] auto ok = src.apply(pl_size);
-          BROKER_ASSERT(ok);
-          if (pl_size != payload_size) {
-            log::network::debug("invalid-payload-size",
-                                "expected payload size {} but got {}",
-                                payload_size, pl_size);
-            transition(&connect_state::err);
-            return read_result::stop;
-          }
-          // Read next message.
-          BROKER_ASSERT(rd_buf.size() == payload_size + 4);
-          auto bytes = caf::make_span(rd_buf).subspan(4); // Skip the size.
-          auto msg = wire_format::decode(bytes);
-          if (std::holds_alternative<wire_format::var_msg_error>(msg)) {
-            auto& [ec, descr] = std::get<wire_format::var_msg_error>(msg);
-            log::network::debug("reject-connection",
-                                "reject connection: {} -> {}", ec, descr);
-            send(wire_format::make_drop_conn_msg(this_peer(), ec,
-                                                 std::move(descr)));
-            transition(&connect_state::err);
-            return read_result::stop;
-          }
-          if (!(*this.*fn)(msg))
-            return read_result::stop;
-          payload_size = 0;
-          read_pos = 0;
-          return reached_fin_state() ? read_result::stop : read_result::again;
-        } else {
-          return read_result::again;
-        }
       }
+      auto ures = static_cast<size_t>(res);
+      read_pos += ures;
+      if (read_pos == 4) {
+        BROKER_ASSERT(payload_size == 0);
+        format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
+        [[maybe_unused]] auto ok = src.apply(payload_size);
+        BROKER_ASSERT(ok);
+        if (payload_size == 0) {
+          log::network::debug("empty-payload",
+                              "received message with payload size 0, drop");
+          transition(&connect_state::err);
+          return read_result::stop;
+        }
+        log::network::debug("wait-for-payload", "wait for payload of size {}",
+                            payload_size);
+        rd_buf.resize(payload_size + 4);
+        return continue_reading();
+      } else if (read_pos == read_size) {
+        // Double check the payload size.
+        uint32_t pl_size = 0;
+        format::bin::v1::decoder src{rd_buf.data(), rd_buf.size()};
+        [[maybe_unused]] auto ok = src.apply(pl_size);
+        BROKER_ASSERT(ok);
+        if (pl_size != payload_size) {
+          log::network::debug("invalid-payload-size",
+                              "expected payload size {} but got {}",
+                              payload_size, pl_size);
+          transition(&connect_state::err);
+          return read_result::stop;
+        }
+        // Read next message.
+        BROKER_ASSERT(rd_buf.size() == payload_size + 4);
+        auto bytes = caf::make_span(rd_buf).subspan(4); // Skip the size.
+        auto msg = wire_format::decode(bytes);
+        if (std::holds_alternative<wire_format::var_msg_error>(msg)) {
+          auto& [ec, descr] = std::get<wire_format::var_msg_error>(msg);
+          log::network::debug("reject-connection",
+                              "reject connection: {} -> {}", ec, descr);
+          send(
+            wire_format::make_drop_conn_msg(this_peer(), ec, std::move(descr)));
+          transition(&connect_state::err);
+          return read_result::stop;
+        }
+        if (!(*this.*fn)(msg))
+          return read_result::stop;
+        payload_size = 0;
+        read_pos = 0;
+        return reached_fin_state() ? read_result::stop : read_result::again;
+      }
+      return read_result::again;
     }
-  }
-
-  read_result continue_reading(caf::net::socket_id fd) {
-    return continue_reading(stream_socket{fd});
   }
 
   // -- FSM --------------------------------------------------------------------
@@ -934,12 +972,12 @@ struct connect_manager {
   endpoint_id this_peer;
 
   /// Stores a pointer to the OpenSSL context when running with SSL enabled.
-  caf::net::openssl::ctx_ptr ssl_ctx;
+  caf::net::ssl::context ssl_ctx;
 
   connect_manager(endpoint_id this_peer, connector::listener* ls,
                   shared_filter_type* filter,
                   detail::peer_status_map* peer_statuses,
-                  caf::net::openssl::ctx_ptr ctx)
+                  caf::net::ssl::context ctx)
     : listener(ls),
       filter(filter),
       peer_statuses_(peer_statuses),
@@ -1047,36 +1085,44 @@ struct connect_manager {
       }
       short mask = 0;
       if (ssl_ctx) {
+        using caf::net::ssl::close_on_shutdown;
         mask = write_mask; // SSL wants to write first.
-        state->reset(connect_state::socket_state::connecting,
-                     caf::net::openssl::policy::make(ssl_ctx, *sock));
+        auto conn = ssl_ctx.new_connection(*sock, close_on_shutdown);
+        if (!conn) {
+          auto err_str = to_string(conn.error());
+          fprintf(
+            stderr,
+            "failed to create SSL connection on socket %d (line %d): %s\n",
+            (int) sock->id, __LINE__, err_str.c_str());
+          ::abort();
+        }
+        state->reset(connect_state::socket_state::connecting, std::move(*conn));
       } else {
         mask = read_mask;
-        state->reset(connect_state::socket_state::running,
-                     caf::net::default_stream_transport_policy{});
+        state->reset(connect_state::socket_state::running, *sock);
       }
       pending.emplace(sock->id, state);
       pending_fdset.push_back({sock->id, mask, 0});
       state->transition(&connect_state::await_hello_or_version_select);
       state->send(wire_format::make_hello_msg(this_peer));
-    } else {
-      auto retry_interval = state->addr.retry;
-      if (retry_interval.count() != 0) {
-        log::network::debug("connect-failed-with-retry",
-                            "failed to connect to {} -> retry in {}s",
-                            authority, retry_interval);
-        listener->on_peer_unavailable(state->addr);
-        retry_schedule.emplace(caf::make_timestamp() + retry_interval,
-                               std::move(state));
-      } else if (valid(event_id)) {
-        log::network::debug("connect-failed",
-                            "failed to connect to {} -> fail (retry disabled)",
-                            authority);
-        listener->on_error(event_id, caf::make_error(ec::peer_unavailable));
-      } else {
-        listener->on_peer_unavailable(state->addr);
-      }
+      return;
     }
+    auto retry_interval = state->addr.retry;
+    if (retry_interval.count() != 0) {
+      log::network::debug("connect-failed-with-retry",
+                          "failed to connect to {} -> retry in {}s", authority,
+                          retry_interval);
+      listener->on_peer_unavailable(state->addr);
+      retry_schedule.emplace(caf::make_timestamp() + retry_interval,
+                             std::move(state));
+    } else if (valid(event_id)) {
+      log::network::debug("connect-failed",
+                          "failed to connect to {} -> fail (retry disabled)",
+                          authority);
+      listener->on_error(event_id, caf::make_error(ec::peer_unavailable));
+      return;
+    }
+    listener->on_peer_unavailable(state->addr);
   }
 
   /// Registers a new state object for connecting to given address.
@@ -1125,7 +1171,7 @@ struct connect_manager {
 
   void finalize(pollfd& entry, connect_state& state) {
     if (!state.redundant) {
-      auto conn = state.make_pending_connection(stream_socket{entry.fd});
+      auto conn = state.make_pending_connection();
       listener->on_connection(state.event_id, state.remote_id, state.addr,
                               state.remote_filter, std::move(conn));
     } else {
@@ -1145,7 +1191,7 @@ struct connect_manager {
 
   void continue_reading(pollfd& entry) {
     if (auto i = pending.find(entry.fd); i != pending.end()) {
-      switch (i->second->continue_reading(entry.fd)) {
+      switch (i->second->continue_reading()) {
         case read_result::again:
           // nop
           break;
@@ -1205,13 +1251,23 @@ struct connect_manager {
                             entry.fd, sock->id);
         short mask = 0;
         if (ssl_ctx) {
+          using caf::net::ssl::close_on_shutdown;
+          auto conn = ssl_ctx.new_connection(*sock, close_on_shutdown);
+          if (!conn) {
+            auto err_str = to_string(conn.error());
+            fprintf(
+              stderr,
+              "failed to create SSL connection on socket %d (line %d): %s\n",
+              (int) sock->id, __LINE__, err_str.c_str());
+            ::abort();
+          }
           mask = write_mask; // SSL wants to write first.
           st->sck_state = connect_state::socket_state::accepting;
-          st->sck_policy = caf::net::openssl::policy::make(ssl_ctx, *sock);
+          st->connection = std::move(*conn);
         } else {
           mask = read_mask;
           st->sck_state = connect_state::socket_state::running;
-          st->sck_policy = caf::net::default_stream_transport_policy{};
+          st->connection = std::move(*sock);
         }
         pending_fdset.push_back({sock->id, mask, 0});
         pending.emplace(sock->id, st);
@@ -1225,7 +1281,7 @@ struct connect_manager {
 
   void continue_writing(pollfd& entry) {
     if (auto i = pending.find(entry.fd); i != pending.end()) {
-      switch (i->second->continue_writing(entry.fd)) {
+      switch (i->second->continue_writing()) {
         case write_result::again:
           // nop
           break;
@@ -1351,26 +1407,26 @@ detail::peer_status_map& connect_state::peer_statuses() {
 }
 
 bool connect_state::must_read_more() {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy))
-    return pol->buffered() > 0;
+  if (auto conn = std::get_if<caf::net::ssl::connection>(&connection))
+    return conn->buffered() > 0;
   else
     return false;
 }
 
 template <bool IsServer>
-write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
+write_result connect_state::do_transport_handshake_wr() {
+  if (auto conn = std::get_if<caf::net::ssl::connection>(&connection)) {
     ptrdiff_t res;
     if constexpr (IsServer)
-      res = pol->accept(fd);
+      res = conn->accept();
     else
-      res = pol->connect(fd);
+      res = conn->connect();
     if (res > 0) { // success
       sck_state = socket_state::running;
       mgr->register_reading(this);
       return write_result::again;
     } else if (res < 0) { // error
-      return write_result_from_last_error(fd, res);
+      return handle_write_result(res);
     } else { // socket closed
       transition(&connect_state::err);
       return write_result::stop;
@@ -1384,20 +1440,20 @@ write_result connect_state::do_transport_handshake_wr(stream_socket fd) {
 }
 
 template <bool IsServer>
-read_result connect_state::do_transport_handshake_rd(stream_socket fd) {
-  if (auto pol = std::get_if<caf::net::openssl::policy>(&sck_policy)) {
+read_result connect_state::do_transport_handshake_rd() {
+  if (auto conn = std::get_if<caf::net::ssl::connection>(&connection)) {
     ptrdiff_t res;
     if constexpr (IsServer)
-      res = pol->accept(fd);
+      res = conn->accept();
     else
-      res = pol->connect(fd);
+      res = conn->connect();
     if (res > 0) { // success
       sck_state = socket_state::running;
       if (!wr_buf.empty())
         mgr->register_writing(this);
       return read_result::again;
     } else if (res < 0) { // error
-      return read_result_from_last_error(fd, res);
+      return handle_read_result(res);
     } else { // socket closed
       transition(&connect_state::err);
       return read_result::stop;
@@ -1745,16 +1801,6 @@ connector::connector(endpoint_id this_peer, broker_options broker_cfg,
   }
   pipe_rd_ = rd.id;
   pipe_wr_ = wr.id;
-  // Copy the password into the global buffer if provided.
-  if (ssl_cfg_ && !ssl_cfg_->passphrase.empty()) {
-    if (ssl_cfg_->passphrase.size() > max_ssl_passphrase_size) {
-      fprintf(stderr, "SSL passphrase may not exceed %d characters\n",
-              static_cast<int>(max_ssl_passphrase_size));
-      ::abort();
-    }
-    strncpy(ssl_passphrase_buf, ssl_cfg_->passphrase.c_str(),
-            max_ssl_passphrase_size);
-  }
 }
 
 connector::~connector() {
@@ -1855,7 +1901,7 @@ public:
   void init() {
     // We need the locking for enabling two Broker endpoints in one process.
     std::unique_lock guard{ssl_init_mtx_};
-    if (!init_ssl_api_called && !ssl_initialized_) {
+    if (!!ssl_initialized_) {
       ssl_initialized_ = true;
       endpoint::init_ssl_api();
     }
@@ -1885,8 +1931,12 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
   // performance-critical system component. It only establishes connections and
   // reads handshake messages, so poll() is 'good enough' and we use it since
   // it's portable.
+  caf::net::ssl::context ctx{nullptr};
+  if (auto maybe_ctx = internal::ssl_context_from_options(ssl_cfg_)) {
+    ctx = std::move(*maybe_ctx);
+  }
   connect_manager mgr{this_peer_, sub, filter, peer_statuses_.get(),
-                      ssl_context_from_cfg(ssl_cfg_)};
+                      std::move(ctx)};
   auto& fdset = mgr.fdset;
   fdset.push_back({pipe_rd_, read_mask, 0});
   bool done = false;
