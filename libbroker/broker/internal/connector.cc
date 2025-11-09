@@ -502,6 +502,7 @@ public:
       if constexpr (std::is_same_v<Connection, caf::net::stream_socket>) {
         caf::net::close(conn);
       }
+      // Note: SSL connections are closed automaticall by the connection object
     };
     std::visit(do_close, connection);
   }
@@ -636,18 +637,19 @@ public:
   /// Lifts the socket to a pending connection with any context required from
   /// this state.
   pending_connection_ptr make_pending_connection() {
-    auto do_make = [this]<class Conn>(Conn& conn) -> pending_connection_ptr {
+    pending_connection_ptr ptr;
+    auto do_make = [this, &ptr]<class Conn>(Conn& conn) {
       if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
-        auto res = std::make_shared<plain_pending_connection>(conn);
+        ptr = std::make_shared<plain_pending_connection>(conn);
         conn.id = caf::net::invalid_socket_id;
-        return res;
       } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
-        return std::make_shared<encrypted_pending_connection>(std::move(conn));
-      } else {
-        return nullptr;
+        ptr = std::make_shared<encrypted_pending_connection>(std::move(conn));
       }
     };
-    return std::visit(do_make, connection);
+    std::visit(do_make, connection);
+    // Ownership of the connection has been transferred.
+    connection = none{};
+    return ptr;
   }
 
   write_result handle_write_result(ptrdiff_t ret) {
@@ -656,21 +658,36 @@ public:
         if (caf::net::last_socket_error_is_temporary()) {
           return write_result::again;
         }
+        log::network::debug("handle-write-result-socket-error",
+                            "permanent socket error on fd {}, ret: {}", conn.id,
+                            ret);
         transition(&connect_state::err);
         return write_result::stop;
       } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
         using ssl_errc = caf::net::ssl::errc;
-        switch (conn.last_error(ret)) {
+        auto err = conn.last_error(ret);
+        log::network::debug("handle-write-result-ssl",
+                            "SSL write error on fd {}, ret: {}, error: {}",
+                            conn.fd().id, ret, static_cast<int>(err));
+        switch (err) {
           case ssl_errc::none:
           case ssl_errc::want_write:
+          case ssl_errc::want_connect:
+          case ssl_errc::want_accept:
             return write_result::again;
           case ssl_errc::want_read:
             return write_result::want_read;
           default: // permanent error
+            log::network::debug(
+              "handle-write-result-ssl-permanent",
+              "permanent SSL error on fd {}, transitioning to err",
+              conn.fd().id);
             transition(&connect_state::err);
             return write_result::stop;
         }
       } else {
+        log::network::error("handle-write-result-unknown",
+                            "unknown connection type, transitioning to err");
         transition(&connect_state::err);
         return write_result::stop;
       }
@@ -684,21 +701,36 @@ public:
         if (caf::net::last_socket_error_is_temporary()) {
           return read_result::again;
         }
+        log::network::debug("handle-read-result-socket-error",
+                            "permanent socket error on fd {}, ret: {}", conn.id,
+                            ret);
         transition(&connect_state::err);
         return read_result::stop;
       } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
         using ssl_errc = caf::net::ssl::errc;
-        switch (conn.last_error(ret)) {
+        auto err = conn.last_error(ret);
+        log::network::debug("handle-read-result-ssl",
+                            "SSL read error on fd {}, ret: {}, error: {}",
+                            conn.fd().id, ret, static_cast<int>(err));
+        switch (err) {
           case ssl_errc::none:
           case ssl_errc::want_read:
+          case ssl_errc::want_connect:
+          case ssl_errc::want_accept:
             return read_result::again;
           case ssl_errc::want_write:
             return read_result::want_write;
           default: // permanent error
+            log::network::debug(
+              "handle-read-result-ssl-permanent",
+              "permanent SSL error on fd {}, transitioning to err",
+              conn.fd().id);
             transition(&connect_state::err);
             return read_result::stop;
         }
       } else {
+        log::network::error("handle-read-result-unknown",
+                            "unknown connection type, transitioning to err");
         transition(&connect_state::err);
         return read_result::stop;
       }
@@ -715,10 +747,11 @@ public:
   read_result do_transport_handshake_rd();
 
   auto fd_id() const {
-    auto fn = []<class Conn>(Conn& conn) {
+    auto fn = []<class Conn>(const Conn& conn) {
       if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
         return conn.id;
       } else if constexpr (std::is_same_v<Conn, caf::net::ssl::connection>) {
+        // Check if the SSL connection's file descriptor is valid
         return conn.fd().id;
       } else {
         return caf::net::invalid_socket_id;
@@ -1175,9 +1208,24 @@ struct connect_manager {
       listener->on_connection(state.event_id, state.remote_id, state.addr,
                               state.remote_filter, std::move(conn));
     } else {
+      // For redundant connections, we still need to reset the connection
+      // variant to prevent accessing moved-from connections in logging or other
+      // code
+      auto do_reset = [&state]<class Conn>(Conn& conn) -> void {
+        if constexpr (std::is_same_v<Conn, caf::net::stream_socket>) {
+          caf::net::close(conn);
+        }
+        // SSL connections are closed when the connection object is destroyed
+      };
+      std::visit(do_reset, state.connection);
+      state.connection = none{};
       listener->on_redundant_connection(state.event_id, state.remote_id,
                                         state.addr);
-      close(caf::net::socket{entry.fd});
+      // Only close if the socket is valid (not already closed)
+      if (entry.fd != caf::net::invalid_socket_id) {
+        close(caf::net::socket{entry.fd});
+        entry.fd = caf::net::invalid_socket_id;
+      }
       entry.events = 0;
     }
   }
@@ -1280,6 +1328,11 @@ struct connect_manager {
   }
 
   void continue_writing(pollfd& entry) {
+    // Check if socket is still valid before processing
+    if (entry.fd == caf::net::invalid_socket_id) {
+      entry.events &= ~write_mask;
+      return;
+    }
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       switch (i->second->continue_writing()) {
         case write_result::again:
@@ -1316,6 +1369,12 @@ struct connect_manager {
     if (auto i = pending.find(entry.fd); i != pending.end()) {
       auto state = std::move(i->second);
       pending.erase(i);
+      log::network::debug("abort-connection",
+                          "aborting connection on socket {}, event_id: {}, "
+                          "redundant: {}, state_fn: {}, sck_state: {}",
+                          entry.fd, state->event_id, state->redundant,
+                          state->fn == &connect_state::err ? "err" : "other",
+                          static_cast<int>(state->sck_state));
       if (state->redundant) {
         log::network::debug("drop-redundant-connection",
                             "drop redundant connection on socket {}", entry.fd);
@@ -1407,10 +1466,10 @@ detail::peer_status_map& connect_state::peer_statuses() {
 }
 
 bool connect_state::must_read_more() {
-  if (auto conn = std::get_if<caf::net::ssl::connection>(&connection))
+  if (auto conn = std::get_if<caf::net::ssl::connection>(&connection)) {
     return conn->buffered() > 0;
-  else
-    return false;
+  }
+  return false;
 }
 
 template <bool IsServer>
@@ -1421,13 +1480,23 @@ write_result connect_state::do_transport_handshake_wr() {
       res = conn->accept();
     else
       res = conn->connect();
+    log::network::debug("ssl-handshake-wr",
+                        "SSL handshake {} on fd {} returned {}",
+                        IsServer ? "accept" : "connect", fd_id(), res);
     if (res > 0) { // success
       sck_state = socket_state::running;
       mgr->register_reading(this);
       return write_result::again;
     } else if (res < 0) { // error
+      log::network::debug(
+        "ssl-handshake-wr-error",
+        "SSL handshake {} error on fd {}, calling handle_write_result",
+        IsServer ? "accept" : "connect", fd_id());
       return handle_write_result(res);
     } else { // socket closed
+      log::network::debug("ssl-handshake-wr-closed",
+                          "SSL handshake {} socket closed on fd {}",
+                          IsServer ? "accept" : "connect", fd_id());
       transition(&connect_state::err);
       return write_result::stop;
     }
@@ -1447,14 +1516,24 @@ read_result connect_state::do_transport_handshake_rd() {
       res = conn->accept();
     else
       res = conn->connect();
+    log::network::debug("ssl-handshake-rd",
+                        "SSL handshake {} on fd {} returned {}",
+                        IsServer ? "accept" : "connect", fd_id(), res);
     if (res > 0) { // success
       sck_state = socket_state::running;
       if (!wr_buf.empty())
         mgr->register_writing(this);
       return read_result::again;
     } else if (res < 0) { // error
+      log::network::debug(
+        "ssl-handshake-rd-error",
+        "SSL handshake {} error on fd {}, calling handle_read_result",
+        IsServer ? "accept" : "connect", fd_id());
       return handle_read_result(res);
     } else { // socket closed
+      log::network::debug("ssl-handshake-rd-closed",
+                          "SSL handshake {} socket closed on fd {}",
+                          IsServer ? "accept" : "connect", fd_id());
       transition(&connect_state::err);
       return read_result::stop;
     }

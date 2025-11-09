@@ -844,7 +844,18 @@ void core_actor_state::try_connect(const network_info& addr,
     },
     [this, rp, addr](endpoint_id peer,
                      const network_info& actual_addr) mutable {
+      // Check if we're shutting down before processing the callback
+      if (shutting_down_) {
+        log::core::debug(
+          "try-connect-redundant-shutdown",
+          "ignoring redundant connection callback during shutdown");
+        if (rp.pending()) {
+          rp.deliver(caf::make_error(ec::shutting_down));
+        }
+        return;
+      }
       if (auto i = peerings.find(peer); i != peerings.end()) {
+        BROKER_ASSERT(i->second != nullptr);
         log::core::debug("try-connect-redundant",
                          "dropped redundant connection to {}: tried connecting "
                          "to {}, but already connected prior via {}",
@@ -852,9 +863,12 @@ void core_actor_state::try_connect(const network_info& addr,
         // Override the address if this one has a retry field. This makes
         // sure we "prefer" a user-defined address over addresses we read
         // from sockets for incoming peerings.
-        if (actual_addr.has_retry_time() && !i->second->addr.has_retry_time())
+        if (actual_addr.has_retry_time() && !i->second->addr.has_retry_time()) {
           i->second->addr = actual_addr;
-        rp.deliver(atom::peer_v, atom::ok_v, peer);
+        }
+        if (rp.pending()) {
+          rp.deliver(atom::peer_v, atom::ok_v, peer);
+        }
       } else {
         // Race on the state. May happen if the remote peer already
         // started a handshake and the connector thus drops this request
@@ -863,16 +877,29 @@ void core_actor_state::try_connect(const network_info& addr,
         // we should find it in the cache.
         using namespace std::literals;
         self->run_delayed(1ms, [this, peer, addr, actual_addr, rp]() mutable {
+          if (shutting_down_) {
+            log::core::debug(
+              "try-connect-redundant-delayed-shutdown",
+              "ignoring delayed redundant connection callback during shutdown");
+            if (rp.pending()) {
+              rp.deliver(caf::make_error(ec::shutting_down));
+            }
+            return;
+          }
           if (auto i = peerings.find(peer); i != peerings.end()) {
+            BROKER_ASSERT(i->second != nullptr);
             log::core::debug(
               "try-connect-redundant-delayed",
               "dropped redundant connection to {}: tried connecting "
               "to {}, but already connected prior via {}",
               peer, addr, actual_addr);
             if (actual_addr.has_retry_time()
-                && !i->second->addr.has_retry_time())
+                && !i->second->addr.has_retry_time()) {
               i->second->addr = actual_addr;
-            rp.deliver(atom::peer_v, atom::ok_v, peer);
+            }
+            if (rp.pending()) {
+              rp.deliver(atom::peer_v, atom::ok_v, peer);
+            }
           } else {
             try_connect(actual_addr, rp);
           }
