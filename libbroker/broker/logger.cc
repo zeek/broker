@@ -3,11 +3,14 @@
 #include "broker/time.hh"
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
 
 #include <caf/term.hpp>
+#include <thread>
 
 namespace broker {
 
@@ -33,17 +36,17 @@ constexpr caf::term severity_color(event::severity_level level) {
 constexpr const char* component_tag(event::component_type component) {
   switch (component) {
     default:
-      return "[???]";
+      return "???";
     case event::component_type::core:
-      return "[core]";
+      return "core";
     case event::component_type::endpoint:
-      return "[endpoint]";
+      return "endpoint";
     case event::component_type::store:
-      return "[store]";
+      return "store";
     case event::component_type::network:
-      return "[network]";
+      return "network";
     case event::component_type::app:
-      return "[app]";
+      return "app";
   };
 }
 
@@ -66,6 +69,30 @@ constexpr const char* severity_name(event::severity_level level) {
   };
 }
 
+void observe_impl(const event_ptr& what, std::mutex& mtx, std::ostream& out) {
+  // Split timestamp into seconds and milliseconds.
+  namespace sc = std::chrono;
+  auto sys_time = sc::time_point_cast<clock::duration>(what->timestamp);
+  auto secs = sc::system_clock::to_time_t(sys_time);
+  auto msecs = (what->timestamp.time_since_epoch().count() / 1'000) % 1'000;
+  auto msecs_str = std::to_string(msecs);
+  // Pad milliseconds to three digits.
+  if (msecs < 10) {
+    msecs_str.insert(msecs_str.begin(), 2, '0');
+  } else if (msecs < 100) {
+    msecs_str.insert(msecs_str.begin(), 1, '0');
+  }
+  // Critical section to avoid interleaved output.
+  std::lock_guard guard{mtx};
+  out << severity_color(what->severity)
+      << std::put_time(std::localtime(&secs), "%F %T") << '.' << msecs_str
+      << ' ' << severity_name(what->severity)
+      << ' ' << '@' << std::this_thread::get_id()
+      << ' ' << '['
+      << component_tag(what->component) << ':' << what->identifier << ']' << ' '
+      << what->description << caf::term::reset << '\n';
+}
+
 class console_logger : public event_observer {
 public:
   console_logger(event::severity_level severity, event::component_mask mask)
@@ -74,25 +101,7 @@ public:
   }
 
   void observe(event_ptr what) override {
-    // Split timestamp into seconds and milliseconds.
-    namespace sc = std::chrono;
-    auto sys_time = sc::time_point_cast<clock::duration>(what->timestamp);
-    auto secs = sc::system_clock::to_time_t(sys_time);
-    auto msecs = (what->timestamp.time_since_epoch().count() / 1'000) % 1'000;
-    auto msecs_str = std::to_string(msecs);
-    // Pad milliseconds to three digits.
-    if (msecs < 10) {
-      msecs_str.insert(msecs_str.begin(), 2, '0');
-    } else if (msecs < 100) {
-      msecs_str.insert(msecs_str.begin(), 1, '0');
-    }
-    // Critical section to avoid interleaved output.
-    std::lock_guard guard{mtx_};
-    std::cout << severity_color(what->severity)
-              << std::put_time(std::localtime(&secs), "%F %T") << '.'
-              << msecs_str << ' ' << severity_name(what->severity) << ' '
-              << component_tag(what->component) << ' ' << what->description
-              << caf::term::reset << '\n';
+    observe_impl(what, mtx_, std::cout);
   }
 
   bool accepts(event::severity_level severity,
@@ -104,6 +113,37 @@ private:
   std::mutex mtx_;
   event::severity_level severity_;
   event::component_mask mask_;
+};
+
+class file_logger : public event_observer {
+public:
+  file_logger(const std::string& file_path, event::severity_level severity,
+              event::component_mask mask)
+    : severity_(severity), mask_(mask) {
+    if (std::filesystem::exists(file_path)) {
+      std::filesystem::remove(file_path);
+    }
+    file_.open(file_path, std::ofstream::out);
+    if (!file_) {
+      fprintf(stderr, "failed to open log file '%s'\n", file_path.c_str());
+      abort();
+    }
+  }
+
+  void observe(event_ptr what) override {
+    observe_impl(what, mtx_, file_);
+  }
+
+  bool accepts(event::severity_level severity,
+               event::component_type component) const override {
+    return severity <= severity_ && has_component(mask_, component);
+  }
+
+private:
+  std::mutex mtx_;
+  event::severity_level severity_;
+  event::component_mask mask_;
+  std::ofstream file_;
 };
 
 } // namespace
@@ -139,6 +179,12 @@ event_observer_ptr make_console_logger(std::string_view severity,
     return make_console_logger(event::severity_level::debug, mask);
   }
   throw std::invalid_argument("invalid severity level");
+}
+
+event_observer_ptr make_file_logger(const std::string& file_path,
+                                    event::severity_level severity,
+                                    event::component_mask mask) {
+  return std::make_shared<file_logger>(file_path, severity, mask);
 }
 
 } // namespace broker

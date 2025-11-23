@@ -5,6 +5,7 @@
 
 #include <caf/expected.hpp>
 #include <caf/net/ssl/context.hpp>
+#include <caf/net/ssl/verify.hpp>
 
 namespace broker::internal {
 
@@ -13,7 +14,7 @@ ssl_context_from_options(const openssl_options_ptr& options) {
   caf::expected<caf::net::ssl::context> result{caf::error{}};
   if (options) {
     auto pem = caf::net::ssl::format::pem;
-    auto ctx = caf::net::ssl::context::make_server(caf::net::ssl::tls::v1_2);
+    auto ctx = caf::net::ssl::context::make(caf::net::ssl::tls::v1_2);
     auto ok = true;
     if (!options->certificate.empty()) {
       ok = ctx->use_certificate_chain_file(options->certificate);
@@ -32,6 +33,11 @@ ssl_context_from_options(const openssl_options_ptr& options) {
     }
     if (ok) {
       ctx->password(options->passphrase);
+      // If no certificate is provided, disable peer verification to allow
+      // connections without certificates (e.g., for testing).
+      if (options->certificate.empty() || options->key.empty()) {
+        ctx->verify_mode(caf::net::ssl::verify::none);
+      }
       result = std::move(ctx);
     } else {
       result = ctx->last_error();

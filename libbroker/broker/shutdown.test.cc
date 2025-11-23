@@ -4,6 +4,7 @@
 #include "broker/broker-test.test.hh"
 
 #include "broker/endpoint.hh"
+#include "broker/logger.hh"
 
 #include <atomic>
 #include <condition_variable>
@@ -69,6 +70,7 @@ FIXTURE_SCOPE(system_shutdown_tests, fixture)
 // subscribers should receive all events (from discovery to disconnecting) of
 // the short-lived endpoints.
 TEST(status listeners receive peering events) {
+  set_console_logger("debug");
   MESSAGE("status subscribers receive discovery and peering events");
   auto ep1_log = std::make_shared<std::vector<data_message>>();
   auto ep2_log = std::make_shared<std::vector<data_message>>();

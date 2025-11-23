@@ -43,6 +43,18 @@ set_console_logger(std::string_view severity,
   logger(make_console_logger(severity, mask));
 }
 
+/// Creates a new logger that prints to the console.
+event_observer_ptr
+make_file_logger(const std::string& file_path, event::severity_level severity,
+                 event::component_mask mask = event::default_component_mask);
+
+/// Convenience function for setting a file logger.
+inline void
+set_file_logger(const std::string& file_path, event::severity_level severity,
+                event::component_mask mask = event::default_component_mask) {
+  logger(make_file_logger(file_path, severity, mask));
+}
+
 } // namespace broker
 
 namespace broker::detail {
