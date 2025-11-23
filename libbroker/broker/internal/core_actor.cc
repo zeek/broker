@@ -974,7 +974,7 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
       .do_on_next([this, peer_id](const node_message& msg) {
         // Record messages that are pushed into the backpressure buffer.
         if (auto* lptr = logger()) {
-          lptr->on_peer_buffer_push(peer_id, msg);
+          lptr->on_peer_buffer_push(peer_id, 1);
         }
       })
       // Handle unresponsive peers.
@@ -982,7 +982,7 @@ core_actor_state::do_init_new_peer(endpoint_id peer_id,
       .do_on_next([this, peer_id](const node_message& msg) {
         // Record messages that leave the backpressure buffer.
         if (auto* lptr = logger()) {
-          lptr->on_peer_buffer_pull(peer_id, msg);
+          lptr->on_peer_buffer_pull(peer_id, 1);
         }
       })
       .do_on_complete([this, peer_id] {
@@ -1148,7 +1148,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
         .do_on_next([this, client_id](const data_message& msg) {
           // Record messages that are pushed into the backpressure buffer.
           if (auto* lptr = logger()) {
-            lptr->on_client_buffer_push(client_id, msg);
+            lptr->on_client_buffer_push(client_id, 1);
           }
         })
         // Handle unresponsive clients.
@@ -1157,7 +1157,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
         .do_on_next([this, client_id](const data_message& msg) {
           // Record messages that leave the backpressure buffer.
           if (auto* lptr = logger()) {
-            lptr->on_client_buffer_pull(client_id, msg);
+            lptr->on_client_buffer_pull(client_id, 1);
           }
         })
         .do_on_error([this, client_id, addr, type](const caf::error& reason) {
