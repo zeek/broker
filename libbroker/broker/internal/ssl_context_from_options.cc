@@ -3,9 +3,14 @@
 #include "broker/configuration.hh"
 #include "broker/logger.hh"
 
+#include <caf/config.hpp>
 #include <caf/expected.hpp>
 #include <caf/net/ssl/context.hpp>
 #include <caf/net/ssl/verify.hpp>
+
+CAF_PUSH_WARNINGS
+#include <openssl/ssl.h>
+CAF_POP_WARNINGS
 
 namespace broker::internal {
 
@@ -37,6 +42,27 @@ ssl_context_from_options(const openssl_options_ptr& options) {
       // connections without certificates (e.g., for testing).
       if (options->certificate.empty() || options->key.empty()) {
         ctx->verify_mode(caf::net::ssl::verify::none);
+        // Set cipher list to enable anonymous ciphers that work without
+        // certificates. This matches the old OpenSSL module behavior.
+        // AECDH = Anonymous Elliptic Curve Diffie-Hellman
+        auto native_ctx = reinterpret_cast<SSL_CTX*>(ctx->native_handle());
+        if (native_ctx) {
+          const char* cipher_list;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+          // OpenSSL 1.1.0+ requires @SECLEVEL=0 to allow anonymous ciphers
+          cipher_list = "AECDH-AES256-SHA@SECLEVEL=0";
+#else
+          // Older OpenSSL versions don't support SECLEVEL
+          cipher_list = "AECDH-AES256-SHA";
+#endif
+          if (SSL_CTX_set_cipher_list(native_ctx, cipher_list) != 1) {
+            // If setting cipher list fails, log but don't fail - let OpenSSL
+            // use its defaults (though this may cause "no shared cipher" errors)
+            log::network::warning("set-cipher-list-failed",
+                                  "Failed to set cipher list to {}",
+                                  cipher_list);
+          }
+        }
       }
       result = std::move(ctx);
     } else {
