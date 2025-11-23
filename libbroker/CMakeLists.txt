@@ -50,7 +50,6 @@ set(BROKER_SRC
     broker/internal/json_type_mapper.cc
     broker/internal/master_actor.cc
     broker/internal/metric_factory.cc
-    broker/internal/peering.cc
     broker/internal/pending_connection.cc
     broker/internal/println.cc
     broker/internal/publisher_queue.cc
