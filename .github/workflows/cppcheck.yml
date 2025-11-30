@@ -36,6 +36,7 @@ jobs:
             --enable=all \
             --error-exitcode=1 \
             --inconclusive \
+            --inline-suppr \
             --std=c++20 \
             --suppress=*:3rdparty/* \
             --suppress=*:build/* \

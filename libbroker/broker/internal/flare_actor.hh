@@ -25,7 +25,7 @@ namespace broker::internal {
 
 class flare_actor : public caf::blocking_actor {
 public:
-  flare_actor(caf::actor_config& sys);
+  explicit flare_actor(caf::actor_config& sys);
 
   void launch(caf::execution_unit*, bool, bool) override;
 
