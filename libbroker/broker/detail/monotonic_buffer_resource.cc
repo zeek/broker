@@ -15,16 +15,16 @@ constexpr size_t block_size = 1024;
 
 } // namespace
 
-void* monotonic_buffer_resource::allocate(size_t num_bytes, size_t alignment) {
-  auto res = std::align(alignment, num_bytes, current_->bytes, remaining_);
+void* monotonic_buffer_resource::allocate(size_t bytes, size_t alignment) {
+  auto res = std::align(alignment, bytes, current_->bytes, remaining_);
   if (res == nullptr) {
-    allocate_block(current_, num_bytes);
-    res = std::align(alignment, num_bytes, current_->bytes, remaining_);
+    allocate_block(current_, bytes);
+    res = std::align(alignment, bytes, current_->bytes, remaining_);
     if (res == nullptr)
       throw std::bad_alloc();
   }
-  current_->bytes = static_cast<std::byte*>(res) + num_bytes;
-  remaining_ -= num_bytes;
+  current_->bytes = static_cast<std::byte*>(res) + bytes;
+  remaining_ -= bytes;
   return res;
 }
 
