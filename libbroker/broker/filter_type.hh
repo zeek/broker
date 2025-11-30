@@ -18,7 +18,7 @@ class shared_filter_type {
 public:
   shared_filter_type() = default;
 
-  shared_filter_type(filter_type filter) : filter_(std::move(filter)) {
+  explicit shared_filter_type(filter_type filter) : filter_(std::move(filter)) {
     // nop
   }
 

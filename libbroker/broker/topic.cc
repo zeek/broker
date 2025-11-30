@@ -30,10 +30,10 @@ topic topic::join(const std::vector<std::string>& components) {
   return result;
 }
 
-topic& topic::operator/=(const topic& rhs) {
-  if (!rhs.str_.empty() && rhs.str_[0] != sep && !str_.empty())
+topic& topic::operator/=(const topic& t) {
+  if (!t.str_.empty() && t.str_[0] != sep && !str_.empty())
     str_ += sep;
-  str_ += rhs.str_;
+  str_ += t.str_;
   if (!str_.empty() && str_.back() == sep)
     str_.pop_back();
   return *this;

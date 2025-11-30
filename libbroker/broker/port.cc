@@ -13,7 +13,7 @@ namespace broker {
 
 port::port() : num_{0}, proto_{protocol::unknown} {}
 
-port::port(number_type n, protocol p) : num_{n}, proto_{p} {}
+port::port(number_type num, protocol p) : num_{num}, proto_{p} {}
 
 int port::compare(const port& other) const {
   auto res = static_cast<int>(num_) - static_cast<int>(other.num_);

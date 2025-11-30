@@ -1,0 +1,75 @@
+name: cppcheck
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  cppcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: configure
+        run: cmake -S . -B build
+
+      - name: cppcheck
+        run: |
+          mkdir -p cppcheck-report
+
+          cppcheck_status=0
+          gccVersion=$( g++ -dumpversion )
+
+          # Run cppcheck, but don't fail the step immediately
+          cppcheck \
+            --enable=all \
+            --error-exitcode=1 \
+            --inconclusive \
+            --inline-suppr \
+            --std=c++20 \
+            --suppress=*:3rdparty/* \
+            --suppress=*:build/* \
+            --suppress=*:caf/* \
+            --suppress=missingIncludeSystem \
+            --xml \
+            --xml-version=2 \
+            -D __GNUC__=${gccVersion} \
+            -D __linux__ \
+            -I 3rdparty/ \
+            -I build/caf/libcaf_core \
+            -I build/caf/libcaf_net \
+            -I build/caf/libcaf_test \
+            -I build/libbroker/ \
+            -I build/zeek-bundle/include \
+            -I caf/libcaf_core \
+            -I caf/libcaf_net \
+            -I caf/libcaf_test \
+            -I libbroker/ \
+            libbroker 2> cppcheck-report/cppcheck.xml || cppcheck_status=$?
+
+          # Generate HTML report regardless of cppcheck exit status
+          cppcheck-htmlreport \
+            --file=cppcheck-report/cppcheck.xml \
+            --report-dir=cppcheck-report/html \
+            --source-dir=.
+
+          # Fail the job if cppcheck reported problems
+          exit $cppcheck_status
+
+      - name: Upload cppcheck HTML report
+        uses: actions/upload-artifact@v4
+        if: always() # ensure artifact is uploaded even if previous step failed
+        with:
+          name: cppcheck-html-report
+          path: cppcheck-report/html

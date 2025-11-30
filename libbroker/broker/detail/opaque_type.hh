@@ -29,7 +29,7 @@ public:
     // nop
   }
 
-  constexpr opaque_ptr(std::nullptr_t) noexcept : opaque_ptr() {
+  constexpr explicit opaque_ptr(std::nullptr_t) noexcept : opaque_ptr() {
     // nop
   }
 

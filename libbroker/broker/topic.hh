@@ -66,8 +66,13 @@ public:
   /// @param x A value convertible to a string.
   template <class T>
     requires std::is_constructible_v<std::string, T>
+  // cppcheck-suppress noExplicitConstructor
   topic(T&& x) : str_(std::forward<T>(x)) {
-    // nop
+    // Note: making this explicit breaks tons of callsites. Hence, adding the
+    //       `explicit` is going to be a bigger effort that we should tackle
+    //       eventually. Not to make `cppcheck` happy, but because we currently
+    //       create lots of unnecessary `topic` objects that each trigger heap
+    //       allocations for copying the string.
   }
 
   /// Appends a topic components with a separator.
