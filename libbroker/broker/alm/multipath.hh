@@ -2,11 +2,11 @@
 
 #include <algorithm>
 #include <memory>
+#include <memory_resource>
 #include <type_traits>
 #include <utility>
 
 #include "broker/detail/assert.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 
@@ -16,7 +16,7 @@ struct multipath_tree {
   explicit multipath_tree(endpoint_id id);
   ~multipath_tree();
   multipath_node* root;
-  detail::monotonic_buffer_resource mem;
+  std::pmr::monotonic_buffer_resource mem;
 };
 
 template <class T>
@@ -125,7 +125,7 @@ public:
   bool contains(const endpoint_id& id) const noexcept;
 
   std::pair<multipath_node*, bool>
-  emplace(detail::monotonic_buffer_resource& mem, const endpoint_id& id);
+  emplace(std::pmr::monotonic_buffer_resource& mem, const endpoint_id& id);
 
   bool emplace(multipath_node* node);
 
@@ -218,11 +218,12 @@ private:
   }
 
   template <class Inspector>
-  bool load_children(detail::monotonic_buffer_resource& mem, Inspector& f) {
+  bool load_children(std::pmr::monotonic_buffer_resource& mem, Inspector& f) {
     size_t n = 0;
     if (f.begin_sequence(n)) {
       for (size_t i = 0; i < n; ++i) {
-        auto child = detail::new_instance<multipath_node>(mem, endpoint_id{});
+        std::pmr::polymorphic_allocator<multipath_node> alloc{&mem};
+        auto* child = new (alloc.allocate(1)) multipath_node(endpoint_id{});
         if (!child->load(mem, f)) {
           child->shallow_delete();
           return false;
@@ -237,7 +238,7 @@ private:
   }
 
   template <class Inspector>
-  bool load(detail::monotonic_buffer_resource& mem, Inspector& f) {
+  bool load(std::pmr::monotonic_buffer_resource& mem, Inspector& f) {
     return f.template begin_object_t<multipath>() //
            && f.begin_field("id")                 // <id>
            && f.apply(id_)                        //   <value>
@@ -254,7 +255,7 @@ private:
   void shallow_delete() noexcept;
 
   template <class Iterator, class Sentinel>
-  void splice_cont(detail::monotonic_buffer_resource& mem, Iterator first,
+  void splice_cont(std::pmr::monotonic_buffer_resource& mem, Iterator first,
                    Sentinel last) {
     if (first != last) {
       auto child = down_.emplace(mem, *first).first;

@@ -1,3 +1,12 @@
+2.8.0-dev.288 | 2025-12-01 08:25:13 +0100
+
+  * Prefer `polymorphic_allocator` over a custom class (Dominik Charousset, Corelight)
+
+  * Get rid of `monotonic_buffer_resource` (Dominik Charousset, Corelight)
+
+    Seems like the STL version is now widely available. Hence, we no longer
+    need our own backport version.
+
 2.8.0-dev.285 | 2025-09-15 09:00:44 -0700
 
   * Replace SFINAE traits with concepts (Dominik Charousset, Corelight)

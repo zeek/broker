@@ -11,24 +11,16 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <memory_resource>
 #include <type_traits>
 
 namespace broker::detail {
 
 namespace {
 
-template <class T>
-using mbr_allocator = broker::detail::monotonic_buffer_resource::allocator<T>;
-
-using const_byte_pointer = const std::byte*;
-
-} // namespace
-
-namespace {
-
 template <class Container>
 struct container_storage {
-  broker::detail::monotonic_buffer_resource resource;
+  std::pmr::monotonic_buffer_resource resource;
   Container container;
   container_storage()
     : container(typename Container::allocator_type{&resource}) {}

@@ -2,7 +2,6 @@
 
 #include "broker/config.hh"
 #include "broker/detail/inspect_enum.hh"
-#include "broker/detail/monotonic_buffer_resource.hh"
 #include "broker/endpoint_id.hh"
 #include "broker/fwd.hh"
 #include "broker/intrusive_ptr.hh"
@@ -10,6 +9,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory_resource>
 
 namespace broker {
 
@@ -145,9 +145,6 @@ public:
     endpoint_id receiver_;
   };
 
-  template <class T>
-  using mbr_allocator = detail::monotonic_buffer_resource::allocator<T>;
-
   template <class Base>
   class deserialized : public Base {
   public:
@@ -162,11 +159,11 @@ public:
       // Note: we need to copy the topic and the data into our memory resource.
       // The pointers passed to the constructor are only valid for the duration
       // of the call.
-      mbr_allocator<char> str_allocator{&buf_};
+      std::pmr::polymorphic_allocator<char> str_allocator{&buf_};
       topic_ = str_allocator.allocate(topic_str.size() + 1);
       memcpy(topic_, topic_str.data(), topic_str.size());
       topic_[topic_str.size()] = '\0';
-      mbr_allocator<std::byte> byte_allocator{&buf_};
+      std::pmr::polymorphic_allocator<std::byte> byte_allocator{&buf_};
       payload_ = byte_allocator.allocate(payload_size);
       memcpy(payload_, payload, payload_size);
     }
@@ -191,7 +188,7 @@ public:
       return {payload_, payload_size_};
     }
 
-    detail::monotonic_buffer_resource& buf() {
+    std::pmr::monotonic_buffer_resource& buf() {
       return buf_;
     }
 
@@ -210,7 +207,7 @@ public:
 
     size_t payload_size_;
 
-    detail::monotonic_buffer_resource buf_;
+    std::pmr::monotonic_buffer_resource buf_;
   };
 
 private:
