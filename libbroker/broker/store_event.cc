@@ -2,6 +2,8 @@
 
 #include <caf/deep_to_string.hpp>
 
+#include <algorithm>
+
 namespace broker {
 
 namespace {
@@ -143,8 +145,7 @@ bool convert(const data& src, store_event::type& dst) noexcept {
 bool convertible_to_store_event_type(const data& src) noexcept {
   if (auto str = get_if<std::string>(src)) {
     auto predicate = [&](const char* x) { return *str == x; };
-    return std::any_of(std::begin(type_strings), std::end(type_strings),
-                       predicate);
+    return std::ranges::any_of(type_strings, predicate);
   }
   return false;
 }

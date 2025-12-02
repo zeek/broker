@@ -556,7 +556,7 @@ bool master_state::exists(const data& key) {
 
 bool master_state::idle() const noexcept {
   auto is_idle = [](auto& kvp) { return kvp.second.idle(); };
-  return output.idle() && std::all_of(inputs.begin(), inputs.end(), is_idle)
+  return output.idle() && std::ranges::all_of(inputs, is_idle)
          && open_handshakes.empty();
 }
 

@@ -23,7 +23,7 @@ bool from_string(std::string_view str, p2p_message_type& x) {
   auto predicate = [&](std::string_view x) { return x == str; };
   auto begin = std::begin(p2p_message_type_names);
   auto end = std::end(p2p_message_type_names);
-  auto i = std::find_if(begin, end, predicate);
+  auto i = std::ranges::find_if(p2p_message_type_names, predicate);
   if (i == begin || i == end) {
     return false;
   } else {

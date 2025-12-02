@@ -8,6 +8,7 @@
 #include "broker/message.hh"
 #include "broker/time.hh"
 
+#include <algorithm>
 #include <caf/actor.hpp>
 #include <caf/scoped_actor.hpp>
 #include <caf/type_id.hpp>
@@ -50,7 +51,7 @@ public:
 
   void subscribe(const topic& what, bool block) {
     auto pred = [&what](const topic& x) { return x == what; };
-    if (std::any_of(filter_.begin(), filter_.end(), pred)) {
+    if (std::ranges::any_of(filter_, pred)) {
       return;
     }
     filter_.push_back(what);
@@ -59,7 +60,7 @@ public:
 
   void unsubscribe(const topic& what, bool block) {
     auto pred = [&what](const topic& x) { return x == what; };
-    auto i = std::find_if(filter_.begin(), filter_.end(), pred);
+    auto i = std::ranges::find_if(filter_, pred);
     if (i == filter_.end()) {
       return;
     }

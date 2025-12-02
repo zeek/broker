@@ -266,7 +266,7 @@ public:
       }
       // Drop events from the buffer if possible.
       auto not_acked = [acked](const event& x) { return x.seq > acked; };
-      auto new_begin = std::find_if(buf_.begin(), buf_.end(), not_acked);
+      auto new_begin = std::ranges::find_if(buf_, not_acked);
       if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
         metrics_.shipped(n);
         buf_.erase(buf_.begin(), new_begin);
@@ -345,7 +345,7 @@ public:
           if (i->acked < acked)
             acked = i->acked;
         auto not_acked = [acked](const event& x) { return x.seq > acked; };
-        auto new_begin = std::find_if(buf_.begin(), buf_.end(), not_acked);
+        auto new_begin = std::ranges::find_if(buf_, not_acked);
         if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
           metrics_.shipped(n);
           buf_.erase(buf_.begin(), new_begin);
@@ -413,30 +413,30 @@ public:
 
     bool idle() const noexcept {
       auto at_head = [seq{seq_}](const path& x) { return x.acked == seq; };
-      return std::all_of(paths_.begin(), paths_.end(), at_head);
+      return std::ranges::all_of(paths_, at_head);
     }
 
     /// Checks whether any path was added but not yet acknowledged.
     bool has_pending_paths() const noexcept {
       auto pending = [](const path& x) { return x.acked == 0; };
-      return std::any_of(paths_.begin(), paths_.end(), pending);
+      return std::ranges::any_of(paths_, pending);
     }
 
     // -- path and event lookup ------------------------------------------------
 
     auto find_path(const Handle& hdl) noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
-      return std::find_if(paths_.begin(), paths_.end(), has_hdl);
+      return std::ranges::find_if(paths_, has_hdl);
     }
 
     auto find_path(const Handle& hdl) const noexcept {
       auto has_hdl = [&hdl](const path& x) { return x.hdl == hdl; };
-      return std::find_if(paths_.begin(), paths_.end(), has_hdl);
+      return std::ranges::find_if(paths_, has_hdl);
     }
 
     auto find_event(sequence_number_type seq) noexcept {
       auto has_seq = [seq](const event& x) { return x.seq == seq; };
-      return std::find_if(buf_.begin(), buf_.end(), has_seq);
+      return std::ranges::find_if(buf_, has_seq);
     }
 
   private:
@@ -607,7 +607,7 @@ public:
         auto pred = [offset](const optional_event& x) {
           return x.seq > offset;
         };
-        auto new_begin = std::find_if(buf_.begin(), buf_.end(), pred);
+        auto new_begin = std::ranges::find_if(buf_, pred);
         if (auto n = std::distance(buf_.begin(), new_begin); n > 0) {
           metrics_.dec_out_of_order_updates(n);
           buf_.erase(buf_.begin(), new_begin);
@@ -641,7 +641,7 @@ public:
           last_seq_ = seq;
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
-        auto i = std::find_if(buf_.begin(), buf_.end(), pred);
+        auto i = std::ranges::find_if(buf_, pred);
         if (i == buf_.end()) {
           buf_.emplace_back(seq, std::move(payload));
           metrics_.inc_out_of_order_updates();
@@ -667,7 +667,7 @@ public:
       } else if (seq > next_seq_) {
         // Insert event into buf_: sort by the sequence number, drop duplicates.
         auto pred = [seq](const optional_event& x) { return x.seq >= seq; };
-        auto i = std::find_if(buf_.begin(), buf_.end(), pred);
+        auto i = std::ranges::find_if(buf_, pred);
         if (i == buf_.end()) {
           buf_.emplace_back(seq);
           metrics_.inc_out_of_order_updates();
