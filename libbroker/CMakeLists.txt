@@ -49,7 +49,6 @@ set(BROKER_SRC
     broker/internal/json_type_mapper.cc
     broker/internal/master_actor.cc
     broker/internal/metric_factory.cc
-    broker/internal/peering.cc
     broker/internal/pending_connection.cc
     broker/internal/println.cc
     broker/internal/publisher_queue.cc
@@ -147,7 +146,9 @@ set(BROKER_TEST_SRC
     broker/format/json.test.cc
     broker/hub.test.cc
     broker/internal/channel.test.cc
+    broker/internal/core_actor.test.cc
     broker/internal/json.test.cc
+    broker/internal/subscription_multimap.test.cc
     broker/internal/wire_format.test.cc
     broker/peering.test.cc
     broker/radix_tree.test.cc
