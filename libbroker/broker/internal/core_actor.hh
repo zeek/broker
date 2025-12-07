@@ -422,6 +422,11 @@ public:
         return offer_result::ok;
       }
       // If the queue is full, we need to decide what to do with the message.
+      if constexpr (Subtype == handler_type::peering) {
+        if (auto* lptr = logger()) {
+          lptr->on_peer_buffer_overflow(id, policy);
+        }
+      }
       switch (policy) {
         default: // overflow_policy::disconnect
           log::core::info("offer",

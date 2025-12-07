@@ -286,6 +286,16 @@ caf::behavior core_actor_state::make_behavior() {
       else
         return caf::unit;
     },
+    [this](atom::peer, endpoint_id peer_id, const network_info& addr,
+           const filter_type& filter, chunk_consumer_res in_res,
+           chunk_producer_res out_res) -> caf::result<void> {
+      auto err = init_new_peer(peer_id, addr, filter, std::move(in_res),
+                               std::move(out_res));
+      if (err) {
+        return err;
+      }
+      return caf::unit;
+    },
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
       std::vector<peer_info> result;

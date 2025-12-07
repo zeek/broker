@@ -147,6 +147,7 @@ set(BROKER_TEST_SRC
     broker/format/json.test.cc
     broker/hub.test.cc
     broker/internal/channel.test.cc
+    broker/internal/core_actor.test.cc
     broker/internal/json.test.cc
     broker/internal/subscription_multimap.test.cc
     broker/internal/wire_format.test.cc
