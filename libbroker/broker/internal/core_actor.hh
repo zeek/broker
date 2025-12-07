@@ -427,7 +427,7 @@ public:
           log::core::info("offer",
                           "{} hit the buffer limit with policy disconnect",
                           pretty_name);
-          out->dispose();
+          out->abort(caf::make_error(caf::sec::backpressure_overflow));
           out = nullptr;
           return offer_result::overflow_disconnect;
         case overflow_policy::drop_newest:
