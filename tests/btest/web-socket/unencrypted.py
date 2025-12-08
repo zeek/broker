@@ -77,8 +77,7 @@ async def do_run():
             else:
                 sys.exit()
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(do_run())
+asyncio.run(do_run())
 
 @TEST-END-FILE
 
@@ -211,7 +210,6 @@ async def do_run():
       await ws.send(json.dumps(msg))
       await ws.close()
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(do_run())
+asyncio.run(do_run())
 
 @TEST-END-FILE

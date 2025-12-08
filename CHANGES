@@ -1,3 +1,9 @@
+2.8.0-dev.292 | 2025-12-08 17:40:58 +0100
+
+  * Fix btests on newer Python releases (Dominik Charousset, Corelight)
+
+  * Bump FreeBSD cirrus images (Dominik Charousset, Corelight)
+
 2.8.0-dev.288 | 2025-12-01 08:25:13 +0100
 
   * Prefer `polymorphic_allocator` over a custom class (Dominik Charousset, Corelight)
