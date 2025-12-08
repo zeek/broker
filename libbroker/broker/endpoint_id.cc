@@ -1,5 +1,6 @@
 #include "broker/endpoint_id.hh"
 
+#include <algorithm>
 #include <caf/hash/fnv.hpp>
 #include <caf/uuid.hpp>
 
@@ -33,8 +34,7 @@ endpoint_id::endpoint_id() noexcept {
 }
 
 bool endpoint_id::valid() const noexcept {
-  return !std::all_of(bytes_.begin(), bytes_.end(),
-                      [](auto x) { return x == std::byte{0}; });
+  return !std::ranges::all_of(bytes_, [](auto x) { return x == std::byte{0}; });
 }
 
 size_t endpoint_id::hash() const noexcept {

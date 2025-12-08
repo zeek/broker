@@ -6,6 +6,8 @@
 #include "broker/variant_set.hh"
 #include "broker/variant_table.hh"
 
+#include <algorithm>
+
 using namespace broker;
 using namespace std::literals;
 

@@ -87,14 +87,14 @@ std::string to_log_level(const char* var, const char* cstr) {
 std::vector<std::string> split_and_trim(const char* str, char delim = ',') {
   auto trim = [](std::string& x) {
     auto predicate = [](int ch) { return !std::isspace(ch); };
-    x.erase(x.begin(), std::find_if(x.begin(), x.end(), predicate));
+    x.erase(x.begin(), std::ranges::find_if(x, predicate));
     x.erase(std::find_if(x.rbegin(), x.rend(), predicate).base(), x.end());
   };
   auto is_empty = [](const std::string& x) { return x.empty(); };
   std::vector<std::string> result;
   caf::split(result, caf::string_view{str, strlen(str)}, delim,
              caf::token_compress_on);
-  std::for_each(result.begin(), result.end(), trim);
+  std::ranges::for_each(result, trim);
   result.erase(std::remove_if(result.begin(), result.end(), is_empty),
                result.end());
   return result;

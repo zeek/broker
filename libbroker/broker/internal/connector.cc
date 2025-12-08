@@ -24,6 +24,7 @@
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
+#include <algorithm>
 #include <cstdio>
 #include <type_traits>
 #include <unordered_map>
@@ -682,8 +683,8 @@ public:
                                &connect_state::await_orig_syn,
                                &connect_state::await_resp_syn_ack,
                                &connect_state::await_orig_ack};
-    return std::any_of(std::begin(handshake_states), std::end(handshake_states),
-                       [this](auto ptr) { return ptr == fn; });
+    return std::ranges::any_of(handshake_states,
+                               [this](auto ptr) { return ptr == fn; });
   }
 
   // -- lifetime management ----------------------------------------------------
@@ -1060,7 +1061,7 @@ struct connect_manager {
   void register_fd(connect_state* ptr, short event) {
     auto pred = [ptr](const auto& kvp) { return kvp.second.get() == ptr; };
     auto e = pending.end();
-    if (auto i = std::find_if(pending.begin(), e, pred); i != e) {
+    if (auto i = std::ranges::find_if(pending, pred); i != e) {
       log::network::debug("register-fd", "register fd {} for {}", i->first,
                           event == read_mask ? "reading" : "writing");
       if (auto fds_ptr = find_pollfd(i->first)) {
@@ -1995,7 +1996,7 @@ void connector::run_impl(listener* sub, shared_filter_type* filter) {
       }
     } else if (presult > 0) {
       auto has_activity = [](auto& entry) { return entry.revents != 0; };
-      auto i = std::find_if(fdset.begin(), fdset.end(), has_activity);
+      auto i = std::ranges::find_if(fdset, has_activity);
       BROKER_ASSERT(i != fdset.end());
       auto advance = [&i, &fdset, has_activity] {
         i = std::find_if(i + 1, fdset.end(), has_activity);

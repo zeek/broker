@@ -680,7 +680,7 @@ bool core_actor_state::has_remote_subscriber(const topic& x) const noexcept {
   auto is_subscribed = [&x](auto& kvp) {
     return kvp.second->is_subscribed_to(x);
   };
-  return std::any_of(peers.begin(), peers.end(), is_subscribed);
+  return std::ranges::any_of(peers, is_subscribed);
 }
 
 std::optional<network_info> core_actor_state::addr_of(endpoint_id id) const {
@@ -1380,7 +1380,7 @@ void core_actor_state::unpeer(endpoint_id peer_id) {
 void core_actor_state::unpeer(const network_info& addr) {
   log::core::debug("unpeer-addr", "unpeering from peer {}", addr);
   auto pred = [&addr](auto& kvp) { return kvp.second->addr() == addr; };
-  if (auto i = std::find_if(peers.begin(), peers.end(), pred); i != peers.end())
+  if (auto i = std::ranges::find_if(peers, pred); i != peers.end())
     i->second->remove(self, unsafe_inputs);
   else
     cannot_remove_peer(addr);
