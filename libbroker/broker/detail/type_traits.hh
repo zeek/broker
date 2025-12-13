@@ -3,6 +3,7 @@
 #include "broker/fwd.hh"
 
 #include <cstddef>
+#include <iterator>
 #include <list>
 #include <map>
 #include <optional>
@@ -12,6 +13,10 @@
 #include <unordered_set>
 #include <variant>
 #include <vector>
+
+namespace caf {
+enum class byte : uint8_t;
+}
 
 namespace broker {
 
@@ -245,6 +250,16 @@ template <class T>
 concept has_string_getter = requires(const T& t) {
   { t.string() } -> std::convertible_to<std::string_view>;
 };
+
+template <class T>
+concept byte_output_iterator =
+  std::output_iterator<T, std::byte> || std::output_iterator<T, caf::byte>;
+
+template <class T>
+concept char_output_iterator = std::output_iterator<T, char>;
+
+template <class T>
+concept arithmetic = std::is_arithmetic_v<T>;
 
 } // namespace broker::detail
 

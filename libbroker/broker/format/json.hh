@@ -1,14 +1,13 @@
 #pragma once
 
-#include "broker/config.hh"
 #include "broker/data.hh"
+#include "broker/detail/type_traits.hh"
 #include "broker/fwd.hh"
 #include "broker/message.hh"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <string_view>
 #include <vector>
 
@@ -23,7 +22,7 @@ struct render_object {};
 struct render_embedded {};
 
 /// Appends a string to the output iterator.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter append(std::string_view str, OutIter out) {
   return std::copy(str.begin(), str.end(), out);
 }
@@ -35,7 +34,7 @@ struct quoted {
 
 /// Appends a quoted string to the output iterator. Special characters are
 /// escaped.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter append(quoted value, OutIter out) {
   using namespace std::literals;
   *out++ = '"';
@@ -83,7 +82,7 @@ OutIter append(quoted value, OutIter out) {
 }
 
 /// Appends a field (key-value pair) to the output iterator.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter append_field(std::string_view key, std::string_view val, OutIter out) {
   out = append(quoted{key}, out);
   *out++ = ':';
@@ -94,7 +93,8 @@ OutIter append_field(std::string_view key, std::string_view val, OutIter out) {
 /// @param value_type The type name of the value.
 /// @param value The value. Must provide an overload for `append()`.
 /// @param out The output iterator.
-template <class Policy = render_object, class Appendable, class OutIter>
+template <class Policy = render_object, class Appendable,
+          detail::char_output_iterator OutIter>
 OutIter append_encoded(std::string_view value_type, Appendable value,
                        OutIter out) {
   using namespace std::literals;
@@ -110,7 +110,7 @@ OutIter append_encoded(std::string_view value_type, Appendable value,
 }
 
 /// Renders the `nil` value to `out` as `{}`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(none, OutIter out) {
   return append_encoded<Policy>("none", "{}", out);
 }
@@ -118,8 +118,8 @@ OutIter encode(none, OutIter out) {
 /// Renders a boolean, `count` or `integer` value to `out`. The latter two are
 /// rendered using `snprintf`, whereas boolean values are rendered as `true` or
 /// `false`.
-template <class Policy = render_object, class T, class OutIter>
-  requires std::is_integral_v<T>
+template <class Policy = render_object, std::integral T,
+          detail::char_output_iterator OutIter>
 OutIter encode(T value, OutIter out) {
   using namespace std::literals;
   if constexpr (std::is_same_v<T, bool>) {
@@ -143,7 +143,7 @@ OutIter encode(T value, OutIter out) {
 
 /// Writes `value` to `out` using `snprintf` with the default precision (6
 /// digits), e.g., `0.123456`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(real value, OutIter out) {
   auto size = std::snprintf(nullptr, 0, "%f", value);
   if (size < 24) {
@@ -161,7 +161,7 @@ OutIter encode(real value, OutIter out) {
 }
 
 /// Renders `value` to `out` as a quoted string.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(std::string_view value, OutIter out) {
   return append_encoded<Policy>("string", quoted{value}, out);
 }
@@ -170,7 +170,7 @@ OutIter encode(std::string_view value, OutIter out) {
 /// For an IPV4 address, the result is a string in dotted decimal notation,
 /// e.g., `192.168.99.9`. For an IPV6 address, the result is a string in
 /// hexadecimal notation, e.g., `2001:0db8:85a3::8a2e:0370:7334`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const address& value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -179,7 +179,7 @@ OutIter encode(const address& value, OutIter out) {
 
 /// Renders `value` using the `convert` API and copies the result to `out`. The
 /// output string uses the format `prefix/length`, e.g., `192.168.99.0/24`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const subnet& value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -187,7 +187,7 @@ OutIter encode(const subnet& value, OutIter out) {
 }
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(port value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -199,7 +199,7 @@ OutIter encode(port value, OutIter out) {
 size_t encode_to_buf(timestamp value, std::array<char, 32>& buf);
 
 /// Renders `value` to `out` in millisecond resolution.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(timestamp value, OutIter out) {
   std::array<char, 32> buf;
   auto size = encode_to_buf(value, buf);
@@ -210,7 +210,7 @@ OutIter encode(timestamp value, OutIter out) {
 /// Renders `value` to `out` as an integer followed by a suffix, e.g., `42s`.
 /// The function picks the highest possible resolution for the given value
 /// without losing precision. The suffix is one of `ns`, `us`, `ms`, or `s`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(timespan value, OutIter out) {
   using namespace std::literals;
   // Helper function to print the value with a suffix via snprintf.
@@ -247,63 +247,66 @@ OutIter encode(timespan value, OutIter out) {
 }
 
 /// Copies the name of `value` to `out`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const enum_value& value, OutIter out) {
   return append_encoded<Policy>("enum-value", quoted{value.name}, out);
 }
 
 /// Copies the name of `value` to `out`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const enum_value_view& value, OutIter out) {
   return append_encoded<Policy>("enum-value", quoted{value.name}, out);
 }
 
 /// Encodes a JSON list.
-template <class Policy, class ForwardIterator, class Sentinel, class OutIter>
-OutIter encode_list(std::string_view type, ForwardIterator first, Sentinel last,
+template <class Policy, std::input_iterator Iterator,
+          std::sentinel_for<Iterator> Sentinel,
+          detail::char_output_iterator OutIter>
+OutIter encode_list(std::string_view type, Iterator first, Sentinel last,
                     OutIter out);
 
 /// Renders `value` to `out` as a JSON list.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const broker::set& values, OutIter out) {
   return encode_list<Policy>("set", values.begin(), values.end(), out);
 }
 
 /// Renders `value` to `out` as a JSON list.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::set* values, OutIter out) {
   return encode_list<Policy>("set", values->begin(), values->end(), out);
 }
 
 /// Renders `value` to `out` as a JSON list.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const broker::vector& values, OutIter out) {
   return encode_list<Policy>("vector", values.begin(), values.end(), out);
 }
 
 /// Renders `value` to `out` as a JSON list.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::list* values, OutIter out) {
   return encode_list<Policy>("vector", values->begin(), values->end(), out);
 }
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces and
 /// displaying key/value pairs as `key -> value`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const broker::table& values, OutIter out) {
   return encode_list<Policy>("table", values.begin(), values.end(), out);
 }
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces and
 /// displaying key/value pairs as `key -> value`.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::table* values, OutIter out) {
   return encode_list<Policy>("table", values->begin(), values->end(), out);
 }
 
 /// Renders a `data` object to `out` by dispatching to the appropriate overload
 /// for the underlying type.
-template <class Policy = render_object, class Data, class OutIter>
+template <class Policy = render_object, class Data,
+          detail::char_output_iterator OutIter>
   requires(std::is_same_v<data, Data>)
 OutIter encode(const Data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode<Policy>(x, out); },
@@ -312,7 +315,7 @@ OutIter encode(const Data& value, OutIter out) {
 
 /// Renders a `data` object to `out` by dispatching to the appropriate overload
 /// for the underlying type.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const variant_data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode<Policy>(x, out); },
                     value.value);
@@ -320,13 +323,13 @@ OutIter encode(const variant_data& value, OutIter out) {
 
 /// Renders a `data` object to `out` by dispatching to the appropriate overload
 /// for the underlying type.
-template <class Policy = render_object, class OutIter>
+template <class Policy = render_object, detail::char_output_iterator OutIter>
 OutIter encode(const variant& value, OutIter out) {
   return encode<Policy>(*value.raw(), out);
 }
 
 /// Renders the key-value pair to `out` as a JSON object.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::table::value_type& values, OutIter out) {
   // Note: this overload needs no policy because it's only used by the
   //      `encode(const broker::table&, OutIter)` overload and must always
@@ -340,7 +343,7 @@ OutIter encode(const broker::table::value_type& values, OutIter out) {
 }
 
 /// Renders the key-value pair to `out` as a JSON object.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::table::value_type& values, OutIter out) {
   // Note: this overload needs no policy because it's only used by the
   //      `encode(const broker::table&, OutIter)` overload and must always
@@ -353,8 +356,10 @@ OutIter encode(const variant_data::table::value_type& values, OutIter out) {
   return out;
 }
 
-template <class Policy, class ForwardIterator, class Sentinel, class OutIter>
-OutIter encode_list(std::string_view type, ForwardIterator first, Sentinel last,
+template <class Policy, std::input_iterator Iterator,
+          std::sentinel_for<Iterator> Sentinel,
+          detail::char_output_iterator OutIter>
+OutIter encode_list(std::string_view type, Iterator first, Sentinel last,
                     OutIter out) {
   if (first == last)
     return append_encoded<Policy>(type, "[]", out);
@@ -376,7 +381,7 @@ OutIter encode_list(std::string_view type, ForwardIterator first, Sentinel last,
 }
 
 /// Renders a `data` object to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const data_message& msg, OutIter out) {
   *out++ = '{';
   out = append(R"_("type":"data-message","topic":)_", out);
