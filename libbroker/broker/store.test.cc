@@ -16,8 +16,8 @@
 using namespace broker;
 
 TEST(default construction) {
-  store{};
-  store::proxy{};
+  [[maybe_unused]] store tmp;
+  [[maybe_unused]] store::proxy tmp2;
 }
 
 TEST(backend option passing) {

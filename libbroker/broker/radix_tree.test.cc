@@ -17,7 +17,7 @@ using test_radix_tree = detail::radix_tree<int>;
 namespace {
 
 bool check_match(deque<test_radix_tree::iterator> matches,
-                 std::set<pair<string, int>> expected) {
+                 const std::set<pair<string, int>>& expected) {
   if (matches.size() != expected.size())
     return false;
   for (auto it = expected.begin(); it != expected.end(); ++it) {
@@ -30,7 +30,8 @@ bool check_match(deque<test_radix_tree::iterator> matches,
   return true;
 }
 
-bool find(deque<test_radix_tree::iterator> haystack, pair<string, int> needle) {
+bool find(const deque<test_radix_tree::iterator>& haystack,
+          const pair<string, int>& needle) {
   for (const auto& h : haystack)
     if (h->first == needle.first && h->second == needle.second)
       return true;
@@ -322,9 +323,9 @@ TEST(dense nodes) {
         CHECK(t.insert(make_pair(ss.str(), idx)).second);
         ++idx;
       }
-  CHECK(t.size() == 256 * 256 * 10);
-  CHECK(t.prefixed_by("a").size() == 256 * 10);
-  CHECK(t.prefix_of("ab0123").size() == 1);
+  CHECK_EQUAL(t.size(), 256u * 256u * 10u);
+  CHECK_EQUAL(t.prefixed_by("a").size(), 256u * 10u);
+  CHECK_EQUAL(t.prefix_of("ab0123").size(), 1u);
   CHECK(t.find("az5")->second == 'a' * 256 * 10 + 'z' * 10 + 5);
   for (auto i = 0; i < 256; ++i)
     for (auto j = 0; j < 256; ++j)

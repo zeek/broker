@@ -51,8 +51,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <caf/deserializer.hpp>
 #include <caf/serializer.hpp>
 
-namespace broker {
-namespace detail {
+namespace broker::detail {
 
 /**
  * A radix tree data structure that facilitates O(k) operations,
@@ -96,7 +95,7 @@ public:
     const iterator& operator++();
     iterator operator++(int);
 
-    friend void swap(iterator& a, iterator& b) {
+    friend void swap(iterator& a, iterator& b) noexcept {
       using std::swap;
       swap(a.root, b.root);
       swap(a.node_ptr, b.node_ptr);
@@ -143,7 +142,7 @@ public:
   /**
    * Move construct.
    */
-  radix_tree(radix_tree&& other) : num_entries(0), root(nullptr) {
+  radix_tree(radix_tree&& other) noexcept : num_entries(0), root(nullptr) {
     swap(*this, other);
   }
 
@@ -257,7 +256,7 @@ public:
     return !operator==(rhs);
   }
 
-  friend void swap(radix_tree& a, radix_tree& b) {
+  friend void swap(radix_tree& a, radix_tree& b) noexcept {
     using std::swap;
     swap(a.root, b.root);
     swap(a.num_entries, b.num_entries);
@@ -693,8 +692,8 @@ size_t radix_tree<T, N>::prefix_shared(node* n, const key_type& key,
                                        int depth) {
   auto key_data = as_key_data(key);
   // Null-terminator is part of the key.
-  auto max_cmp = std::min(std::min(N, static_cast<size_t>(n->partial_len)),
-                          key.size() + 1 - depth);
+  auto max_cmp =
+    std::min({N, static_cast<size_t>(n->partial_len), key.size() + 1 - depth});
   size_t idx;
 
   for (idx = 0; idx < max_cmp; ++idx)
@@ -709,8 +708,8 @@ size_t radix_tree<T, N>::prefix_mismatch(node* n, const key_type& key,
                                          int depth) {
   auto key_data = as_key_data(key);
   // Null-terminator is part of the key.
-  auto max_cmp = std::min(std::min(N, static_cast<size_t>(n->partial_len)),
-                          key.size() + 1 - depth);
+  auto max_cmp =
+    std::min({N, static_cast<size_t>(n->partial_len), key.size() + 1 - depth});
   size_t idx;
 
   for (idx = 0; idx < max_cmp; ++idx)
@@ -1406,7 +1405,7 @@ radix_tree<T, N>::iterator::iterator(const iterator& other)
 
 template <typename T, std::size_t N>
 void swap(typename radix_tree<T, N>::iterator& a,
-          typename radix_tree<T, N>::iterator& b) {
+          typename radix_tree<T, N>::iterator& b) noexcept {
   using std::swap;
   swap(a.root, b.root);
   swap(a.node_ptr, b.node_ptr);
@@ -1421,5 +1420,4 @@ radix_tree<T, N>::iterator::operator=(iterator rhs) {
   return *this;
 }
 
-} // namespace detail
-} // namespace broker
+} // namespace broker::detail

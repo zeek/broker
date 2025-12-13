@@ -49,7 +49,7 @@ public:
     backends_.push_back(detail::make_backend(backend::sqlite, opts));
   }
 
-  ~meta_backend() {
+  ~meta_backend() override {
     for (detail::path path : paths_)
       detail::remove_all(path);
   }
@@ -131,6 +131,7 @@ private:
   template <class T, class F>
   expected<T> perform(F f) {
     std::vector<expected<T>> xs;
+    xs.reserve(backends_.size());
     for (auto& backend : backends_)
       xs.push_back(f(*backend));
     if (!all_equal(xs))
