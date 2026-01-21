@@ -1,3 +1,7 @@
+2.8.0-dev.301 | 2026-01-21 09:02:48 +0100
+
+  * Use C++20 iterator concepts in our format headers (Dominik Charousset, Corelight)
+
 2.8.0-dev.299 | 2026-01-21 07:31:09 +0100
 
   * Apply some clang-tidy-19 suggestions (Dominik Charousset, Corelight)

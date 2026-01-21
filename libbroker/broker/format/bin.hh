@@ -1,6 +1,5 @@
 #pragma once
 
-#include "broker/config.hh"
 #include "broker/data.hh"
 #include "broker/detail/type_traits.hh"
 #include "broker/variant.hh"
@@ -12,7 +11,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 namespace broker::format::bin::v1 {
 
@@ -23,9 +21,8 @@ uint32_t to_network_order_impl(uint32_t value);
 uint64_t to_network_order_impl(uint64_t value);
 
 /// Converts `value` from native to network byte order.
-template <class T>
+template <std::unsigned_integral T>
 T to_network_order(T value) {
-  static_assert(std::is_unsigned_v<T>);
   if constexpr (sizeof(T) == 2) {
     auto res = to_network_order_impl(static_cast<uint16_t>(value));
     return static_cast<T>(res);
@@ -40,7 +37,7 @@ T to_network_order(T value) {
 }
 
 /// Converts `value` from network to native byte order.
-template <class T>
+template <std::unsigned_integral T>
 T from_network_order(T value) {
   // swapping the bytes again gives the native order
   return to_network_order(value);
@@ -95,7 +92,7 @@ bool read(const_byte_pointer& first, const_byte_pointer last, double& result);
 bool read_varbyte(const_byte_pointer& first, const_byte_pointer last,
                   size_t& result);
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 struct value_type_oracle {
   using type = typename std::iterator_traits<OutIter>::value_type;
 };
@@ -106,7 +103,7 @@ struct value_type_oracle<std::back_insert_iterator<Container>> {
 };
 
 /// Deduces the value type of an output iterator.
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 using iter_value_t = typename value_type_oracle<OutIter>::type;
 
 template <class WriteFn>
@@ -134,7 +131,7 @@ inline size_t varbyte_size(size_t value) {
 }
 
 /// Encodes `value` to a variable-length byte sequence and appends it to `out`.
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter write_varbyte(size_t value, OutIter out) {
   return write_varbyte_impl(value, [out](auto* begin, auto* end) {
     using value_type = iter_value_t<OutIter>;
@@ -144,7 +141,7 @@ OutIter write_varbyte(size_t value, OutIter out) {
 }
 
 /// Encodes `value` to its binary representation and appends it to `out`.
-template <class T, class OutIter>
+template <class T, detail::byte_output_iterator OutIter>
 OutIter write_unsigned(T value, OutIter out) {
   if constexpr (std::is_enum_v<T>) {
     return write_unsigned(static_cast<std::underlying_type_t<T>>(value), out);
@@ -160,7 +157,7 @@ OutIter write_unsigned(T value, OutIter out) {
   }
 }
 
-template <class T, class OutIter>
+template <class T, detail::byte_output_iterator OutIter>
 OutIter write_bytes(const T* first, const T* last, OutIter out) {
   static_assert(sizeof(T) == 1);
   using val_t = iter_value_t<OutIter>;
@@ -168,7 +165,7 @@ OutIter write_bytes(const T* first, const T* last, OutIter out) {
                    reinterpret_cast<const val_t*>(last), out);
 }
 
-template <class Container, class OutIter>
+template <class Container, detail::byte_output_iterator OutIter>
 OutIter write_bytes(const Container& in, OutIter out) {
   return write_bytes(in.data(), in.data() + in.size(), out);
 }
@@ -209,19 +206,18 @@ auto encoded_values(const Buffer& buf) {
   return std::make_pair(begin, end);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(none, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(std::byte value, OutIter out) {
   return write_unsigned(value, out);
 }
 
 /// Encodes `value` to its binary representation and appends it to `out`.
-template <class T, class OutIter>
-  requires(std::is_arithmetic_v<T>)
+template <detail::arithmetic T, detail::byte_output_iterator OutIter>
 OutIter encode(T value, OutIter out) {
   if constexpr (std::is_same_v<T, bool>) {
     return write_unsigned(static_cast<uint8_t>(value), out);
@@ -236,60 +232,60 @@ OutIter encode(T value, OutIter out) {
   }
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(std::string_view value, OutIter out) {
   out = write_varbyte(value.size(), out);
   return write_bytes(value, out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const address& value, OutIter out) {
   return write_bytes(value.bytes(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const subnet& value, OutIter out) {
   out = write_bytes(value.network().bytes(), out);
   return write_unsigned(value.raw_len(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(port value, OutIter out) {
   out = write_unsigned(value.number(), out);
   return write_unsigned(value.type(), out);
 }
 
-template <class Rep, class Period, class OutIter>
+template <class Rep, class Period, detail::byte_output_iterator OutIter>
 OutIter encode(std::chrono::duration<Rep, Period> value, OutIter out) {
   return encode(value.count(), out);
 }
 
-template <class Clock, class Duration, class OutIter>
+template <class Clock, class Duration, detail::byte_output_iterator OutIter>
 OutIter encode(std::chrono::time_point<Clock, Duration> value, OutIter out) {
   return encode(value.time_since_epoch(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const enum_value& value, OutIter out) {
   out = write_varbyte(value.name.size(), out);
   return write_bytes(value.name, out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(enum_value_view value, OutIter out) {
   out = write_varbyte(value.name.size(), out);
   return write_bytes(value.name, out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_data& value, OutIter out);
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant& value, OutIter out) {
   return encode(*value.raw(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_data::set* values, OutIter out) {
   out = write_varbyte(values->size(), out);
   for (const auto& x : *values)
@@ -297,7 +293,7 @@ OutIter encode(const variant_data::set* values, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_data::table* values, OutIter out) {
   out = write_varbyte(values->size(), out);
   for (const auto& [key, val] : *values) {
@@ -307,7 +303,7 @@ OutIter encode(const variant_data::table* values, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_data::list* values, OutIter out) {
   out = write_varbyte(values->size(), out);
   for (const auto& x : *values)
@@ -315,33 +311,32 @@ OutIter encode(const variant_data::list* values, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_list& values, OutIter out) {
   return encode(values.raw(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_set& values, OutIter out) {
   return encode(values.raw(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_table& values, OutIter out) {
   return encode(values.raw(), out);
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const variant_data& value, OutIter out) {
   out = write_unsigned(value.get_tag(), out);
   return std::visit([&](const auto& x) { return encode(x, out); }, value.value);
 }
 
 // Note: enable_if trickery to suppress implicit conversions.
-template <class Data, class OutIter>
-  requires std::is_same_v<Data, data>
+template <std::same_as<data> Data, detail::byte_output_iterator OutIter>
 OutIter encode(const Data& value, OutIter out);
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const broker::set& values, OutIter out) {
   out = write_varbyte(values.size(), out);
   for (const auto& x : values)
@@ -349,7 +344,7 @@ OutIter encode(const broker::set& values, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const broker::table& values, OutIter out) {
   out = write_varbyte(values.size(), out);
   for (const auto& [key, val] : values) {
@@ -359,7 +354,7 @@ OutIter encode(const broker::table& values, OutIter out) {
   return out;
 }
 
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 OutIter encode(const broker::vector& values, OutIter out) {
   out = write_varbyte(values.size(), out);
   for (const auto& x : values)
@@ -367,8 +362,7 @@ OutIter encode(const broker::vector& values, OutIter out) {
   return out;
 }
 
-template <class Data, class OutIter>
-  requires std::is_same_v<Data, data>
+template <std::same_as<data> Data, detail::byte_output_iterator OutIter>
 OutIter encode(const Data& value, OutIter out) {
   return std::visit(
     [&](const auto& x) {
@@ -386,7 +380,7 @@ OutIter encode(const Data& value, OutIter out) {
 /// @param last The last byte of the encoded sequence.
 /// @param out The buffer to write to.
 /// @pre `first` and `last` must be a valid range.
-template <class InputIter, class Sentinel, class OutIter>
+template <class InputIter, class Sentinel, detail::byte_output_iterator OutIter>
 OutIter write_sequence(data::type tag, size_t num_elements, InputIter first,
                        Sentinel last, OutIter out) {
   out = write_unsigned(tag, out);
@@ -397,7 +391,7 @@ OutIter write_sequence(data::type tag, size_t num_elements, InputIter first,
 BROKER_DEF_HAS_ENCODE_IN_NS(broker::format::bin::v1);
 
 /// Adapter for the `inspect` API.
-template <class OutIter>
+template <detail::byte_output_iterator OutIter>
 class encoder {
 public:
   static constexpr bool is_loading = false;
@@ -503,7 +497,7 @@ public:
     return fields(values...);
   }
 
-  template <class Iterator, class Sentinel>
+  template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel>
   void append(Iterator first, Sentinel last) {
     out_ = std::copy(first, last, out_);
   }
@@ -892,7 +886,7 @@ private:
   const_byte_pointer end_;
 };
 
-template <class OutIter, class T>
+template <detail::byte_output_iterator OutIter, class T>
 auto encode_with_tag(const T& x, OutIter out) -> decltype(encode(x, out)) {
   return encode(x, write_unsigned(data_tag_v<T>, out));
 }

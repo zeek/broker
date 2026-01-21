@@ -1,20 +1,19 @@
 #pragma once
 
-#include "broker/config.hh"
 #include "broker/data.hh"
 #include "broker/variant.hh"
 #include "broker/variant_data.hh"
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
+#include <concepts>
+#include <iterator>
 #include <string_view>
 #include <vector>
 
 namespace broker::format::txt::v1 {
 
 /// Render the `nil` value to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(none, OutIter out) {
   using namespace std::literals;
   auto str = "nil"sv;
@@ -22,8 +21,7 @@ OutIter encode(none, OutIter out) {
 }
 
 /// Renders `value` to `out` as `T` for `true` and `F` for `false`.
-template <class T, class OutIter>
-  requires std::is_integral_v<T>
+template <std::integral T, detail::char_output_iterator OutIter>
 OutIter encode(T value, OutIter out) {
   if constexpr (std::is_same_v<T, bool>) {
     *out++ = value ? 'T' : 'F';
@@ -44,7 +42,7 @@ OutIter encode(T value, OutIter out) {
 }
 
 /// Writes `value` to `out` using `snprintf`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(real value, OutIter out) {
   auto size = std::snprintf(nullptr, 0, "%f", value);
   if (size < 24) {
@@ -60,13 +58,13 @@ OutIter encode(real value, OutIter out) {
 }
 
 /// Copies `value` to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(std::string_view value, OutIter out) {
   return std::copy(value.begin(), value.end(), out);
 }
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const address& value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -74,7 +72,7 @@ OutIter encode(const address& value, OutIter out) {
 }
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const subnet& value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -82,7 +80,7 @@ OutIter encode(const subnet& value, OutIter out) {
 }
 
 /// Renders `value` using the `convert` API and copies the result to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(port value, OutIter out) {
   std::string str;
   convert(value, str);
@@ -90,7 +88,7 @@ OutIter encode(port value, OutIter out) {
 }
 
 /// Renders `value` to `out` in nanoseconds resolution.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(timestamp value, OutIter out) {
   using namespace std::literals;
   auto suffix = "ns"sv;
@@ -99,7 +97,7 @@ OutIter encode(timestamp value, OutIter out) {
 }
 
 /// Renders `value` to `out` in nanoseconds resolution.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(timespan value, OutIter out) {
   using namespace std::literals;
   auto suffix = "ns"sv;
@@ -108,62 +106,62 @@ OutIter encode(timespan value, OutIter out) {
 }
 
 /// Copies the name of `value` to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const enum_value& value, OutIter out) {
   return encode(value.name, out);
 }
 
 /// Copies the name of `value` to `out`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const enum_value_view& value, OutIter out) {
   return encode(value.name, out);
 }
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::set& values, OutIter out);
 
 /// Renders `value` to `out` as a sequence, enclosing it in curly braces and
 /// displaying key/value pairs as `key -> value`.
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::table& values, OutIter out);
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::vector& values, OutIter out);
 
-template <class Data, class OutIter>
-  requires std::is_same_v<data, Data>
+template <std::same_as<data> Data, detail::char_output_iterator OutIter>
 OutIter encode(const Data& value, OutIter out);
 
 /// Helper function to render a sequence of values to `out`.
-template <class Iterator, class Sentinel, class OutIter>
+template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+          detail::char_output_iterator OutIter>
 OutIter encode_range(Iterator first, Sentinel last, char left, char right,
                      OutIter out);
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data& value, OutIter out);
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant& value, OutIter out) {
   return encode(*value.raw(), out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::set* values, OutIter out) {
   return encode_range(values->begin(), values->end(), '{', '}', out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::table* values, OutIter out) {
   return encode_range(values->begin(), values->end(), '{', '}', out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data::list* values, OutIter out) {
   return encode_range(values->begin(), values->end(), '(', ')', out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const variant_data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode(x, out); }, value.value);
 }
@@ -172,29 +170,28 @@ OutIter encode(const variant_data& value, OutIter out) {
 // This template hackery is necessary to make sure this function accepts only
 // broker::data directly, without allowing to compiler to implicitly convert
 // other types to broker::data.
-template <class Data, class OutIter>
-  requires std::is_same_v<data, Data>
+template <std::same_as<data> Data, detail::char_output_iterator OutIter>
 OutIter encode(const Data& value, OutIter out) {
   return std::visit([&](auto&& x) { return encode(x, out); }, value.get_data());
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::set& values, OutIter out) {
   return encode_range(values.begin(), values.end(), '{', '}', out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::table& values, OutIter out) {
   return encode_range(values.begin(), values.end(), '{', '}', out);
 }
 
-template <class OutIter>
+template <detail::char_output_iterator OutIter>
 OutIter encode(const broker::vector& values, OutIter out) {
   return encode_range(values.begin(), values.end(), '(', ')', out);
 }
 
 /// Renders `kvp` as `key -> value` to `out`.
-template <class Key, class Val, class OutIter>
+template <class Key, class Val, detail::char_output_iterator OutIter>
 OutIter encode(const std::pair<Key, Val>& kvp, OutIter out) {
   using namespace std::literals;
   out = encode(kvp.first, out);
@@ -203,7 +200,8 @@ OutIter encode(const std::pair<Key, Val>& kvp, OutIter out) {
   return encode(kvp.second, out);
 }
 
-template <class Iterator, class Sentinel, class OutIter>
+template <std::input_iterator Iterator, std::sentinel_for<Iterator> Sentinel,
+          detail::char_output_iterator OutIter>
 OutIter encode_range(Iterator first, Sentinel last, char left, char right,
                      OutIter out) {
   using namespace std::literals;
