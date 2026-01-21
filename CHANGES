@@ -1,3 +1,7 @@
+2.8.0-dev.297 | 2026-01-21 06:53:35 +0100
+
+  * Remove stale and obsolete file (Dominik Charousset, Corelight)
+
 2.8.0-dev.294 | 2025-12-08 17:53:07 +0100
 
   * Use ranges versions of all_of, any_of, etc. (Dominik Charousset, Corelight)
