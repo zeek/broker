@@ -21,7 +21,7 @@ std::string to_hex(std::pair<const std::byte*, const std::byte*> range) {
   return result;
 }
 
-std::string to_hex(variant val) {
+std::string to_hex(const variant& val) {
   auto [data, size] = val.shared_envelope()->raw_bytes();
   std::string result;
   caf::detail::append_hex(result, data, size);

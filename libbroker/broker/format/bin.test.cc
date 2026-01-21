@@ -206,7 +206,7 @@ struct dummy_decoder_handler {
     return true;
   }
 
-  bool value(address arg) {
+  bool value(const address& arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
@@ -214,7 +214,7 @@ struct dummy_decoder_handler {
     return true;
   }
 
-  bool value(subnet arg) {
+  bool value(const subnet& arg) {
     log.insert(log.end(), indent, ' ');
     log += "value: ";
     log += broker::to_string(arg);
@@ -437,10 +437,12 @@ TEST(the decoder can deserialize the output of the encoder) {
   CHECK_EQ(roundtrip(broker::data{true}), broker::data{true});
   CHECK_EQ(roundtrip(broker::data{false}), broker::data{false});
   CHECK_EQ(roundtrip(broker::data{"hello"s}), broker::data{"hello"s});
-  auto cmd = internal_command{123,
-                              {endpoint_id::random(1), 2},
-                              {endpoint_id::random(3), 4},
-                              cumulative_ack_command{42}};
+  auto cmd = internal_command{
+    .seq = 123,
+    .sender = {.endpoint = endpoint_id::random(1), .object = 2},
+    .receiver = {.endpoint = endpoint_id::random(3), .object = 4},
+    .content = cumulative_ack_command{42},
+  };
   auto cpy = roundtrip(cmd);
   CHECK_EQ(cpy.seq, cmd.seq);
   CHECK_EQ(cpy.sender, cmd.sender);

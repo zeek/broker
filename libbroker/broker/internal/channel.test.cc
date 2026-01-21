@@ -43,7 +43,7 @@ struct consumer_backend {
     this->fix = fix;
   }
 
-  void consume(consumer_type*, std::string x) {
+  void consume(consumer_type*, const std::string& x) {
     input += x;
   }
 
@@ -58,7 +58,7 @@ struct consumer_backend {
   template <class T>
   void send(consumer_type*, const T& x);
 
-  void close(consumer_type*, error) {
+  void close(consumer_type*, const error&) {
     closed = true;
   }
 };

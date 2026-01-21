@@ -158,7 +158,8 @@ bool ends_with(std::string_view str, std::string_view suffix) {
   return n >= m ? str.compare(n - m, m, suffix) == 0 : false;
 }
 
-std::vector<alternative> grep_id(std::vector<std::string> xs, endpoint_id id) {
+std::vector<alternative> grep_id(const std::vector<std::string>& xs,
+                                 endpoint_id id) {
   auto suffix = ": " + to_string(id);
   std::vector<alternative> result;
   for (auto& x : xs)
@@ -172,7 +173,7 @@ std::vector<std::string> sort(std::vector<std::string> xs) {
   return xs;
 }
 
-std::vector<std::string> grep_hello(std::vector<data_message> xs) {
+std::vector<std::string> grep_hello(const std::vector<data_message>& xs) {
   auto str = "hello"s;
   std::vector<std::string> result;
   for (auto& x : xs) {
@@ -241,6 +242,7 @@ TEST(a full mesh emits endpoint_discovered and peer_added for all nodes) {
     hdl.join();
   MESSAGE("check results");
   std::vector<std::vector<std::string>> normalized_logs;
+  normalized_logs.reserve(ep_logs.size());
   for (auto& ep_log : ep_logs)
     normalized_logs.emplace_back(normalize_status_log(*ep_log, true));
   std::vector<std::vector<std::string>> hellos;
