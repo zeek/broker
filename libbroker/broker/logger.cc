@@ -87,7 +87,7 @@ public:
       msecs_str.insert(msecs_str.begin(), 1, '0');
     }
     // Critical section to avoid interleaved output.
-    std::lock_guard guard{mtx_};
+    std::scoped_lock guard{mtx_};
     std::cout << severity_color(what->severity)
               << std::put_time(std::localtime(&secs), "%F %T") << '.'
               << msecs_str << ' ' << severity_name(what->severity) << ' '

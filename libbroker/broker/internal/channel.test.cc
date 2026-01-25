@@ -168,10 +168,12 @@ struct fixture {
     std::shuffle(outgoing_messages.begin(), outgoing_messages.end(), rng);
     if (loss_rate > 0) {
       auto num_message = outgoing_messages.size();
-      auto lost = static_cast<size_t>(ceil(num_message * loss_rate));
+      auto lost =
+        static_cast<size_t>(ceil(static_cast<double>(num_message) * loss_rate));
       assert(num_message >= lost);
       auto new_size = std::max(num_message - lost, size_t{1});
-      auto i = outgoing_messages.begin() + new_size;
+      auto i = outgoing_messages.begin()
+               + static_cast<std::ptrdiff_t>(new_size);
       outgoing_messages.erase(i, outgoing_messages.end());
     }
   }

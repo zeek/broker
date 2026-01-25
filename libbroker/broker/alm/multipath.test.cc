@@ -85,7 +85,6 @@ TEST(multipath trees grow with emplace) {
   CHECK_EQUAL(ab->head().id(), ids['B']);
   emplace(ab, 'F');
   emplace(ab, 'G');
-  std::string buf;
   auto path = multipath{tptr};
   CHECK_EQUAL(stringify(path), "(A, [(B, [(F), (G)]), (C, [(D), (E)])])");
 }
@@ -112,6 +111,8 @@ TEST(multipaths are copy constructible and comparable) {
   auto path2 = path1;
   CHECK_EQUAL(stringify(path1), stringify(path2));
   CHECK_EQUAL(path1, path2);
+  path1 = multipath{};
+  CHECK_NOT_EQUAL(path1, path2);
 }
 
 TEST(multipaths are serializable) {
@@ -164,8 +165,8 @@ TEST(source routing extracts multipaths from routing tables) {
   //
   alm::routing_table tbl;
   auto add = [&](char id, const std::vector<std::vector<char>>& paths) {
-    auto& entry = tbl.emplace(ids[id], alm::routing_table_row{}).first->second;
-    for (auto& path : paths) {
+    tbl.emplace(ids[id], alm::routing_table_row{});
+    for (const auto& path : paths) {
       std::vector<endpoint_id> xs;
       xs.reserve(path.size());
       for (auto c : path)

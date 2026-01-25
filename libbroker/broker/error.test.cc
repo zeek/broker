@@ -118,12 +118,14 @@ TEST(error view operate directly on raw data) {
   CHECK_EQUAL(view.code(), ec::peer_invalid);
   CHECK_EQUAL(*view.message(), "invalid host"s);
   auto maybe_cxt = view.context();
-  REQUIRE(maybe_cxt);
-  auto cxt = std::move(*maybe_cxt);
-  CHECK_EQUAL(cxt.node, ids['B']);
-  REQUIRE(cxt.network);
-  auto net = *cxt.network;
-  CHECK_EQUAL(net, network_info("foo", 8080, timeout::seconds{42}));
+  if (CHECK(maybe_cxt) && maybe_cxt) {
+    auto cxt = std::move(*maybe_cxt);
+    CHECK_EQUAL(cxt.node, ids['B']);
+    auto& net = cxt.network;
+    if (CHECK(net) && net) {
+      CHECK_EQUAL(*net, network_info("foo", 8080, timeout::seconds{42}));
+    }
+  }
 }
 
 FIXTURE_SCOPE_END()

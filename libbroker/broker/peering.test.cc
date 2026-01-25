@@ -24,7 +24,7 @@
   })()
 
 #define SYNC_CHECK_FAILED(...)                                                 \
-  ([](auto... xs) {                                                            \
+  ([](const auto&... xs) {                                                     \
     std::ostringstream str;                                                    \
     (str << ... << xs);                                                        \
     std::unique_lock guard{print_mtx};                                         \

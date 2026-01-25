@@ -87,21 +87,26 @@ address& address::operator=(const address& other) noexcept {
   return *this;
 }
 
-static uint32_t bit_mask32(int bottom_bits) {
+namespace {
+
+uint32_t bit_mask32(unsigned bottom_bits) {
   if (bottom_bits >= 32)
     return 0xffffffff;
   return (((uint32_t) 1) << bottom_bits) - 1;
 }
 
+} // namespace
+
 bool address::mask(uint8_t top_bits_to_keep) {
   if (top_bits_to_keep > 128)
     return false;
   uint32_t mask[4] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
-  auto res = std::div(top_bits_to_keep, 32);
-  if (res.quot < 4)
-    mask[res.quot] =
-      caf::detail::to_network_order(mask[res.quot] & ~bit_mask32(32 - res.rem));
-  for (auto i = res.quot + 1; i < 4; ++i)
+  unsigned res_quot = top_bits_to_keep / 32u;
+  unsigned res_rem = top_bits_to_keep % 32u;
+  if (res_quot < 4)
+    mask[res_quot] = caf::detail::to_network_order(
+      mask[res_quot] & ~bit_mask32(32u - res_rem));
+  for (auto i = res_quot + 1; i < 4; ++i)
     mask[i] = 0;
   auto p = reinterpret_cast<uint32_t*>(&bytes());
   for (auto i = 0; i < 4; ++i)

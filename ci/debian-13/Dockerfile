@@ -1,4 +1,4 @@
-FROM debian:11
+FROM debian:13
 
 ENV DEBIAN_FRONTEND="noninteractive" TZ="America/Los_Angeles"
 
@@ -7,6 +7,8 @@ ENV DEBIAN_FRONTEND="noninteractive" TZ="America/Los_Angeles"
 ENV DOCKERFILE_VERSION=20230813
 
 RUN apt-get update && apt-get -y install \
+    clang \
+    clang-tidy \
     cmake \
     curl \
     g++ \

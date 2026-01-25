@@ -56,7 +56,7 @@ unix_env: &UNIX_ENV
 
 clang_tidy_task:
   container:
-    dockerfile: ci/debian-12/Dockerfile
+    dockerfile: ci/debian-13/Dockerfile
     << : *RESOURCES_TEMPLATE
   sync_submodules_script: git submodule update --recursive --init
   build_script: ./ci/analyze.sh
@@ -95,10 +95,10 @@ debian12_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-debian11_task:
+debian13_task:
   container:
-    # Debian 11 EOL: June 2026
-    dockerfile: ci/debian-11/Dockerfile
+    # Debian 13 EOL: TBD
+    dockerfile: ci/debian-13/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -192,7 +192,7 @@ freebsd13_task:
 memcheck_task:
   container:
     # Just uses a recent/common distro to run memory error/leak checks.
-    dockerfile: ci/debian-11/Dockerfile
+    dockerfile: ci/debian-13/Dockerfile
     cpu: 8
     # AddressSanitizer uses more memory than normal config.
     memory: 8GB

@@ -399,7 +399,7 @@ protected:
     using val_t = std::decay_t<decltype(pval)>;
     if constexpr (detail::is_tuple<val_t>) {
       auto out = format::bin::v1::write_unsigned(data::type::vector, adder());
-      format::bin::v1::write_varbyte(std::tuple_size<val_t>::value, out);
+      format::bin::v1::write_varbyte(std::tuple_size_v<val_t>, out);
       std::apply([&](auto&&... xs) { (add_inline_vector_item(xs), ...); },
                  pval);
     } else {
