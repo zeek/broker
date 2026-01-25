@@ -18,4 +18,4 @@ fi
 
 CXX=clang++ ./configure --build-type=debug
 clang-tidy --version
-run-clang-tidy -p build -j ${BROKER_CI_CPUS} $PWD/src
+run-clang-tidy -p build -j ${BROKER_CI_CPUS} $PWD/libbroker

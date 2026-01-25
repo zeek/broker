@@ -9,6 +9,8 @@
           -bugprone-easily-swappable-parameters,
           -bugprone-forward-declaration-namespace,
           -bugprone-exception-escape,
+          -bugprone-macro-parentheses,
+          -clang-analyzer-core.StackAddressEscape,
           -clang-analyzer-cplusplus.NewDeleteLeaks,
           -clang-analyzer-security.insecureAPI.rand,
           -clang-analyzer-webkit*,

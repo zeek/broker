@@ -200,6 +200,11 @@ public:
     return engaged_;
   }
 
+  /// Returns `true` if the object holds a value (is engaged).
+  bool has_value() const noexcept {
+    return engaged_;
+  }
+
   /// Returns the contained error.
   /// @pre `engaged() == false`.
   const broker::error& cerror() const noexcept {

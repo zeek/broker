@@ -49,8 +49,8 @@ struct fixture : ids_fixture {
     //
     auto add = [&](endpoint_id id,
                    const std::vector<std::vector<endpoint_id>>& paths) {
-      auto& entry = tbl.emplace(id, alm::routing_table_row{}).first->second;
-      for (auto& path : paths)
+      tbl.emplace(id, alm::routing_table_row{});
+      for (const auto& path : paths)
         add_or_update_path(tbl, id, path, vector_timestamp(path.size()));
     };
     add(B, {{B}, {J, I, D, B}, {J, I, E, B}});

@@ -93,11 +93,14 @@ TEST(status views operate directly on raw data) {
   CHECK_EQUAL(view.code(), sc::peer_added);
   CHECK_EQUAL(*view.message(), "text"s);
   auto cxt = view.context();
-  REQUIRE(cxt);
-  REQUIRE(cxt->network);
-  CHECK_EQUAL(cxt->node, id);
-  CHECK_EQUAL(cxt->network->address, "foo");
-  CHECK_EQUAL(cxt->network->port, 8080u);
+  if (CHECK(cxt) && cxt) {
+    CHECK_EQUAL(cxt->node, id);
+    auto& net = cxt->network;
+    if (CHECK(net) && net) {
+      CHECK_EQUAL(net->address, "foo");
+      CHECK_EQUAL(net->port, 8080u);
+    }
+  }
 }
 
 FIXTURE_SCOPE_END()
