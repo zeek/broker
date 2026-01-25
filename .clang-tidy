@@ -6,6 +6,7 @@
           -modernize-use-ranges,
           performance-*,
           -performance-enum-size,
+          -performance-unnecessary-value-param,
           -bugprone-easily-swappable-parameters,
           -bugprone-forward-declaration-namespace,
           -bugprone-exception-escape,
