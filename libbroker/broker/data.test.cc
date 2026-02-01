@@ -21,6 +21,11 @@ static_assert(std::is_same_v<integer, int64_t>);
 static_assert(std::is_same_v<count, uint64_t>);
 static_assert(std::is_same_v<real, double>);
 
+// Note: the `CHECK(opt) && opt` pattern exists only because clang-tidy doesn't
+//       recognize that `CHECK(opt)` already checks that `opt` contains a value.
+//       The `&& opt` is completely redundant, but it suppresses the false
+//       positives.
+
 TEST(timespan) {
   auto s = timespan{42};
   CHECK(std::chrono::nanoseconds{42} == s);
@@ -42,19 +47,19 @@ TEST(address) {
   CHECK(!a.is_v4());
   CHECK(a.is_v6());
   MESSAGE("parsing");
-  auto opt = to<address>("dead::beef");
-  REQUIRE(opt);
-  CHECK(!opt->is_v4());
-  CHECK(opt->is_v6());
-  opt = to<address>("1.2.3.4");
-  REQUIRE(opt);
-  CHECK(opt->is_v4());
-  CHECK(!opt->is_v6());
-  MESSAGE("printing");
-  CHECK_EQUAL(to_string(*opt), "1.2.3.4");
-  MESSAGE("masking");
-  CHECK(opt->mask(96 + 16));
-  CHECK_EQUAL(to_string(*opt), "1.2.0.0");
+  if (auto opt = to<address>("dead::beef"); CHECK(opt) && opt) {
+    CHECK(!opt->is_v4());
+    CHECK(opt->is_v6());
+  }
+  if (auto opt = to<address>("1.2.3.4"); CHECK(opt) && opt) {
+    CHECK(opt->is_v4());
+    CHECK(!opt->is_v6());
+    MESSAGE("printing");
+    CHECK_EQUAL(to_string(*opt), "1.2.3.4");
+    MESSAGE("masking");
+    CHECK(opt->mask(96 + 16));
+    CHECK_EQUAL(to_string(*opt), "1.2.0.0");
+  }
 }
 
 TEST(port) {
@@ -63,14 +68,14 @@ TEST(port) {
   CHECK(p.type() == port::protocol::unknown);
   p = {80, port::protocol::tcp};
   MESSAGE("parsing");
-  auto opt = to<port>("8/icmp");
-  REQUIRE(opt);
-  CHECK_EQUAL(*opt, port(8, port::protocol::icmp));
-  opt = to<port>("42/nonsense");
-  REQUIRE(opt);
-  CHECK_EQUAL(*opt, port(42, port::protocol::unknown));
-  MESSAGE("printing");
-  CHECK_EQUAL(to_string(p), "80/tcp");
+  if (auto opt = to<port>("8/icmp"); CHECK(opt) && opt) {
+    CHECK_EQUAL(*opt, port(8, port::protocol::icmp));
+  }
+  if (auto opt = to<port>("42/nonsense"); CHECK(opt) && opt) {
+    CHECK_EQUAL(*opt, port(42, port::protocol::unknown));
+    MESSAGE("printing");
+    CHECK_EQUAL(to_string(p), "80/tcp");
+  }
   p = {0, port::protocol::unknown};
   CHECK_EQUAL(to_string(p), "0/?");
 }
@@ -81,11 +86,11 @@ TEST(subnet) {
   CHECK_EQUAL(to_string(sn), "::/0");
   auto a = to<address>("1.2.3.4");
   auto b = to<address>("1.2.3.0");
-  REQUIRE(a);
-  REQUIRE(b);
-  sn = {*a, 24};
-  CHECK_EQUAL(sn.length(), 24u);
-  CHECK_EQUAL(sn.network(), *b);
+  if (CHECK(a && b) && a && b) {
+    sn = {*a, 24};
+    CHECK_EQUAL(sn.length(), 24u);
+    CHECK_EQUAL(sn.network(), *b);
+  }
 }
 
 TEST(data - construction) {

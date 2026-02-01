@@ -16,11 +16,9 @@
 
 // -- imported atoms -----------------------------------------------------------
 
-// NOLINTBEGIN
 #define BROKER_CAF_ATOM_ALIAS(name)                                            \
   using name = caf::name##_atom;                                               \
   constexpr auto name##_v = caf::name##_atom_v;
-// NOLINTEND
 
 namespace broker::internal::atom {
 

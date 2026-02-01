@@ -88,7 +88,7 @@ TEST("subscribers receive messages from hubs but not from publishers") {
   auto uut = ep.make_hub({"/foo/bar"});
   auto sub = ep.make_subscriber({"/foo/bar"});
   uut.publish("/foo/bar", broker::list_builder{}.add(1).add(2).add(3));
-  if (auto msg = sub.get(150ms); CHECK(msg.has_value())) {
+  if (auto msg = sub.get(150ms); CHECK(msg) && msg) {
     CHECK_EQ((*msg)->topic(), "/foo/bar");
     if (auto val = (*msg)->value(); CHECK(val.is_list())) {
       CHECK_EQ(broker::to_string(val), "(1, 2, 3)");
@@ -96,7 +96,8 @@ TEST("subscribers receive messages from hubs but not from publishers") {
   }
   auto pub = ep.make_publisher(broker::topic{"/foo/bar"});
   pub.publish(broker::list_builder{}.add(4).add(5).add(6));
-  if (auto msg = sub.get(150ms); !CHECK(!msg.has_value())) {
+  if (auto msg = sub.get(150ms)) {
     MESSAGE("unexpected message: " << broker::to_string((*msg)->value()));
+    CHECK(false);
   }
 }

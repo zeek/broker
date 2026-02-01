@@ -103,9 +103,11 @@ public:
     return f.apply(x.str_);
   }
 
+  // NOLINTBEGIN(clang-analyzer-cplusplus.Move)
   auto compare(const topic& other) const {
     return str_.compare(other.str_);
   }
+  // NOLINTEND(clang-analyzer-cplusplus.Move)
 
 private:
   static topic from(std::string_view str) {

@@ -1,3 +1,11 @@
+2.8.0-dev.305 | 2026-02-01 09:06:20 +0100
+
+  * Suppress false positives in clang-tidy (Dominik Charousset, Corelight)
+
+  * Replace Debian 11 with Debian 13 on CI (Dominik Charousset, Corelight)
+
+  * Fix clang-tidy findings and re-enable on CI (Dominik Charousset, Corelight)
+
 2.8.0-dev.301 | 2026-01-21 09:02:48 +0100
 
   * Use C++20 iterator concepts in our format headers (Dominik Charousset, Corelight)
