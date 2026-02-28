@@ -664,28 +664,48 @@ void core_actor_state::client_removed(endpoint_id client_id,
                    type, addr);
 }
 
-void core_actor_state::on_peer_removed(const peering_handler_ptr& ptr) {
-  log::core::info("on-peer-removed", "peer {} removed", ptr->id);
-  emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_removed>(),
-       "removed connection to remote peer");
-}
-
-void core_actor_state::on_peer_lost(const peering_handler_ptr& ptr) {
-  log::core::info("on-peer-lost", "peer {} disconnected", ptr->id);
-  emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_lost>(),
-       "lost connection to remote peer");
-  if (shutting_down_ || !ptr->addr.has_retry_time()) {
-    // Never re-connect to a peer if we are already shutting down or if the peer
-    // doesn't have a retry time.
-    log::core::debug(
-      "on-peer-lost",
-      "not re-connecting to peer {}, shutting_down = {}, has_retry_time = {}",
-      ptr->id, shutting_down_, ptr->addr.has_retry_time());
-    return;
+void core_actor_state::on_peer_disconnect(const peering_handler_ptr& ptr) {
+  metrics.peer_disconnects->Increment();
+  metrics.native_connections->Decrement();
+  if (auto* lptr = logger()) {
+    lptr->on_peer_disconnect(ptr->id, error{ec::no_path_to_peer});
   }
-  log::core::debug("on-peer-lost", "try to re-connect to peer {}, addr = {}",
-                   ptr->id, ptr->addr);
-  try_connect(ptr->addr, caf::response_promise{});
+  switch (ptr->status) {
+    /// The connection is still alive. This should never happen.
+    default: // connection_status::alive
+      log::core::error("on-peer-removed",
+                       "peer {} removed but status indicates it is still alive",
+                       ptr->id);
+      emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_removed>(),
+           "removed connection to remote peer");
+      break;
+    // We are closing the connection gracefully (unpeering).
+    case connection_status::unpeering:
+      log::core::info("on-peer-removed", "unpeered from {}", ptr->id);
+      emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_removed>(),
+           "removed connection to remote peer");
+      break;
+    // The connection has been closed unexpectedly -> try to reconnect.
+    case connection_status::connection_lost:
+      log::core::info("on-peer-removed", "peer {} disconnected", ptr->id);
+      emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_lost>(),
+           "lost connection to remote peer");
+      if (!shutting_down_ && ptr->addr.has_retry_time()) {
+        log::core::debug("on-peer-removed",
+                         "try to re-connect to peer {}, addr = {}", ptr->id,
+                         ptr->addr);
+        self->run_delayed(ptr->addr.retry, [this, addr = ptr->addr] {
+          try_connect(addr, caf::response_promise{});
+        });
+      }
+      break;
+    // We force a disconnect due to a buffer overflow.
+    case connection_status::overflow_disconnect:
+      log::core::info("on-peer-removed", "unpeered from {}", ptr->id);
+      emit(endpoint_info{ptr->id, ptr->addr}, sc_constant<sc::peer_removed>(),
+           "forced disconnect: caf::sec::backpressure_overflow");
+      break;
+  }
 }
 
 void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
@@ -748,7 +768,8 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
         auto raw_bytes = msg->raw_bytes();
         auto payload = std::span{raw_bytes.first, raw_bytes.second};
         auto i = peerings.find(peer->id);
-        if (peer->unpeering && payload.size() == peering_handler::bye_token_size
+        if (peer->status != connection_status::alive
+            && payload.size() == peering_handler::bye_token_size
             && i != peerings.end() && i->second == peer) {
           peering_handler::bye_token token;
           peer->assign_bye_token(token);
@@ -951,19 +972,15 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                        "on_dispose called for peer {} that still exists",
                        peer_id);
     }
-    metrics.peer_disconnects->Increment();
-    if (auto* lptr = logger()) {
-      lptr->on_peer_disconnect(peer_id, error{ec::no_path_to_peer});
-    }
     // Update our 'global' state for this peer.
     auto status = peer_status::peered;
     if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
-      metrics.native_connections->Decrement();
-      if (state->unpeering) {
-        on_peer_removed(state);
-      } else {
-        on_peer_lost(state);
+      // When disposing a peer did not initiate a disconnect, it means that the
+      // peer closed the connection unexpectedly.
+      if (state->status == connection_status::alive) {
+        state->status = connection_status::connection_lost;
       }
+      on_peer_disconnect(state);
       emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_unreachable>(),
            "lost the last path");
     } else {
@@ -1231,11 +1248,13 @@ bool core_actor_state::offer_msg(const handler_ptr& ptr) {
     case offer_result::overflow_disconnect:
       log::core::error("offer-msg", "{} disconnected due to overflow",
                        ptr->pretty_name);
+      ptr->status = connection_status::overflow_disconnect;
       do_erase();
       break;
     case offer_result::term:
       log::core::error("offer-msg", "{} terminated while offering message",
                        ptr->pretty_name);
+      ptr->status = connection_status::connection_lost;
       do_erase();
       break;
     default: // skip
@@ -1338,13 +1357,13 @@ void core_actor_state::broadcast_subscriptions() {
 }
 
 bool core_actor_state::send_bye_message(const peering_handler_ptr& ptr) {
-  if (!ptr->unpeering) {
+  if (ptr->status == connection_status::alive) {
     peering_handler::bye_token token;
     ptr->assign_bye_token(token);
     auto msg = make_ping_message(id, ptr->id, token.data(), token.size());
     msg_provider.set(std::move(msg));
     if (offer_msg(ptr)) {
-      ptr->unpeering = true;
+      ptr->status = connection_status::unpeering;
       return true;
     }
   }

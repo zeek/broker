@@ -42,6 +42,18 @@ enum class handler_type {
   publisher,  // Subtype of hub.
 };
 
+/// Indicates the state of unpeering a peer.
+enum class connection_status {
+  /// We are not unpeering from this peer.
+  alive,
+  /// We are unpeering from this peer gracefully.
+  unpeering,
+  /// The connection has been forcibly closed.
+  connection_lost,
+  /// We are unpeering from this peer due to an overflow disconnect.
+  overflow_disconnect,
+};
+
 /// Trait for getting the value and ID type of a handler.
 template <handler_type>
 struct handler_type_trait;
@@ -213,6 +225,10 @@ public:
 
     /// The name of this handler in log output.
     std::string pretty_name;
+
+    /// Indicates whether we are unpeering from this node and the cause of the
+    /// unpeering.
+    connection_status status = connection_status::alive;
   };
 
   template <class T>
@@ -566,11 +582,6 @@ public:
       return f(filter, what);
     }
 
-    /// Indicates whether we are unpeering from this node and have sent a BYE
-    /// message to the peer. Once the BYE handshake completes, we will call
-    /// `on_peer_removed`.
-    bool unpeering = false;
-
     /// Network address as reported from the transport (usually TCP).
     network_info addr;
 
@@ -712,10 +723,7 @@ public:
                       bool removed);
 
   /// Called whenever we remove a peer by demand of the user.
-  void on_peer_removed(const peering_handler_ptr& ptr);
-
-  /// Called whenever we lose connection to a peer.
-  void on_peer_lost(const peering_handler_ptr& ptr);
+  void on_peer_disconnect(const peering_handler_ptr& ptr);
 
   /// Called whenever a peer has demand for more messages.
   void on_demand(const handler_ptr& peer, size_t demand);
