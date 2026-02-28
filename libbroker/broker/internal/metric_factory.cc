@@ -22,6 +22,22 @@ using histogram_family = metric_factory::histogram_family;
 
 using core_t = metric_factory::core_t;
 
+prometheus::Counter* core_t::peer_disconnects() {
+  return &prometheus::BuildCounter()
+            .Name("broker_peer_disconnects_total")
+            .Help("Total number of peer disconnects.")
+            .Register(*reg_)
+            .Add({});
+}
+
+prometheus::Gauge* core_t::buffered_messages() {
+  return &prometheus::BuildGauge()
+            .Name("broker_buffered_messages")
+            .Help("Number of messages currently buffered.")
+            .Register(*reg_)
+            .Add({});
+}
+
 gauge_family* core_t::connections_family() {
   return &prometheus::BuildGauge()
             .Name("broker_connections")

@@ -21,6 +21,8 @@
 #include <caf/make_counted.hpp>
 #include <caf/uuid.hpp>
 
+#include <prometheus/gauge.h>
+
 #include <array>
 #include <optional>
 #include <unordered_map>
@@ -91,11 +93,17 @@ public:
   struct metrics_t {
     explicit metrics_t(prometheus::Registry& reg);
 
+    /// Counts how many times we disconnected from a peer.
+    prometheus::Counter* peer_disconnects;
+
+    /// Keeps track of how many messages are currently buffered.
+    prometheus::Gauge* buffered_messages;
+
     /// Keeps track of how many native peers are currently connected.
-    prometheus::Gauge* native_connections = nullptr;
+    prometheus::Gauge* native_connections;
 
     /// Keeps track of how many WebSocket clients are currently connected.
-    prometheus::Gauge* web_socket_connections = nullptr;
+    prometheus::Gauge* web_socket_connections;
 
     /// Stores the metrics for all message types.
     std::array<message_metrics_t, 5> message_metric_sets;
@@ -257,6 +265,11 @@ public:
       // nop
     }
 
+    ~handler_base() override {
+      auto n = static_cast<double>(queue.size());
+      parent->metrics.buffered_messages->Decrement(n);
+    }
+
     /// The consumer for reading messages from the shared buffer.
     buffer_consumer_ptr in;
 
@@ -318,6 +331,7 @@ public:
         auto i = queue.begin();
         auto e = i + static_cast<std::ptrdiff_t>(n);
         std::vector<value_type> items{i, e};
+        parent->metrics.buffered_messages->Decrement(static_cast<double>(n));
         queue.erase(i, e);
         if constexpr (Subtype == handler_type::peering) {
           if (auto* lptr = logger()) {
@@ -409,6 +423,7 @@ public:
       // As long as our queue is not full, we can store the message in our queue
       // until we have demand.
       if (queue.size() < max_buffer_size) {
+        parent->metrics.buffered_messages->Increment();
         queue.push_back(std::move(msg));
         if constexpr (Subtype == handler_type::peering) {
           if (auto* lptr = logger()) {

@@ -41,6 +41,10 @@ public:
 
     core_t& operator=(const core_t&) noexcept = default;
 
+    prometheus::Counter* peer_disconnects();
+
+    prometheus::Gauge* buffered_messages();
+
     /// Keeps track of the active connections.
     ///
     /// Label dimensions: `type` ('native' or 'web-socket').

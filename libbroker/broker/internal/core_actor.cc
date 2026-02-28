@@ -177,6 +177,8 @@ core_actor_state::handler::~handler() {
 
 core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   metric_factory factory{reg};
+  peer_disconnects = factory.core.peer_disconnects();
+  buffered_messages = factory.core.buffered_messages();
   // Initialize connection metrics.
   auto [native, ws] = factory.core.connections_instances();
   native_connections = native;
@@ -949,12 +951,14 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
                        "on_dispose called for peer {} that still exists",
                        peer_id);
     }
+    metrics.peer_disconnects->Increment();
     if (auto* lptr = logger()) {
       lptr->on_peer_disconnect(peer_id, error{ec::no_path_to_peer});
     }
     // Update our 'global' state for this peer.
     auto status = peer_status::peered;
     if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
+      metrics.native_connections->Decrement();
       if (state->unpeering) {
         on_peer_removed(state);
       } else {
