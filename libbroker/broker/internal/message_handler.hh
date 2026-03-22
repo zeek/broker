@@ -37,9 +37,42 @@ public:
   /// Callback for a downstream component demanding more messages.
   virtual void add_demand(size_t demand) = 0;
 
-  /// Tries to pull more messages from the handler.
-  [[nodiscard]] virtual message_handler_pull_result
-  pull(std::vector<node_message>& buf) = 0;
+  /// Tries to dispatch incoming messages.
+  /// @param try_dispatch A callback that is called for each message in the
+  ///                     buffer. Returning `false` stops the consume loop.
+  template <class TryDispatch>
+  message_handler_pull_result consume_while(TryDispatch&& try_dispatch) {
+    // Helper function for dispatching messages from the buffer. Returns `false`
+    // if `try_dispatch` returned `false`, i.e., if the caller stopped the loop.
+    auto consume_from_buffer = [this, &try_dispatch] {
+      auto pos = pull_buffer.begin();
+      auto end = pull_buffer.end();
+      while (pos != end) {
+        if (!try_dispatch(*pos)) {
+          // Delete what has been dispatched and leave the rest for later.
+          pull_buffer.erase(pull_buffer.begin(), pos);
+          return false;
+        }
+        ++pos;
+      }
+      pull_buffer.clear();
+      return true;
+    };
+    // Consume messages from the buffer first.
+    if (!consume_from_buffer()) {
+      return message_handler_pull_result::ok;
+    }
+    // Try to get more messages.
+    auto closed = !pull();
+    // Consume messages from the buffer again.
+    if (!consume_from_buffer() || !closed) {
+      // Even if the producer closed the SPSC buffer, there is still data to
+      // dispatch in the pull buffer.
+      return message_handler_pull_result::ok;
+    }
+    // Tell the caller to not call this function again.
+    return message_handler_pull_result::term;
+  }
 
   /// Disposes of the handler. Must be called after the handler has neither
   /// input nor output buffers and has been removed from its container.
@@ -102,9 +135,9 @@ protected:
   }
 
   template <class Input, class ValueType>
-  message_handler_pull_result do_pull(Input& in, std::vector<ValueType>& buf) {
+  bool do_pull(Input& in, std::vector<ValueType>& buf) {
     if (!in) {
-      return message_handler_pull_result::ok;
+      return false;
     }
     pull_observer observer{buf};
     auto [again, pulled] = in->pull(100, observer);
@@ -113,9 +146,9 @@ protected:
     }
     if (!again) {
       in = nullptr;
-      return message_handler_pull_result::term;
+      return false;
     }
-    return message_handler_pull_result::ok;
+    return true;
   }
 
   template <class Output, class ValueType, class OnPush, class OnOverload>
@@ -149,6 +182,15 @@ protected:
 
   /// The number of messages that can be sent to the peer immediately.
   size_t demand = 0;
+
+  /// A buffer for messages that are not yet dispatched.
+  std::vector<node_message> pull_buffer;
+
+private:
+  /// Tries to pull more messages from the handler.
+  /// @returns `true` if the producer is still alive, `false` if the input has
+  ///          been closed.
+  virtual bool pull() = 0;
 };
 
 using message_handler_ptr = std::shared_ptr<message_handler>;

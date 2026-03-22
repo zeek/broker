@@ -41,8 +41,6 @@ public:
 
   bool output_closed() const noexcept override;
 
-  message_handler_pull_result pull(std::vector<node_message>& buf) override;
-
   /// The consumer for reading messages from the shared buffer.
   buffer_consumer_ptr in;
 
@@ -57,6 +55,9 @@ public:
   hub_id id;
 
 private:
+  bool pull() override;
+
+
   message_handler_type type_ = message_handler_type::hub;
 };
 

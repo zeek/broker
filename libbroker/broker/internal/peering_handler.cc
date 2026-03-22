@@ -91,8 +91,7 @@ bool peering_handler::output_closed() const noexcept {
   return !out;
 }
 
-message_handler_pull_result
-peering_handler::pull(std::vector<node_message>& buf) {
+bool peering_handler::pull() {
   // We pull chunks from the input buffer but the callee expects node messages.
   // Hence, we need to convert the chunks on the fly here.
   std::vector<value_type> chunks;
@@ -106,9 +105,9 @@ peering_handler::pull(std::vector<node_message>& buf) {
                        pretty_name);
       in->dispose();
       in = nullptr;
-      return message_handler_pull_result::term;
+      return false;
     }
-    buf.emplace_back(std::move(converted));
+    pull_buffer.emplace_back(std::move(converted));
   }
   return result;
 }

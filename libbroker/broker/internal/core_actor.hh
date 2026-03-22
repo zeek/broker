@@ -407,9 +407,6 @@ public:
   /// Stores the state for all hubs.
   std::unordered_map<hub_id, hub_handler_ptr> hubs;
 
-  /// Reusable buffer for pulling messages from handlers.
-  std::vector<node_message> pull_buffer;
-
   /// Reusable buffer for passing to `handler_subscriptions.select()`.
   std::vector<message_handler_ptr> selection_buffer;
 

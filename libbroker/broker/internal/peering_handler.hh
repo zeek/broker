@@ -48,8 +48,6 @@ public:
 
   bool output_closed() const noexcept override;
 
-  message_handler_pull_result pull(std::vector<node_message>& buf) override;
-
   /// Creates a BYE message.
   node_message make_bye_message();
 
@@ -93,6 +91,9 @@ public:
   /// the last message we send. When receiving a pong message with that token,
   /// we know all messages arrived and can shut down the connection.
   uint64_t bye_id = 0;
+
+private:
+  bool pull() override;
 };
 
 using peering_handler_ptr = std::shared_ptr<peering_handler>;

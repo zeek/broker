@@ -36,8 +36,6 @@ public:
 
   bool output_closed() const noexcept override;
 
-  message_handler_pull_result pull(std::vector<node_message>& buf) override;
-
   /// The consumer for reading messages from the shared buffer.
   buffer_consumer_ptr in;
 
@@ -51,6 +49,9 @@ public:
 
   /// The ID for this WebSocket connection.
   endpoint_id id;
+
+private:
+  bool pull() override;
 };
 
 using web_socket_client_handler_ptr =

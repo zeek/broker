@@ -660,25 +660,18 @@ void core_actor_state::on_demand(const message_handler_ptr& peer,
 }
 
 void core_actor_state::on_data(const message_handler_ptr& ptr) {
-  pull_buffer.clear();
-  auto input_closed = ptr->pull(pull_buffer)
-                      == message_handler_pull_result::term;
-  for (auto& msg : pull_buffer) {
+  auto res = ptr->consume_while([this, ptr](const node_message& msg) {
     dispatch_from(msg, ptr);
-  }
-  if (input_closed) {
+    return true;
+  });
+  if (res == message_handler_pull_result::term) {
     on_input_closed(ptr);
   }
 }
 
 void core_actor_state::on_data(const peering_handler_ptr& peer) {
-  pull_buffer.clear();
-  // Check if the peer got disconnected. If so, we will handle it later in order
-  // to have the disconnect events be delivered after any messages that might
-  // be in the buffer.
-  auto disconnected = peer->pull(pull_buffer)
-                      == message_handler_pull_result::term;
-  for (auto& msg : pull_buffer) {
+  auto bye = false;
+  auto res = peer->consume_while([this, peer, &bye](const node_message& msg) {
     log::core::debug("on-data", "received message from peer {}: {}", peer->id,
                      msg);
     dispatch_from(msg, peer);
@@ -726,19 +719,27 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
                          token.end())) {
             // Do not handle any further messages from this peer after
             // completing the BYE handshake.
-            log::core::debug("pong", "{} completed the BYE handshake",
-                             peer->id);
             peerings.erase(i);
-            peer->dispose();
-            on_handler_disposed(peer);
-            return;
+            bye = true;
+            return false;
           }
           break;
         }
       }
     }
+    return true;
+  });
+  // If we stopped because of a graceful unpeering, dispose the peer.
+  if (bye) {
+    log::core::debug("pong", "{} completed the BYE handshake", peer->id);
+    peer->dispose();
+    on_handler_disposed(peer);
+    return;
   }
-  if (disconnected) {
+  // Check if the peer got disconnected. If so, we will handle it later in order
+  // to have the disconnect events be delivered after any messages that might
+  // be in the buffer.
+  if (res == message_handler_pull_result::term) {
     on_input_closed(peer);
   }
 }

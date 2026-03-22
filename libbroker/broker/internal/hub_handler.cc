@@ -53,8 +53,8 @@ bool hub_handler::output_closed() const noexcept {
   return !out;
 }
 
-message_handler_pull_result hub_handler::pull(std::vector<node_message>& buf) {
-  return do_pull(in, buf);
+bool hub_handler::pull() {
+  return do_pull(in, pull_buffer);
 }
 
 } // namespace broker::internal
