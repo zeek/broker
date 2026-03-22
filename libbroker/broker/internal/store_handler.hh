@@ -45,6 +45,11 @@ public:
 
   bool output_closed() const noexcept override;
 
+  /// Checks if the store has reached its buffer limit.
+  bool at_capacity() const noexcept {
+    return queue.size() >= max_buffer_size;
+  }
+
   /// The consumer for reading messages from the shared buffer.
   buffer_consumer_ptr in;
 

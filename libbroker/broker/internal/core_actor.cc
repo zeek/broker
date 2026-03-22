@@ -126,6 +126,8 @@ core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   metric_factory factory{reg};
   peer_disconnects = factory.core.peer_disconnects();
   buffered_messages = factory.core.buffered_messages();
+  suspensions = factory.core.suspensions();
+  suspended = factory.core.suspended();
   // Initialize connection metrics.
   auto [native, ws] = factory.core.connections_instances();
   native_connections = native;
@@ -654,14 +656,61 @@ void core_actor_state::on_peer_disconnect(const peering_handler_ptr& ptr) {
   }
 }
 
-void core_actor_state::on_demand(const message_handler_ptr& peer,
+void core_actor_state::resume_suspended() {
+  BROKER_ASSERT(resume_buffer.empty());
+  if (suspended.empty()) {
+    return;
+  }
+  // By swapping between these two buffers, we avoid unnecessary heap
+  // allocations by reusing the same memory.
+  resume_buffer.swap(suspended);
+  for (const auto& ptr : resume_buffer) {
+    with_subtype(ptr, [this](const auto& derived_ptr) {
+      // We suspend handlers only from `on_data`. Calling it again allows the
+      // handlers to try to pick up where it left off. If the handler is still
+      // blocked, it will add itself to the suspended list again.
+      on_data(derived_ptr);
+    });
+  }
+  if (suspended.size() != resume_buffer.size()) {
+    metrics.suspended->Set(static_cast<double>(suspended.size()));
+  }
+  resume_buffer.clear();
+}
+
+void core_actor_state::on_demand(const hub_handler_ptr& ptr, size_t demand) {
+  ptr->add_demand(demand);
+  resume_suspended();
+}
+
+void core_actor_state::on_demand(const store_handler_ptr& ptr, size_t demand) {
+  ptr->add_demand(demand);
+  resume_suspended();
+}
+
+void core_actor_state::on_demand(const peering_handler_ptr& ptr,
                                  size_t demand) {
-  peer->add_demand(demand);
+  ptr->add_demand(demand);
+  // Peers are not allowed to block incoming messages via back-pressure. Hence,
+  // they cannot "unblock" message handlers either.
+}
+
+void core_actor_state::on_demand(const web_socket_client_handler_ptr& ptr,
+                                 size_t demand) {
+  ptr->add_demand(demand);
+  // WebSocket clients are not allowed to block incoming messages via
+  // back-pressure. Hence, they cannot "unblock" message handlers either.
 }
 
 void core_actor_state::on_data(const message_handler_ptr& ptr) {
+  if (is_suspended(ptr)) {
+    return;
+  }
   auto res = ptr->consume_while([this, ptr](const node_message& msg) {
-    dispatch_from(msg, ptr);
+    if (!try_dispatch_from(msg, ptr)) {
+      suspend(ptr);
+      return false;
+    }
     return true;
   });
   if (res == message_handler_pull_result::term) {
@@ -670,11 +719,17 @@ void core_actor_state::on_data(const message_handler_ptr& ptr) {
 }
 
 void core_actor_state::on_data(const peering_handler_ptr& peer) {
+  if (is_suspended(peer)) {
+    return;
+  }
   auto bye = false;
   auto res = peer->consume_while([this, peer, &bye](const node_message& msg) {
     log::core::debug("on-data", "received message from peer {}: {}", peer->id,
                      msg);
-    dispatch_from(msg, peer);
+    if (!try_dispatch_from(msg, peer)) {
+      suspend(peer);
+      return false;
+    }
     switch (get_type(msg)) {
       default:
         break;
@@ -719,6 +774,7 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
                          token.end())) {
             // Do not handle any further messages from this peer after
             // completing the BYE handshake.
+            remove_from_suspended(peer);
             peerings.erase(i);
             bye = true;
             return false;
@@ -787,10 +843,12 @@ void core_actor_state::erase(const message_handler_ptr& what) {
 
 void core_actor_state::do_erase(const peering_handler_ptr& what) {
   peerings.erase(what->id);
+  remove_from_suspended(what);
 }
 
 void core_actor_state::do_erase(const hub_handler_ptr& what) {
   hubs.erase(what->id);
+  remove_from_suspended(what);
 }
 
 void core_actor_state::do_erase(const store_handler_ptr& what) {
@@ -800,10 +858,12 @@ void core_actor_state::do_erase(const store_handler_ptr& what) {
     BROKER_ASSERT(what->type() == message_handler_type::clone);
     clones.erase(what->id);
   }
+  remove_from_suspended(what);
 }
 
 void core_actor_state::do_erase(const web_socket_client_handler_ptr& what) {
   clients.erase(what->id);
+  remove_from_suspended(what);
 }
 
 // -- connection management ----------------------------------------------------
@@ -918,7 +978,17 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     std::make_shared<peering_handler>(this, peer_id, peer_buffer_size(),
                                       peer_overflow_policy(), addr, filter);
   state->bye_id = self->new_u64_id();
-  state->on_dispose = caf::make_type_erased_callback([this, state, peer_id]() {
+  // Note: the peering_handler owns `on_dispose`, so capturing a shared_ptr here
+  // would create a cycle.
+  auto wptr = std::weak_ptr<peering_handler>{state};
+  state->on_dispose = caf::make_type_erased_callback([this, wptr, peer_id]() {
+    auto sptr = wptr.lock();
+    if (!sptr) {
+      log::core::error("on-peer-dispose",
+                       "failed to upgrade weak_ptr to shared_ptr for peer {}",
+                       peer_id);
+      return;
+    }
     log::core::debug("on-peer-dispose", "dispose called for peer {}", peer_id);
     // Drop our 'local' state for this peer.
     if (peerings.count(peer_id) != 0) {
@@ -931,10 +1001,10 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer_id,
     if (peer_statuses->update(peer_id, status, peer_status::disconnected)) {
       // When disposing a peer did not initiate a disconnect, it means that the
       // peer closed the connection unexpectedly.
-      if (state->status == connection_status::alive) {
-        state->status = connection_status::connection_lost;
+      if (sptr->status == connection_status::alive) {
+        sptr->status = connection_status::connection_lost;
       }
-      on_peer_disconnect(state);
+      on_peer_disconnect(sptr);
       emit(endpoint_info{peer_id}, sc_constant<sc::endpoint_unreachable>(),
            "lost the last path");
     } else {
@@ -1028,7 +1098,7 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   }
   client_added(client_id, addr, type);
   state->on_dispose =
-    caf::make_type_erased_callback([this, state, addr, type, client_id]() {
+    caf::make_type_erased_callback([this, addr, type, client_id] {
       log::core::debug("client-disconnected", "client {} disconnected", addr);
       auto reason = caf::make_error(caf::sec::connection_closed);
       if (auto* lptr = logger()) {
@@ -1111,9 +1181,8 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
                                                message_handler_type::master);
   detail::fmt_to(std::back_inserter(state->pretty_name), "master-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
-  state->on_dispose = caf::make_type_erased_callback([this, state] {
-    log::core::debug("master-dispose", "dispose called for master {}",
-                     state->id);
+  state->on_dispose = caf::make_type_erased_callback([this, id = state->id] {
+    log::core::debug("master-dispose", "dispose called for master {}", id);
     // Note: the actor will terminate as a result of closing the buffers.
   });
   // Save the handle and monitor the new actor.
@@ -1162,8 +1231,8 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
                                                message_handler_type::clone);
   detail::fmt_to(std::back_inserter(state->pretty_name), "clone-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
-  state->on_dispose = caf::make_type_erased_callback([this, state] {
-    log::core::debug("clone-dispose", "dispose called for clone {}", state->id);
+  state->on_dispose = caf::make_type_erased_callback([this, id = state->id] {
+    log::core::debug("clone-dispose", "dispose called for clone {}", id);
     // Note: the actor will terminate as a result of closing the buffers.
   });
   // Save the handle and monitor the new actor.
@@ -1217,9 +1286,9 @@ bool core_actor_state::offer_msg(const message_handler_ptr& ptr) {
 }
 
 void core_actor_state::dispatch(const node_message& msg) {
-  metrics.metrics_for(msg->type()).processed->Increment();
-  msg_provider.set(msg);
   auto do_dispatch = [this, &msg](auto& selection) {
+    msg_provider.set(msg);
+    metrics.metrics_for(msg->type()).processed->Increment();
     auto accepted = size_t{0};
     for (auto& ptr : selection) {
       if (offer_msg(ptr)) {
@@ -1250,15 +1319,9 @@ void core_actor_state::dispatch(const node_message& msg) {
 
 void core_actor_state::dispatch_from(const node_message& msg,
                                      const message_handler_ptr& from) {
-  metrics.metrics_for(msg->type()).processed->Increment();
-  msg_provider.set(msg);
   auto do_dispatch = [this, &msg, &from](auto& selection) {
-    auto get_pretty_name = [&from] {
-      if (!from) {
-        return "null"sv;
-      }
-      return std::string_view{from->pretty_name};
-    };
+    msg_provider.set(msg);
+    metrics.metrics_for(msg->type()).processed->Increment();
     auto accepted = size_t{0};
     for (auto& ptr : selection) {
       if (ptr != from) {
@@ -1295,6 +1358,78 @@ void core_actor_state::dispatch_from(const node_message& msg,
   selection.reserve(64); // Avoid multiple small allocations.
   handler_subscriptions.select(get_topic(msg), selection);
   do_dispatch(selection);
+}
+
+bool core_actor_state::try_dispatch_from(const node_message& msg,
+                                         const message_handler_ptr& from) {
+  auto do_dispatch = [this, &msg, &from](auto& selection) {
+    // Selects subscribers that do not receive the message.
+    auto is_invalid_receiver = [this, &msg, &from](const auto& ptr) {
+      if (ptr == from) {
+        return true;
+      }
+      // If `from == nullptr`, it means that this message was sent via
+      // endpoint::publish. We treat it as if it was published by a publisher,
+      // i.e., it's a local message and subscribers should not receive it.
+      return (!from || from->type() == message_handler_type::publisher)
+             && ptr->type() == message_handler_type::subscriber
+             && get_receiver(msg) != id;
+    };
+    // Drop receivers from the selection that do not receive the message.
+    std::erase_if(selection, is_invalid_receiver);
+    // Check if we can dispatch the message to all remaining receivers.
+    auto is_at_capacity = [&msg](const auto& ptr) {
+      switch (ptr->type()) {
+        case message_handler_type::hub:
+        case message_handler_type::subscriber:
+        case message_handler_type::publisher:
+          return msg->type() == envelope_type::data
+                 && static_cast<const hub_handler*>(ptr.get())->at_capacity();
+          break;
+        case message_handler_type::master:
+        case message_handler_type::clone:
+          return msg->type() == envelope_type::command
+                 && static_cast<const store_handler*>(ptr.get())->at_capacity();
+          break;
+        default:
+          // Peers and WebSocket clients are not allowed to block incoming
+          // messages via back-pressure. They must deal with overflows according
+          // to the configured policy.
+          return false;
+      }
+    };
+    if (std::ranges::any_of(selection, is_at_capacity)) {
+      return false;
+    }
+    // OK, message is ready to go.
+    msg_provider.set(msg);
+    metrics.metrics_for(msg->type()).processed->Increment();
+    auto accepted = size_t{0};
+    for (auto& ptr : selection) {
+      if (offer_msg(ptr)) {
+        ++accepted;
+      }
+    }
+    log::core::debug("dispatch-from",
+                     "offered message to {} subscribers ({} accepted): {}",
+                     selection.size(), accepted, msg);
+    return true;
+  };
+  // Use the reusable buffer if it's available (i.e., empty).
+  if (selection_buffer.empty()) {
+    handler_subscriptions.select(get_topic(msg), selection_buffer);
+    auto buffer_guard = caf::detail::make_scope_guard([this]() noexcept {
+      // Clear the buffer after dispatching all of its messages.
+      selection_buffer.clear();
+    });
+    return do_dispatch(selection_buffer);
+  }
+  // Otherwise, this is a nested dispatch: use a fresh buffer since
+  // selection_buffer is already in use.
+  std::vector<message_handler_ptr> selection;
+  selection.reserve(64); // Avoid multiple small allocations.
+  handler_subscriptions.select(get_topic(msg), selection);
+  return do_dispatch(selection);
 }
 
 void core_actor_state::broadcast_subscriptions() {
@@ -1408,7 +1543,7 @@ overflow_policy core_actor_state::web_socket_overflow_policy() {
 
 size_t core_actor_state::hub_buffer_size() {
   // TODO: make configurable?
-  return 1'000'000;
+  return 1'000;
 }
 
 } // namespace broker::internal

@@ -38,6 +38,22 @@ prometheus::Gauge* core_t::buffered_messages() {
             .Add({});
 }
 
+prometheus::Counter* core_t::suspensions() {
+  return &prometheus::BuildCounter()
+            .Name("broker_producer_suspensions_total")
+            .Help("Total number of suspension events due to back-pressure.")
+            .Register(*reg_)
+            .Add({});
+}
+
+prometheus::Gauge* core_t::suspended() {
+  return &prometheus::BuildGauge()
+            .Name("broker_suspended_producers")
+            .Help("Number of currently suspended message producers.")
+            .Register(*reg_)
+            .Add({});
+}
+
 gauge_family* core_t::connections_family() {
   return &prometheus::BuildGauge()
             .Name("broker_connections")

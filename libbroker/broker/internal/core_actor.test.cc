@@ -1,8 +1,10 @@
 #include "broker/internal/core_actor.hh"
 
 #include "broker/broker-test.test.hh"
+#include "broker/internal/metric_factory.hh"
 #include "broker/internal/wire_format.hh"
 
+#include "broker/detail/latch.hh"
 #include "broker/event_observer.hh"
 #include "broker/internal/native.hh"
 #include "broker/internal/type_id.hh"
@@ -113,6 +115,17 @@ broker::integer deserialize_value(const caf::chunk& chunk) {
 }
 
 } // namespace
+
+// -----------------------------------------------------------------------------
+// Test setup 1.
+//
+// Mimic a slow peer by passing an SPSC buffer to the core actor that has no
+// consumer attached to it. Then, we publish messages until the SPSC buffer and
+// the internal buffer in the core actor overflows.
+//
+// What happens when an overflow occurs depends on the overflow policy. Hence,
+// we implement one test for each of the three overflow policies.
+// -----------------------------------------------------------------------------
 
 TEST(setting the disconnect overflow policy disconnects slow peers) {
   auto observer = std::make_shared<test_event_observer>();
@@ -310,4 +323,135 @@ TEST(setting the drop_oldest overflow policy overrides the oldest message) {
                 caf::async::read_result::ok);
     CHECK_EQUAL(deserialize_value(msg), i);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Test setup 2.
+//
+// Subscribe to a topic with a subscriber that never pulls any messages, causing
+// backpressure to the connected peer. Ultimately, the fast publisher should
+// disconnect from the slow subscriber as a result.
+//
+// The setup involves two endpoints: one that publishes messages and one that
+// has the subscriber attached to it. We only test with the disconnect overflow
+// policy and detect the disconnect event by looking at the
+// broker_connections metric (waiting for it to drop from 1 to 0). Once the
+// publisher reports a disconnect, we stop.
+//
+// Note: the subscriber will detect the disconnect only after some delay once
+// the subscriber starts pulling messages again. Hence, we only wait for the
+// disconnect event in the publisher thread to not stall the test more than
+// necessary.
+// -----------------------------------------------------------------------------
+
+template <class T>
+using promise_ptr = std::shared_ptr<std::promise<T>>;
+
+using latch_ptr = std::shared_ptr<detail::latch>;
+
+bool await_connected(prometheus::Gauge* connections) {
+  auto deadline = std::chrono::steady_clock::now() + 10s;
+  while (connections->Value() < 1.0) {
+    std::this_thread::sleep_for(1ms);
+    if (std::chrono::steady_clock::now() > deadline) {
+      return false;
+    }
+  }
+  return true;
+}
+
+auto* get_connections(prometheus::Registry& registry) {
+  return internal::metric_factory::core_t(registry)
+    .connections_instances()
+    .native;
+}
+
+bool fast_publisher(prometheus::Registry& registry, detail::latch& sync_start,
+                    detail::latch& sync_stop, endpoint& ep) {
+  auto guard = caf::detail::make_scope_guard([&sync_stop]() noexcept {
+    // Tell the subscriber thread to stop as well if this thread stops.
+    sync_stop.count_down();
+  });
+  auto* connections = get_connections(registry);
+  if (!await_connected(connections)) {
+    fprintf(stderr, "publisher timed out while waiting for the peering\n");
+    abort();
+  }
+  sync_start.arrive_and_wait();
+  auto deadline = std::chrono::steady_clock::now() + 10s;
+  for (;;) {
+    for (auto i = 0; i < 500; ++i) {
+      ep.publish("foo"_t, data{i});
+    }
+    if (connections->Value() < 1.0) {
+      return true;
+    }
+    if (std::chrono::steady_clock::now() > deadline) {
+      return false;
+    }
+  }
+}
+
+void run_fast_publisher(const promise_ptr<bool>& detected_overflow,
+                        uint16_t port, const latch_ptr& sync_start,
+                        const latch_ptr& sync_stop) {
+  auto registry = std::make_shared<prometheus::Registry>();
+  configuration cfg;
+  cfg.set("caf.scheduler.max-threads", 2);
+  endpoint ep{std::move(cfg), registry};
+  if (!ep.peer("127.0.0.1", port)) {
+    fprintf(stderr, "publisher failed to peer with the subscriber\n");
+    abort();
+  }
+  detected_overflow->set_value(
+    fast_publisher(*registry, *sync_start, *sync_stop, ep));
+}
+
+void slow_subscriber(prometheus::Registry& registry, detail::latch& sync_start,
+                     detail::latch& sync_stop, endpoint& ep, subscriber& sub) {
+  auto* connections = get_connections(registry);
+  if (!await_connected(connections)) {
+    fprintf(stderr, "subscriber timed out while waiting for the peering\n");
+    abort();
+  }
+  sync_start.arrive_and_wait();
+  sync_stop.arrive_and_wait();
+}
+
+void run_slow_subscriber(const promise_ptr<uint16_t>& port,
+                         const latch_ptr& sync_start,
+                         const latch_ptr& sync_stop) {
+  auto registry = std::make_shared<prometheus::Registry>();
+  configuration cfg;
+  cfg.set("caf.scheduler.max-threads", 2);
+  endpoint ep{std::move(cfg), registry};
+  auto sub = ep.make_subscriber({"foo"_t});
+  auto listen_result = ep.listen("127.0.0.1", 0);
+  if (listen_result == 0) {
+    fprintf(stderr, "endpoint failed to open a port for peering\n");
+    abort();
+  }
+  port->set_value(listen_result);
+  slow_subscriber(*registry, *sync_start, *sync_stop, ep, sub);
+}
+
+TEST(slow local subscribers apply backpressure) {
+  // Synchronizes both threads to start only after both endpoints see an open
+  // connection.
+  auto sync_start = std::make_shared<detail::latch>(2);
+  // Synchronizes shutting down of the threads. The subscriber simply waits for
+  // the publisher.
+  auto sync_stop = std::make_shared<detail::latch>(2);
+  // Captures the result of `fast_publisher`.
+  auto detected_overflow = std::make_shared<std::promise<bool>>();
+  // Launch the threads.
+  auto port = std::make_shared<std::promise<uint16_t>>();
+  auto t1 = std::thread{run_slow_subscriber, port, sync_start, sync_stop};
+  auto t2 = std::thread{run_fast_publisher, detected_overflow,
+                        port->get_future().get(), sync_start, sync_stop};
+  // Wait for both to terminate.
+  t1.join();
+  t2.join();
+  // Check whether the publisher detected a disconnect due to overflow.
+  CHECK(detected_overflow->get_future().get());
 }

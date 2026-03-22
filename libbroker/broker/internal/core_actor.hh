@@ -32,6 +32,7 @@
 #include <caf/make_counted.hpp>
 #include <caf/uuid.hpp>
 
+#include <prometheus/counter.h>
 #include <prometheus/gauge.h>
 
 #include <array>
@@ -95,6 +96,9 @@ public:
     /// Counts how many times we disconnected from a peer.
     prometheus::Counter* peer_disconnects;
 
+    /// Counts how many times we suspended a handler.
+    prometheus::Counter* suspensions;
+
     /// Keeps track of how many messages are currently buffered.
     prometheus::Gauge* buffered_messages;
 
@@ -103,6 +107,9 @@ public:
 
     /// Keeps track of how many WebSocket clients are currently connected.
     prometheus::Gauge* web_socket_connections;
+
+    /// Keeps track of how many handlers are currently suspended.
+    prometheus::Gauge* suspended;
 
     /// Stores the metrics for all message types.
     std::array<message_metrics_t, 5> message_metric_sets;
@@ -116,7 +123,7 @@ public:
 
   /// Calls the given function with the handler cast to the appropriate type.
   template <class Fn>
-  auto with_subtype(const message_handler_ptr& ptr, Fn&& fn) {
+  static auto with_subtype(const message_handler_ptr& ptr, Fn&& fn) {
     switch (ptr->type()) {
       case message_handler_type::store:
         return fn(std::static_pointer_cast<store_handler>(ptr));
@@ -243,8 +250,20 @@ public:
   /// Called whenever we remove a peer by demand of the user.
   void on_peer_disconnect(const peering_handler_ptr& ptr);
 
-  /// Called whenever a peer has demand for more messages.
-  void on_demand(const message_handler_ptr& peer, size_t demand);
+  /// Tries to resume all suspended handlers except `ptr`.
+  void resume_suspended();
+
+  /// Called whenever a hub signals demand for more messages.
+  void on_demand(const hub_handler_ptr& ptr, size_t demand);
+
+  /// Called whenever a store signals demand for more messages.
+  void on_demand(const store_handler_ptr& ptr, size_t demand);
+
+  /// Called whenever a peering signals demand for more messages.
+  void on_demand(const peering_handler_ptr& ptr, size_t demand);
+
+  /// Called whenever a WebSocket client signals demand for more messages.
+  void on_demand(const web_socket_client_handler_ptr& ptr, size_t demand);
 
   /// Called whenever a peer signals that it enqueues new messages.
   void on_data(const message_handler_ptr& ptr);
@@ -341,6 +360,13 @@ public:
   /// `from`.
   void dispatch_from(const node_message& msg, const message_handler_ptr& from);
 
+  /// Like `dispatch_from` but respects back-pressure, i.e., does not dispatch
+  /// the message if one of the subscribers is a hub or store that has reached
+  /// its buffer limit.
+  /// @returns `true` if the message was dispatched, `false` otherwise.
+  bool try_dispatch_from(const node_message& msg,
+                         const message_handler_ptr& from);
+
   /// Broadcasts the local subscriptions to all peers.
   void broadcast_subscriptions();
 
@@ -406,6 +432,47 @@ public:
 
   /// Stores the state for all hubs.
   std::unordered_map<hub_id, hub_handler_ptr> hubs;
+
+  /// Stores handlers that we have suspended due to back-pressure.
+  std::vector<message_handler_ptr> suspended;
+
+  /// Removes a handler from the suspended list.
+  template <class HandlerPtr>
+  void remove_from_suspended(const HandlerPtr& ptr) {
+    auto i = std::ranges::find(suspended, ptr);
+    if (i != suspended.end()) {
+      suspended.erase(i);
+      metrics.suspended->Decrement();
+    }
+  }
+
+  /// Adds `what` to the suspended list.
+  void suspend(const message_handler_ptr& what) {
+    // We keep this list sorted and unique.
+    auto i = std::ranges::lower_bound(suspended, what);
+    if (i == suspended.end()) {
+      suspended.push_back(what);
+    } else if (*i != what) {
+      suspended.insert(i, what);
+    } else {
+      // Handler is already suspended.
+      return;
+    }
+    // If the resume_buffer is *not* empty, we are currently running
+    // `resume_suspended()` and must not touch the metrics.
+    if (resume_buffer.empty()) {
+      metrics.suspended->Increment();
+      metrics.suspensions->Increment();
+    }
+  }
+
+  template <class HandlerPtr>
+  bool is_suspended(const HandlerPtr& what) const {
+    return std::ranges::find(suspended, what) != suspended.end();
+  }
+
+  /// Reusable buffer for resuming suspended handlers.
+  std::vector<message_handler_ptr> resume_buffer;
 
   /// Reusable buffer for passing to `handler_subscriptions.select()`.
   std::vector<message_handler_ptr> selection_buffer;

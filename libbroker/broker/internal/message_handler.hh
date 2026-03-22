@@ -74,6 +74,12 @@ public:
     return message_handler_pull_result::term;
   }
 
+  /// Checks whether there is any data buffered in the input buffer for
+  /// `consume_while`.
+  bool has_input_data_buffered() const noexcept {
+    return !pull_buffer.empty();
+  }
+
   /// Disposes of the handler. Must be called after the handler has neither
   /// input nor output buffers and has been removed from its container.
   virtual void dispose() = 0;

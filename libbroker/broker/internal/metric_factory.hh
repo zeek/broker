@@ -45,6 +45,12 @@ public:
 
     prometheus::Gauge* buffered_messages();
 
+    /// Counts how many times a handler was suspended due to back-pressure.
+    prometheus::Counter* suspensions();
+
+    /// Number of handlers currently suspended.
+    prometheus::Gauge* suspended();
+
     /// Keeps track of the active connections.
     ///
     /// Label dimensions: `type` ('native' or 'web-socket').

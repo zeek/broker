@@ -41,6 +41,11 @@ public:
 
   bool output_closed() const noexcept override;
 
+  /// Checks if the hub has reached its buffer limit.
+  bool at_capacity() const noexcept {
+    return queue.size() >= max_buffer_size;
+  }
+
   /// The consumer for reading messages from the shared buffer.
   buffer_consumer_ptr in;
 
@@ -56,7 +61,6 @@ public:
 
 private:
   bool pull() override;
-
 
   message_handler_type type_ = message_handler_type::hub;
 };
