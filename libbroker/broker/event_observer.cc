@@ -22,6 +22,9 @@ void event_observer::on_client_buffer_push(const endpoint_id&, size_t) {}
 
 void event_observer::on_client_buffer_pull(const endpoint_id&, size_t) {}
 
+void event_observer::on_client_buffer_overflow(const endpoint_id&,
+                                               overflow_policy) {}
+
 void event_observer::on_client_disconnect(const endpoint_id&, const error&) {}
 
 } // namespace broker

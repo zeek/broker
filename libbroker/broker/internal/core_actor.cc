@@ -44,8 +44,7 @@ namespace broker::internal {
 namespace {
 
 struct status_collector_state {
-  using map_t =
-    std::unordered_map<std::string, core_actor_state::store_handler_ptr>;
+  using map_t = std::unordered_map<std::string, store_handler_ptr>;
 
   status_collector_state(caf::event_based_actor* selfptr, map_t masters,
                          map_t clones)
@@ -122,58 +121,6 @@ struct status_collector_state {
 using status_collector_actor = caf::stateful_actor<status_collector_state>;
 
 } // namespace
-
-// -- nested classes -----------------------------------------------------------
-
-const caf::chunk& core_actor_state::message_provider::as_binary() {
-  if (!binary_) {
-    buffer_.clear();
-    wire_format::v1::trait trait;
-    if (!trait.convert(msg_, buffer_)) {
-      log::core::error("message_provider",
-                       "failed to convert message to chunk");
-      return binary_;
-    }
-    binary_ = caf::chunk{buffer_};
-  }
-  return binary_;
-}
-
-core_actor_state::offer_result
-core_actor_state::peering_handler::offer(message_provider& provider) {
-  auto& msg = provider.get();
-  // Filter out messages from other peers unless forwarding is enabled.
-  auto&& src = get_sender(msg);
-  if (parent->disable_forwarding && src.valid() && src != parent->id) {
-    return offer_result::skip;
-  }
-  // Filter out messages that aren't broadcasted (have no receiver) unless they
-  // are directed to this peer explicitly.
-  auto&& dst = get_receiver(msg);
-  if (dst.valid() && dst != id) {
-    return offer_result::skip;
-  }
-  return super::offer(provider);
-}
-
-node_message core_actor_state::peering_handler::make_bye_message() {
-  bye_token token;
-  assign_bye_token(token);
-  return make_ping_message(parent->id, id, token.data(), token.size());
-}
-
-void core_actor_state::peering_handler::assign_bye_token(bye_token& buf) {
-  const auto* prefix = "BYE";
-  const auto* suffix = &bye_id;
-  memcpy(buf.data(), prefix, 3);
-  memcpy(buf.data() + 3, suffix, 8);
-}
-
-// -- constructors and destructors ---------------------------------------------
-
-core_actor_state::handler::~handler() {
-  // nop
-}
 
 core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   metric_factory factory{reg};
@@ -385,14 +332,13 @@ caf::behavior core_actor_state::make_behavior() {
       }
       log::core::debug("add-hub", "add hub {}", static_cast<uint64_t>(id));
       subscribe(filter);
-      auto ptr = std::make_shared<hub_handler>(this, hub_buffer_size(),
-                                               hub_overflow_policy(), id);
+      auto ptr = std::make_shared<hub_handler>(this, hub_buffer_size(), id);
       if (!src) {
-        ptr->type(handler_type::subscriber);
+        ptr->type(message_handler_type::subscriber);
         detail::fmt_to(std::back_inserter(ptr->pretty_name), "subscriber-{}",
                        static_cast<uint64_t>(id));
       } else if (!snk) {
-        ptr->type(handler_type::publisher);
+        ptr->type(message_handler_type::publisher);
         detail::fmt_to(std::back_inserter(ptr->pretty_name), "publisher-{}",
                        static_cast<uint64_t>(id));
       } else {
@@ -708,13 +654,15 @@ void core_actor_state::on_peer_disconnect(const peering_handler_ptr& ptr) {
   }
 }
 
-void core_actor_state::on_demand(const handler_ptr& peer, size_t demand) {
+void core_actor_state::on_demand(const message_handler_ptr& peer,
+                                 size_t demand) {
   peer->add_demand(demand);
 }
 
-void core_actor_state::on_data(const handler_ptr& ptr) {
+void core_actor_state::on_data(const message_handler_ptr& ptr) {
   pull_buffer.clear();
-  auto input_closed = ptr->pull(pull_buffer) == handler_result::term;
+  auto input_closed = ptr->pull(pull_buffer)
+                      == message_handler_pull_result::term;
   for (auto& msg : pull_buffer) {
     dispatch_from(msg, ptr);
   }
@@ -728,7 +676,8 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
   // Check if the peer got disconnected. If so, we will handle it later in order
   // to have the disconnect events be delivered after any messages that might
   // be in the buffer.
-  auto disconnected = peer->pull(pull_buffer) == handler_result::term;
+  auto disconnected = peer->pull(pull_buffer)
+                      == message_handler_pull_result::term;
   for (auto& msg : pull_buffer) {
     log::core::debug("on-data", "received message from peer {}: {}", peer->id,
                      msg);
@@ -794,7 +743,7 @@ void core_actor_state::on_data(const peering_handler_ptr& peer) {
   }
 }
 
-void core_actor_state::on_overflow_disconnect(const handler_ptr& ptr) {
+void core_actor_state::on_overflow_disconnect(const message_handler_ptr& ptr) {
   log::core::error("on-overflow-disconnect", "{} disconnected due to overflow",
                    ptr->pretty_name);
   erase(ptr);
@@ -802,7 +751,7 @@ void core_actor_state::on_overflow_disconnect(const handler_ptr& ptr) {
   on_handler_disposed(ptr);
 }
 
-void core_actor_state::on_input_closed(const handler_ptr& ptr) {
+void core_actor_state::on_input_closed(const message_handler_ptr& ptr) {
   BROKER_ASSERT(ptr->input_closed());
   log::core::debug("on-input-closed", "{} closed its input buffer",
                    ptr->pretty_name);
@@ -813,7 +762,7 @@ void core_actor_state::on_input_closed(const handler_ptr& ptr) {
   }
 }
 
-void core_actor_state::on_output_closed(const handler_ptr& ptr) {
+void core_actor_state::on_output_closed(const message_handler_ptr& ptr) {
   BROKER_ASSERT(ptr->output_closed());
   log::core::debug("on-output-closed", "{} closed its output buffer",
                    ptr->pretty_name);
@@ -824,32 +773,36 @@ void core_actor_state::on_output_closed(const handler_ptr& ptr) {
   }
 }
 
-void core_actor_state::on_handler_disposed(const handler_ptr& ptr) {
+void core_actor_state::on_handler_disposed(const message_handler_ptr& ptr) {
   handler_subscriptions.purge_value(ptr);
   if (shutting_down_ && peerings.empty()) {
     finalize_shutdown();
   }
 }
 
-void core_actor_state::erase(const handler_ptr& what) {
-  with_subtype(what, [this]<class Ptr>(const Ptr& ptr) {
-    using element_type = typename Ptr::element_type;
-    if constexpr (std::is_same_v<element_type, peering_handler>) {
-      peerings.erase(ptr->id);
-    } else if constexpr (std::is_same_v<element_type, hub_handler>) {
-      hubs.erase(ptr->id);
-    } else if constexpr (std::is_same_v<element_type, store_handler>) {
-      if (ptr->type() == handler_type::master) {
-        masters.erase(ptr->id);
-      } else {
-        BROKER_ASSERT(ptr->type() == handler_type::clone);
-        clones.erase(ptr->id);
-      }
-    } else {
-      static_assert(std::is_same_v<element_type, client_handler>);
-      clients.erase(ptr->id);
-    }
-  });
+void core_actor_state::erase(const message_handler_ptr& what) {
+  with_subtype(what, [this](const auto& ptr) { do_erase(ptr); });
+}
+
+void core_actor_state::do_erase(const peering_handler_ptr& what) {
+  peerings.erase(what->id);
+}
+
+void core_actor_state::do_erase(const hub_handler_ptr& what) {
+  hubs.erase(what->id);
+}
+
+void core_actor_state::do_erase(const store_handler_ptr& what) {
+  if (what->type() == message_handler_type::master) {
+    masters.erase(what->id);
+  } else {
+    BROKER_ASSERT(what->type() == message_handler_type::clone);
+    clones.erase(what->id);
+  }
+}
+
+void core_actor_state::do_erase(const web_socket_client_handler_ptr& what) {
+  clients.erase(what->id);
 }
 
 // -- connection management ----------------------------------------------------
@@ -1062,9 +1015,8 @@ caf::error core_actor_state::init_new_client(const network_info& addr,
   metrics.web_socket_connections->Increment();
   // Assign a UUID to each WebSocket client and treat it like a peer.
   auto client_id = endpoint_id::random();
-  auto state = std::make_shared<client_handler>(this, web_socket_buffer_size(),
-                                                web_socket_overflow_policy(),
-                                                client_id);
+  auto state = std::make_shared<web_socket_client_handler>(
+    this, web_socket_buffer_size(), web_socket_overflow_policy(), client_id);
   detail::fmt_to(std::back_inserter(state->pretty_name), "{}-{}", type,
                  addr.address);
   setup(state, std::move(in_res), std::move(out_res), filter);
@@ -1153,9 +1105,9 @@ caf::result<caf::actor> core_actor_state::attach_master(const std::string& name,
   filter_type filter{name / topic::master_suffix()};
   subscribe(filter);
   // Create a handler for the master.
-  auto state = std::make_shared<store_handler>(this, store_buffer_size(),
-                                               store_overflow_policy(), name,
-                                               hdl, handler_type::master);
+  auto state = std::make_shared<store_handler>(this, store_buffer_size(), name,
+                                               hdl,
+                                               message_handler_type::master);
   detail::fmt_to(std::back_inserter(state->pretty_name), "master-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
   state->on_dispose = caf::make_type_erased_callback([this, state] {
@@ -1204,9 +1156,9 @@ core_actor_state::attach_clone(const std::string& name, double resync_interval,
   filter_type filter{name / topic::clone_suffix()};
   subscribe(filter);
   // Create a handler for the clone.
-  auto state = std::make_shared<store_handler>(this, store_buffer_size(),
-                                               store_overflow_policy(), name,
-                                               hdl, handler_type::clone);
+  auto state = std::make_shared<store_handler>(this, store_buffer_size(), name,
+                                               hdl,
+                                               message_handler_type::clone);
   detail::fmt_to(std::back_inserter(state->pretty_name), "clone-{}", name);
   setup(state, std::move(con2), std::move(prod1), filter);
   state->on_dispose = caf::make_type_erased_callback([this, state] {
@@ -1236,22 +1188,22 @@ void core_actor_state::shutdown_stores() {
 
 // -- dispatching of messages to peers regardless of subscriptions  ------------
 
-bool core_actor_state::offer_msg(const handler_ptr& ptr) {
+bool core_actor_state::offer_msg(const message_handler_ptr& ptr) {
   auto do_erase = [this, &ptr] {
     erase(ptr);
     ptr->dispose();
     on_handler_disposed(ptr);
   };
   switch (ptr->offer(msg_provider)) {
-    case offer_result::ok:
+    case message_handler_offer_result::ok:
       return true;
-    case offer_result::overflow_disconnect:
+    case message_handler_offer_result::overflow_disconnect:
       log::core::error("offer-msg", "{} disconnected due to overflow",
                        ptr->pretty_name);
       ptr->status = connection_status::overflow_disconnect;
       do_erase();
       break;
-    case offer_result::term:
+    case message_handler_offer_result::term:
       log::core::error("offer-msg", "{} terminated while offering message",
                        ptr->pretty_name);
       ptr->status = connection_status::connection_lost;
@@ -1289,14 +1241,14 @@ void core_actor_state::dispatch(const node_message& msg) {
   }
   // Otherwise, this is a nested dispatch: use a fresh buffer since
   // selection_buffer is already in use.
-  std::vector<handler_ptr> selection;
+  std::vector<message_handler_ptr> selection;
   selection.reserve(64); // Avoid multiple small allocations.
   handler_subscriptions.select(get_topic(msg), selection);
   do_dispatch(selection);
 }
 
 void core_actor_state::dispatch_from(const node_message& msg,
-                                     const handler_ptr& from) {
+                                     const message_handler_ptr& from) {
   metrics.metrics_for(msg->type()).processed->Increment();
   msg_provider.set(msg);
   auto do_dispatch = [this, &msg, &from](auto& selection) {
@@ -1312,8 +1264,8 @@ void core_actor_state::dispatch_from(const node_message& msg,
         // If `from == nullptr`, it means that this message was sent via
         // endpoint::publish. We treat it as if it was published by a publisher,
         // i.e., it's a local message and subscribers should not receive it.
-        if ((!from || from->type() == handler_type::publisher)
-            && ptr->type() == handler_type::subscriber
+        if ((!from || from->type() == message_handler_type::publisher)
+            && ptr->type() == message_handler_type::subscriber
             && get_receiver(msg) != id) {
           continue;
         }
@@ -1338,7 +1290,7 @@ void core_actor_state::dispatch_from(const node_message& msg,
   }
   // Otherwise, this is a nested dispatch: use a fresh buffer since
   // selection_buffer is already in use.
-  std::vector<handler_ptr> selection;
+  std::vector<message_handler_ptr> selection;
   selection.reserve(64); // Avoid multiple small allocations.
   handler_subscriptions.select(get_topic(msg), selection);
   do_dispatch(selection);
@@ -1431,13 +1383,6 @@ size_t core_actor_state::store_buffer_size() {
   return defaults::peer_buffer_size;
 }
 
-overflow_policy core_actor_state::store_overflow_policy() {
-  // TODO: make configurable?
-  // Note: stores have a built-in mechanism for re-sending messages. Hence, we
-  //       can drop messages in case of overflow.
-  return overflow_policy::drop_newest;
-}
-
 size_t core_actor_state::peer_buffer_size() {
   return caf::get_or(self->config(), "broker.peer-buffer-size",
                      defaults::peer_buffer_size);
@@ -1463,10 +1408,6 @@ overflow_policy core_actor_state::web_socket_overflow_policy() {
 size_t core_actor_state::hub_buffer_size() {
   // TODO: make configurable?
   return 1'000'000;
-}
-
-overflow_policy core_actor_state::hub_overflow_policy() {
-  return overflow_policy::drop_oldest;
 }
 
 } // namespace broker::internal

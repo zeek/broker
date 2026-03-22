@@ -44,18 +44,24 @@ set(BROKER_SRC
     broker/internal/connector_adapter.cc
     broker/internal/core_actor.cc
     broker/internal/flare_actor.cc
+    broker/internal/hub_handler.cc
     broker/internal/hub_impl.cc
     broker/internal/json.cc
     broker/internal/json_client.cc
     broker/internal/json_type_mapper.cc
     broker/internal/master_actor.cc
+    broker/internal/message_handler.cc
+    broker/internal/message_provider.cc
     broker/internal/metric_factory.cc
+    broker/internal/peering_handler.cc
     broker/internal/pending_connection.cc
     broker/internal/println.cc
     broker/internal/publisher_queue.cc
     broker/internal/store_actor.cc
+    broker/internal/store_handler.cc
     broker/internal/subscriber_queue.cc
     broker/internal/web_socket.cc
+    broker/internal/web_socket_client_handler.cc
     broker/internal/wire_format.cc
     broker/internal_command.cc
     broker/logger.cc

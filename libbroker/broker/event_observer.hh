@@ -51,6 +51,12 @@ public:
   /// client. This function is called when messages leave the client's buffer.
   virtual void on_client_buffer_pull(const endpoint_id& client, size_t count);
 
+  /// Called by Broker to notify the observer about a peer buffer overflow.
+  /// @param client The ID of the client that overflowed its buffer.
+  /// @param policy The active overflow policy.
+  virtual void on_client_buffer_overflow(const endpoint_id& client,
+                                         overflow_policy policy);
+
   /// Called by Broker to notify the observer about a discarded client
   /// connection.
   /// @param client The ID of the client that disconnected.
