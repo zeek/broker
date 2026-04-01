@@ -1,3 +1,7 @@
+2.8.0-dev.307 | 2026-04-01 15:40:43 -0700
+
+  * Bump cmake submodule to disable c2y warnings (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.305 | 2026-02-01 09:06:20 +0100
 
   * Suppress false positives in clang-tidy (Dominik Charousset, Corelight)
