@@ -280,7 +280,7 @@ caf::behavior core_actor_state::make_behavior() {
       dispatch_from(msg->with(id, id), nullptr);
     },
     [this](atom::publish, const command_message& msg) { //
-      dispatch(msg);
+      dispatch(msg->with(id, endpoint_id::nil()));
     },
     [this](atom::publish, const command_message& msg,
            const endpoint_info& dst) { //
