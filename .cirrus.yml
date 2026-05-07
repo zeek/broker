@@ -145,12 +145,14 @@ alpine_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-# Cirrus only supports the following macos runner currently, selecting
-# anything else automatically upgrades to this one.
-#
-#    ghcr.io/cirruslabs/macos-runner:sonoma
-#
 # See also: https://cirrus-ci.org/guide/macOS/
+macos_tahoe_task:
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-runner:tahoe
+  prepare_script: ./ci/macos/prepare.sh
+  << : *CI_TEMPLATE
+  << : *MACOS_RESOURCES_TEMPLATE
+
 macos_sonoma_task:
   macos_instance:
     image: ghcr.io/cirruslabs/macos-runner:sonoma
