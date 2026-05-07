@@ -63,34 +63,26 @@ clang_tidy_task:
   << : *UNIX_ENV
   << : *BRANCH_WHITELIST
 
-fedora42_task:
+fedora44_task:
   container:
-    # Fedora 42 EOL: Around May 2026
-    dockerfile: ci/fedora-42/Dockerfile
+    # Fedora 44 EOL: Around Jun 2027
+    dockerfile: ci/fedora-44/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-fedora41_task:
+fedora43_task:
   container:
-    # Fedora 41 EOL: Around Nov 2025
-    dockerfile: ci/fedora-41/Dockerfile
+    # Fedora 43 EOL: Around Nov 2026
+    dockerfile: ci/fedora-43/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-centosstream9_task:
+centosstream10_task:
   container:
-    # Stream 9 EOL: Around Dec 2027
-    dockerfile: ci/centos-stream-9/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-debian12_task:
-  container:
-    # Debian 12 (bookworm) EOL: TBD
-    dockerfile: ci/debian-12/Dockerfile
+    # Stream 10 EOL: 01 January 2030
+    dockerfile: ci/centos-stream-10/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -103,10 +95,18 @@ debian13_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-opensuse_leap_15_6_task:
+debian12_task:
   container:
-    # Opensuse Leap 15.6 EOL: ~Dec 2025
-    dockerfile: ci/opensuse-leap-15.6/Dockerfile
+    # Debian 12 (bookworm) EOL: TBD
+    dockerfile: ci/debian-12/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+opensuse_leap_16_0_task:
+  container:
+    # Opensuse Leap 16.0 EOL: Sun, Oct 31, 2027
+    dockerfile: ci/opensuse-leap-16.0/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -119,10 +119,10 @@ opensuse_tumbleweed_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu24_10_task:
+ubuntu26_task:
   container:
-    # Ubuntu 24.10 EOL: 2025-07-30
-    dockerfile: ci/ubuntu-24.10/Dockerfile
+    # Ubuntu 26.04 EOL: 2031-06-01
+    dockerfile: ci/ubuntu-26.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -131,14 +131,6 @@ ubuntu24_task:
   container:
     # Ubuntu 24.04 EOL: Jun 2029
     dockerfile: ci/ubuntu-24.04/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-ubuntu22_task:
-  container:
-    # Ubuntu 22.04 EOL: April 2027
-    dockerfile: ci/ubuntu-22.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -153,12 +145,14 @@ alpine_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-# Cirrus only supports the following macos runner currently, selecting
-# anything else automatically upgrades to this one.
-#
-#    ghcr.io/cirruslabs/macos-runner:sonoma
-#
 # See also: https://cirrus-ci.org/guide/macOS/
+macos_tahoe_task:
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-runner:tahoe
+  prepare_script: ./ci/macos/prepare.sh
+  << : *CI_TEMPLATE
+  << : *MACOS_RESOURCES_TEMPLATE
+
 macos_sonoma_task:
   macos_instance:
     image: ghcr.io/cirruslabs/macos-runner:sonoma
@@ -167,10 +161,10 @@ macos_sonoma_task:
   << : *MACOS_RESOURCES_TEMPLATE
 
 # FreeBSD EOL timelines: https://www.freebsd.org/security/#sup
-freebsd14_task:
+freebsd15_task:
   freebsd_instance:
-    # FreeBSD 14 EOL: Nov 30 2028
-    image_family: freebsd-14-3
+    # FreeBSD 15 EOL: Dec 29 2029
+    image_family: freebsd-15-0-amd64-zfs
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
     memory: 8GB
@@ -178,10 +172,10 @@ freebsd14_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-freebsd13_task:
+freebsd14_task:
   freebsd_instance:
-    # FreeBSD 13 EOL: January 31, 2026
-    image_family: freebsd-13-5
+    # FreeBSD 14 EOL: Nov 30 2028
+    image_family: freebsd-14-3
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
     memory: 8GB

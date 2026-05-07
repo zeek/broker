@@ -1,3 +1,23 @@
+2.8.0-dev.316 | 2026-05-07 16:57:57 -0700
+
+  * CI: drop FreeBSD 13, add FreeBSD 15 (Christian Kreibich, Corelight)
+
+  * CI: add macOS Tahoe (Christian Kreibich, Corelight)
+
+  * CI: drop Ubuntu 24.10, add 26.04, drop 22.04 (Christian Kreibich, Corelight)
+
+    Also reorder Debian jobs for consistency, no other change.
+
+  * CI: drop CentOS Stream 9, add CentOS Stream 10 (Christian Kreibich, Corelight)
+
+  * CI: drop openSUSE Leap 15.6, move to 16.0 (Christian Kreibich, Corelight)
+
+  * CI: Drop Fedora 41/42, add 43/44 (Christian Kreibich, Corelight)
+
+  * Updating submodule(s) [nomail] (Tim Wojtulewicz, Corelight)
+
+  * Updating submodule(s) [nomail] (Tim Wojtulewicz, Corelight)
+
 2.8.0-dev.307 | 2026-04-01 15:40:43 -0700
 
   * Bump cmake submodule to disable c2y warnings (Tim Wojtulewicz, Corelight)
