@@ -87,18 +87,18 @@ centosstream10_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-debian12_task:
-  container:
-    # Debian 12 (bookworm) EOL: TBD
-    dockerfile: ci/debian-12/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
 debian13_task:
   container:
     # Debian 13 EOL: TBD
     dockerfile: ci/debian-13/Dockerfile
+    << : *RESOURCES_TEMPLATE
+  << : *CI_TEMPLATE
+  << : *UNIX_ENV
+
+debian12_task:
+  container:
+    # Debian 12 (bookworm) EOL: TBD
+    dockerfile: ci/debian-12/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -119,10 +119,10 @@ opensuse_tumbleweed_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-ubuntu24_10_task:
+ubuntu26_task:
   container:
-    # Ubuntu 24.10 EOL: 2025-07-30
-    dockerfile: ci/ubuntu-24.10/Dockerfile
+    # Ubuntu 26.04 EOL: 2031-06-01
+    dockerfile: ci/ubuntu-26.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
@@ -131,14 +131,6 @@ ubuntu24_task:
   container:
     # Ubuntu 24.04 EOL: Jun 2029
     dockerfile: ci/ubuntu-24.04/Dockerfile
-    << : *RESOURCES_TEMPLATE
-  << : *CI_TEMPLATE
-  << : *UNIX_ENV
-
-ubuntu22_task:
-  container:
-    # Ubuntu 22.04 EOL: April 2027
-    dockerfile: ci/ubuntu-22.04/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV

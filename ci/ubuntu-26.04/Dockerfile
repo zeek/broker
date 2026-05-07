@@ -1,10 +1,10 @@
-FROM ubuntu:24.10
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND="noninteractive" TZ="America/Los_Angeles"
 
 # A version field to invalidate Cirrus's build cache when needed, as suggested in
 # https://github.com/cirruslabs/cirrus-ci-docs/issues/544#issuecomment-566066822
-ENV DOCKERFILE_VERSION=20241204
+ENV DOCKERFILE_VERSION=20260607
 
 RUN apt-get update && apt-get -y install \
     cmake \
