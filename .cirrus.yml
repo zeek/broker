@@ -79,10 +79,10 @@ fedora43_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-centosstream9_task:
+centosstream10_task:
   container:
-    # Stream 9 EOL: Around Dec 2027
-    dockerfile: ci/centos-stream-9/Dockerfile
+    # Stream 10 EOL: 01 January 2030
+    dockerfile: ci/centos-stream-10/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
