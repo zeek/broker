@@ -161,10 +161,10 @@ macos_sonoma_task:
   << : *MACOS_RESOURCES_TEMPLATE
 
 # FreeBSD EOL timelines: https://www.freebsd.org/security/#sup
-freebsd14_task:
+freebsd15_task:
   freebsd_instance:
-    # FreeBSD 14 EOL: Nov 30 2028
-    image_family: freebsd-14-3
+    # FreeBSD 15 EOL: Dec 29 2029
+    image_family: freebsd-15-0-amd64-zfs
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
     memory: 8GB
@@ -172,10 +172,10 @@ freebsd14_task:
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-freebsd13_task:
+freebsd14_task:
   freebsd_instance:
-    # FreeBSD 13 EOL: January 31, 2026
-    image_family: freebsd-13-5
+    # FreeBSD 14 EOL: Nov 30 2028
+    image_family: freebsd-14-3
     cpu: 8
     # Not allowed to request less than 8GB for an 8 CPU FreeBSD VM.
     memory: 8GB
