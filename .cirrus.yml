@@ -63,18 +63,18 @@ clang_tidy_task:
   << : *UNIX_ENV
   << : *BRANCH_WHITELIST
 
-fedora42_task:
+fedora44_task:
   container:
-    # Fedora 42 EOL: Around May 2026
-    dockerfile: ci/fedora-42/Dockerfile
+    # Fedora 44 EOL: Around Jun 2027
+    dockerfile: ci/fedora-44/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
 
-fedora41_task:
+fedora43_task:
   container:
-    # Fedora 41 EOL: Around Nov 2025
-    dockerfile: ci/fedora-41/Dockerfile
+    # Fedora 43 EOL: Around Nov 2026
+    dockerfile: ci/fedora-43/Dockerfile
     << : *RESOURCES_TEMPLATE
   << : *CI_TEMPLATE
   << : *UNIX_ENV
