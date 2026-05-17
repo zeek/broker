@@ -55,14 +55,6 @@ struct broker_options {
   /// incoming message rate.
   overflow_policy peer_overflow_policy = overflow_policy::disconnect;
 
-  /// Configures how many items we buffer at most per web_socket client before
-  /// considering it unreseponsive and dropping the connection.
-  size_t web_socket_buffer_size = defaults::web_socket_buffer_size;
-
-  /// Configures how Broker responds to web_sockets that cannot keep up with the
-  /// incoming message rate.
-  overflow_policy web_socket_overflow_policy = overflow_policy::disconnect;
-
   broker_options() = default;
 
   broker_options(const broker_options&) = default;

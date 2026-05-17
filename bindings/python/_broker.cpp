@@ -114,7 +114,6 @@ PYBIND11_MODULE(_broker, m) {
     // TODO: Can we convert this optional<network_info> directly into
     // network_info or None?
     .def_readwrite("network", &broker::endpoint_info::network)
-    .def_readwrite("type", &broker::endpoint_info::type)
     .def("node_id",
          [](const broker::endpoint_info& e) { return to_string(e.node); })
     .def("__repr__",

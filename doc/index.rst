@@ -50,7 +50,6 @@ Synopsis
   comm
   data
   stores
-  web-socket
   python
   devs
   glossary

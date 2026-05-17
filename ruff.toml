@@ -7,7 +7,6 @@ exclude = ["auxil",
            "bindings/python/3rdparty",
            "tests/btest/handshake",
            "tests/btest/endpoint",
-           "tests/btest/web-socket",
            "tests/btest//store"]
 
 [lint]

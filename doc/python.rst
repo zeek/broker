@@ -8,11 +8,7 @@ Python Bindings
 
   To interact with Zeek, Broker's Python bindings should almost never be the
   first choice nowadays. Consider them deprecated for most purposes. When setting
-  out to develop a new integration with Zeek, consider using :ref:`WebSockets <web-socket>`
-  instead. They are cross-platform, avoid pitfalls during deployment and upgrades
-  related to binary compatiblity. For debugging purposes, the WebSocket protocol
-  (in plaintext) is easier to introspect and monitor, too.
-
+  out to develop a new integration with Zeek, use native Broker peering instead.
 
 Almost all functionality of Broker is also accessible through Python
 bindings. The Python API mostly mimics the C++ interface, but adds

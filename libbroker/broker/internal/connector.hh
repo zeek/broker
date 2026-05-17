@@ -16,7 +16,6 @@
 
 namespace broker::internal {
 
-// TODO: exposed for internal/web_socket.cc, drop when switching to CAF 0.19.
 caf::net::openssl::ctx_ptr ssl_context_from_cfg(const openssl_options_ptr& cfg);
 
 // "Strong typedef" akin to std::byte;
