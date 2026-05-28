@@ -167,6 +167,8 @@ is an integer and *suffix* is one of:
 
 ns
   Nanoseconds.
+us
+  Microseconds.
 ms
   Milliseconds.
 s
