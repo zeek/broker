@@ -8,7 +8,13 @@ Python Bindings
 
   To interact with Zeek, Broker's Python bindings should almost never be the
   first choice nowadays. Consider them deprecated for most purposes. When setting
-  out to develop a new integration with Zeek, use native Broker peering instead.
+  out to develop a new integration with Zeek, consider
+  `Zeek's WebSocket stack <https://docs.zeek.org/en/current/advanced/devel/websocket-api.html>`_ and the
+  `zeek-websocket-rs client library <https://github.com/zeek/zeek-websocket-rs>`_,
+  `Zeek's JavaScript support <https://docs.zeek.org/en/current/tutorial/scripting/javascript.html>`_
+  when connecting Zeek to HTTP APIs, or use native Broker peering if you're
+  sticking with the Broker cluster backend rather than
+  `ZeroMQ <https://docs.zeek.org/en/current/advanced/devel/cluster/backend/zeromq.html>`_.
 
 Almost all functionality of Broker is also accessible through Python
 bindings. The Python API mostly mimics the C++ interface, but adds
