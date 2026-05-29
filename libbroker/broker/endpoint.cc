@@ -8,9 +8,7 @@
 #include "broker/internal/configuration_access.hh"
 #include "broker/internal/core_actor.hh"
 #include "broker/internal/endpoint_access.hh"
-#include "broker/internal/json_client.hh"
 #include "broker/internal/type_id.hh"
-#include "broker/internal/web_socket.hh"
 #include "broker/logger.hh"
 #include "broker/port.hh"
 #include "broker/publisher.hh"
@@ -32,7 +30,6 @@
 #include <caf/message.hpp>
 #include <caf/net/middleman.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
-#include <caf/net/web_socket/server.hpp>
 #include <caf/node_id.hpp>
 #include <caf/scheduled_actor/flow.hpp>
 #include <caf/scheduler/test_coordinator.hpp>
@@ -464,10 +461,6 @@ endpoint::endpoint(configuration config, endpoint_id id,
     exposer_ = std::make_unique<prometheus::Exposer>(str);
     exposer_->RegisterCollectable(registry_);
   }
-  // Spin up a WebSocket server when requested.
-  if (auto port = caf::get_as<broker::port>(cfg, "broker.web-socket.port"))
-    web_socket_listen(caf::get_or(cfg, "broker.web-socket.address", ""s),
-                      port->number());
 }
 
 endpoint::~endpoint() {
@@ -641,36 +634,6 @@ std::vector<peer_info> endpoint::peers() const {
                detail::die("failed to get peers:", to_string(e));
              });
   return result;
-}
-
-uint16_t endpoint::web_socket_listen(const std::string& address, uint16_t port,
-                                     error* err, bool reuse_addr) {
-  auto on_connect = [sp = &ctx_->sys, id = id_, core = native(core_)](
-                      const caf::settings& hdr,
-                      internal::web_socket::connect_event_t& ev) {
-    auto& [pull, push] = ev;
-    auto user_agent = caf::get_or(hdr, "web-socket.fields.User-Agent", "null");
-    auto addr =
-      network_info{caf::get_or(hdr, "web-socket.remote-address", "unknown"),
-                   caf::get_or(hdr, "web-socket.remote-port", uint16_t{0}), 0s};
-    log::endpoint::info(
-      "web-socket-connect",
-      "new WebSocket client with address {} and user agent {}", addr,
-      user_agent);
-    using impl_t = internal::json_client_actor;
-    sp->spawn<impl_t>(id, core, addr, std::move(pull), std::move(push));
-  };
-  auto ssl_cfg = ctx_->cfg.openssl_options();
-  auto res = internal::web_socket::launch(ctx_->sys, ssl_cfg, address, port,
-                                          reuse_addr, "/v1/messages/json",
-                                          std::move(on_connect));
-  if (res) {
-    return *res;
-  } else {
-    if (err)
-      *err = std::move(res.error());
-    return 0;
-  }
 }
 
 std::vector<topic> endpoint::peer_subscriptions() const {

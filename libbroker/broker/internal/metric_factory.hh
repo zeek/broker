@@ -41,18 +41,8 @@ public:
 
     core_t& operator=(const core_t&) noexcept = default;
 
-    /// Keeps track of the active connections.
-    ///
-    /// Label dimensions: `type` ('native' or 'web-socket').
-    gauge_family* connections_family();
-
-    struct connections_t {
-      gauge* native;
-      gauge* web_socket;
-    };
-
-    /// Returns all instances of `broker.connections`.
-    connections_t connections_instances();
+    /// Keeps track of the active peer connections.
+    gauge* connections();
 
     /// Counts how many messages Broker has processed in total per message type.
     ///

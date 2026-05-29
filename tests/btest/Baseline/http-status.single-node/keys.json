@@ -23,4 +23,3 @@ native-connections
 peerings
 published-via-async-msg
 time
-web-socket-connections

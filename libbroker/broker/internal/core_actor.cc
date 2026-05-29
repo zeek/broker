@@ -122,9 +122,7 @@ using status_collector_actor = caf::stateful_actor<status_collector_state>;
 core_actor_state::metrics_t::metrics_t(prometheus::Registry& reg) {
   metric_factory factory{reg};
   // Initialize connection metrics.
-  auto [native, ws] = factory.core.connections_instances();
-  native_connections = native;
-  web_socket_connections = ws;
+  native_connections = factory.core.connections();
   // Initialize message metrics, indexes are according to packed_message_type.
   auto proc = factory.core.processed_messages_instances();
   message_metric_sets[1].assign(proc.data);
@@ -322,17 +320,6 @@ caf::behavior core_actor_state::make_behavior() {
     },
     [this](atom::unpeer, endpoint_id peer_id) { //
       unpeer(peer_id);
-    },
-    // -- non-native clients, e.g., via WebSocket API --------------------------
-    [this](atom::attach_client, const network_info& addr,
-           const std::string& type, filter_type& filter,
-           data_consumer_res& in_res,
-           data_producer_res& out_res) -> caf::result<void> {
-      if (auto err = init_new_client(addr, type, std::move(filter),
-                                     std::move(in_res), std::move(out_res)))
-        return err;
-      else
-        return caf::unit;
     },
     // -- getters --------------------------------------------------------------
     [this](atom::get, atom::peer) {
@@ -582,13 +569,6 @@ void core_actor_state::shutdown(shutdown_options options) {
   shutdown_stores();
   // We no longer add new input flows.
   flow_inputs.close();
-  // Cancel subscriptions from clients (WebSocket clients).
-  for (auto& [id, subs] : subscriptions) {
-    for (auto& sub : subs) {
-      sub.dispose();
-    }
-  }
-  subscriptions.clear();
   // Inform our clients that we no longer wait for any peer.
   log::core::debug("shutdown", "cancel {} pending await_peer requests",
                    awaited_peers.size());
@@ -746,7 +726,6 @@ table core_actor_state::status_snapshot() const {
   add("cluster-node", env_or_default("CLUSTER_NODE", "unknown"));
   add("time", caf::timestamp_to_string(caf::make_timestamp()));
   add("native-connections", metrics.native_connections->Value());
-  add("web-socket-connections", metrics.web_socket_connections->Value());
   add("message-metrics", message_metrics_snapshot());
   add("peerings", peer_stats_snapshot());
   add("published-via-async-msg", published_via_async_msg);
@@ -774,48 +753,6 @@ void core_actor_state::peer_unavailable(const network_info& addr) {
        ec_constant<ec::peer_unavailable>(), "unable to connect to remote peer");
   log::core::debug("peer-unavailable", "unable to connect to remote peer {}",
                    addr);
-}
-
-void core_actor_state::client_added(endpoint_id client_id,
-                                    const network_info& addr,
-                                    const std::string& type) {
-  emit(endpoint_info{client_id, std::nullopt, type},
-       sc_constant<sc::endpoint_discovered>(),
-       "found a new client in the network");
-  emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_added>(),
-       "handshake successful");
-  log::core::debug("client-added", "added client {} of type {} with address {}",
-                   client_id, type, addr);
-}
-
-void core_actor_state::client_removed(endpoint_id client_id,
-                                      const network_info& addr,
-                                      const std::string& type,
-                                      const caf::error& reason, bool removed) {
-  auto i = subscriptions.find(client_id);
-  if (i == subscriptions.end()) {
-    return;
-  }
-  disposable_list subs;
-  i->second.swap(subs);
-  subscriptions.erase(i);
-  for (auto& sub : subs) {
-    sub.dispose();
-  }
-  metrics.web_socket_connections->Decrement();
-  if (removed) {
-    auto msg = "client removed: " + to_string(reason);
-    emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_removed>(),
-         msg.c_str());
-  } else {
-    emit(endpoint_info{client_id, addr, type}, sc_constant<sc::peer_lost>(),
-         "lost connection to client");
-  }
-  emit(endpoint_info{client_id, std::nullopt, type},
-       sc_constant<sc::endpoint_unreachable>(), "lost the last path");
-  log::core::debug("client-removed",
-                   "removed client {} of type {} with address {}", client_id,
-                   type, addr);
 }
 
 // -- connection management ----------------------------------------------------
@@ -1101,110 +1038,6 @@ caf::error core_actor_state::init_new_peer(endpoint_id peer,
   }
 }
 
-caf::error core_actor_state::init_new_client(const network_info& addr,
-                                             const std::string& type,
-                                             filter_type filter,
-                                             data_consumer_res in_res,
-                                             data_producer_res out_res) {
-  // Fail early when shutting down.
-  if (shutting_down()) {
-    log::core::debug("init-new-client-shutdown",
-                     "drop new client: shutting down");
-    return caf::make_error(ec::shutting_down);
-  }
-  // Sanity checking.
-  if (!in_res) {
-    return caf::make_error(caf::sec::invalid_argument,
-                           "cannot add client without valid input buffer");
-  }
-  // All sanity checks have passed, update our state.
-  metrics.web_socket_connections->Increment();
-  // We cannot simply treat a client like we treat a local publisher or
-  // subscriber, because events from the client must be visible locally. Hence,
-  // we assign a UUID to each client and treat it almost like a peer.
-  auto client_id = endpoint_id::random();
-  if (auto* lptr = logger()) {
-    lptr->on_client_connect(client_id, addr);
-  }
-  // Emit status updates.
-  client_added(client_id, addr, type);
-  // Hook into the central merge point for forwarding the data to the client.
-  if (out_res) {
-    auto sub =
-      central_merge
-        // Select by subscription.
-        .filter(
-          [this, filt = std::move(filter), client_id](const node_message& msg) {
-            if (get_type(msg) != packed_message_type::data
-                || get_sender(msg) == client_id)
-              return false;
-            detail::prefix_matcher f;
-            return f(filt, get_topic(msg));
-          })
-        // Deserialize payload and wrap it into a data message.
-        .map([this](const node_message& msg) { //
-          return msg->as_data();
-        })
-        .do_on_next([this, client_id](const data_message& msg) {
-          // Record messages that are pushed into the backpressure buffer.
-          if (auto* lptr = logger()) {
-            lptr->on_client_buffer_push(client_id, msg);
-          }
-        })
-        // Handle unresponsive clients.
-        .on_backpressure_buffer(web_socket_buffer_size(),
-                                web_socket_overflow_policy())
-        .do_on_next([this, client_id](const data_message& msg) {
-          // Record messages that leave the backpressure buffer.
-          if (auto* lptr = logger()) {
-            lptr->on_client_buffer_pull(client_id, msg);
-          }
-        })
-        .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-          log::core::debug("client-disconnected", "client {} disconnected",
-                           addr);
-          if (auto* lptr = logger()) {
-            lptr->on_client_disconnect(client_id, facade(reason));
-          }
-          client_removed(client_id, addr, type, reason, true);
-        })
-        // Emit values to the producer resource.
-        .subscribe(std::move(out_res));
-    subscriptions[client_id].emplace_back(sub);
-  }
-  // Push messages received from the client into the central merge point.
-  auto [in, ks] =
-    self->make_observable()
-      .from_resource(std::move(in_res))
-      // If the client closes this buffer, we assume a disconnect.
-      .do_on_complete([this, client_id, addr, type] {
-        log::core::debug("client-disconnected",
-                         "client {} of type {} at {} disconnected", client_id,
-                         type, addr);
-        client_removed(client_id, addr, type, caf::error{}, false);
-      })
-      .do_on_error([this, client_id, addr, type](const caf::error& reason) {
-        log::core::debug("client-disconnected",
-                         "client {} of type {} at {} disconnected", client_id,
-                         type, addr);
-        client_removed(client_id, addr, type, reason, false);
-      })
-      .map([this, client_id](const data_message& msg) {
-        node_message result;
-        if (msg->sender() == client_id)
-          result = msg;
-        else
-          result = msg->with(client_id, msg->receiver());
-        return result;
-      })
-      // Ignore any errors from the client.
-      .on_error_complete()
-      .compose(add_killswitch_t{});
-  flow_inputs.push(in);
-  subscriptions[client_id].emplace_back(ks);
-  return caf::none;
-}
-
 // -- topic management ---------------------------------------------------------
 
 void core_actor_state::subscribe(const filter_type& what) {
@@ -1427,18 +1260,6 @@ core_actor_state::peer_overflow_policy() {
   auto* str = caf::get_if<std::string>(&self->config(),
                                        "broker.peer-overflow-policy");
   return overflow_policy_from_string(str, defaults::peer_overflow_policy);
-}
-
-size_t core_actor_state::web_socket_buffer_size() {
-  return caf::get_or(self->config(), "broker.web-socket-buffer-size",
-                     defaults::web_socket_buffer_size);
-}
-
-caf::flow::backpressure_overflow_strategy
-core_actor_state::web_socket_overflow_policy() {
-  auto* str = caf::get_if<std::string>(&self->config(),
-                                       "broker.web-socket-overflow-policy");
-  return overflow_policy_from_string(str, defaults::web_socket_overflow_policy);
 }
 
 } // namespace broker::internal

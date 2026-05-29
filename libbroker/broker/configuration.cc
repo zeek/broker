@@ -117,8 +117,6 @@ struct configuration::impl : public caf::actor_system_config {
       .add(options.ttl, "ttl", "drop messages after traversing TTL hops")
       .add(options.peer_buffer_size, "peer-buffer-size",
            "maximum number of items we buffer per peer before dropping it")
-      .add(options.web_socket_buffer_size, "web_socket-buffer-size",
-           "maximum number of items we buffer per web_socket")
       .add<string>("recording-directory",
                    "path for storing recorded meta information")
       .add<size_t>(
@@ -126,9 +124,6 @@ struct configuration::impl : public caf::actor_system_config {
         "maximum number of entries when recording published messages")
       .add<size_t>("max-pending-inputs-per-source",
                    "maximum number of items we buffer per peer or publisher");
-    opt_group{custom_options_, "broker.web-socket"} //
-      .add<string>("address", "bind address for the WebSocket server socket")
-      .add<port>("port", "port for incoming WebSocket connections");
     opt_group{custom_options_, "broker.metrics"}
       .add<port>("port", "port for incoming Prometheus (HTTP) requests")
       .add<string>("address", "bind address for the HTTP server socket")
@@ -181,7 +176,6 @@ struct configuration::impl : public caf::actor_system_config {
     put_missing(grp, "disable-ssl", options.disable_ssl);
     put_missing(grp, "ttl", options.ttl);
     put_missing(grp, "peer-buffer-size", options.peer_buffer_size);
-    put_missing(grp, "web-socket-buffer-size", options.web_socket_buffer_size);
     put_missing(grp, "disable-forwarding", options.disable_forwarding);
     if (auto path = get_as<std::string>(content, "broker.recording-directory"))
       put_missing(grp, "recording-directory", std::move(*path));
@@ -210,9 +204,6 @@ configuration::configuration(broker_options opts) : configuration(skip_init) {
   impl_->set("broker.peer-buffer-size", opts.peer_buffer_size);
   caf::put(impl_->content, "broker.peer-overflow-policy",
            broker::to_string(opts.peer_overflow_policy));
-  impl_->set("broker.web_socket-buffer-size", opts.web_socket_buffer_size);
-  caf::put(impl_->content, "broker.web_socket-overflow-policy",
-           broker::to_string(opts.web_socket_overflow_policy));
   caf::put(impl_->content, "disable-forwarding", opts.disable_forwarding);
   init(0, nullptr);
   impl_->config_file_path = "broker.conf";
@@ -273,17 +264,6 @@ void configuration::impl::init(int argc, char** argv) {
   }
   if (auto env = getenv("BROKER_RECORDING_DIRECTORY")) {
     set("broker.recording-directory", env);
-  }
-  if (auto env = getenv("BROKER_WEB_SOCKET_PORT")) {
-    // Check for validity before overriding any CLI or config file value.
-    auto str = std::string{env};
-    broker::port tmp;
-    if (!convert(str, tmp)) {
-      auto what = concat("invalid value for BROKER_WEB_SOCKET_PORT: ", env,
-                         " (expected a non-zero port number)");
-      throw std::invalid_argument(what);
-    }
-    set("broker.web-socket.port", std::move(str));
   }
   if (auto env = getenv("BROKER_METRICS_PORT")) {
     // Check for validity before overriding any CLI or config file value.

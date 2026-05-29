@@ -22,19 +22,12 @@ using histogram_family = metric_factory::histogram_family;
 
 using core_t = metric_factory::core_t;
 
-gauge_family* core_t::connections_family() {
+gauge* core_t::connections() {
   return &prometheus::BuildGauge()
             .Name("broker_connections")
             .Help("Number of active network connections.")
-            .Register(*reg_);
-}
-
-core_t::connections_t core_t::connections_instances() {
-  auto fm = connections_family();
-  return {
-    .native = &fm->Add({{"type", "native"}}),
-    .web_socket = &fm->Add({{"type", "web-socket"}}),
-  };
+            .Register(*reg_)
+            .Add({});
 }
 
 counter_family* core_t::processed_messages_family() {

@@ -31,14 +31,6 @@ constexpr size_t peer_buffer_size = 2048;
 /// incoming message rate.
 constexpr auto peer_overflow_policy = overflow_policy::disconnect;
 
-/// Configures how many items we buffer at most per web_socket client before
-/// considering it unreseponsive and dropping the connection.
-constexpr size_t web_socket_buffer_size = 512;
-
-/// Configures how Broker responds to web_sockets that cannot keep up with the
-/// incoming message rate.
-constexpr auto web_socket_overflow_policy = overflow_policy::disconnect;
-
 } // namespace broker::defaults
 
 namespace broker::defaults::subscriber {

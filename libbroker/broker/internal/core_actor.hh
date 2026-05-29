@@ -45,9 +45,6 @@ public:
     /// Keeps track of how many native peers are currently connected.
     prometheus::Gauge* native_connections = nullptr;
 
-    /// Keeps track of how many WebSocket clients are currently connected.
-    prometheus::Gauge* web_socket_connections = nullptr;
-
     /// Stores the metrics for all message types.
     std::array<message_metrics_t, 6> message_metric_sets;
 
@@ -123,15 +120,6 @@ public:
   /// @param xs Either a peer ID or a network info.
   void peer_unavailable(const network_info& x);
 
-  /// Called whenever a new client connected.
-  void client_added(endpoint_id client_id, const network_info& addr,
-                    const std::string& type);
-
-  /// Called whenever a client disconnected.
-  void client_removed(endpoint_id client_id, const network_info& addr,
-                      const std::string& type, const caf::error& reason,
-                      bool removed);
-
   // -- connection management --------------------------------------------------
 
   /// Tries to asynchronously connect to addr via the connector.
@@ -154,12 +142,6 @@ public:
   caf::error init_new_peer(endpoint_id peer, const network_info& addr,
                            const filter_type& filter,
                            const pending_connection_ptr& conn);
-
-  /// Connects the input and output buffers for a new client to our central
-  /// merge point.
-  caf::error init_new_client(const network_info& addr, const std::string& type,
-                             filter_type filter, data_consumer_res in_res,
-                             data_producer_res out_res);
 
   // -- topic management -------------------------------------------------------
 
@@ -210,10 +192,6 @@ public:
   size_t peer_buffer_size();
 
   caf::flow::backpressure_overflow_strategy peer_overflow_policy();
-
-  size_t web_socket_buffer_size();
-
-  caf::flow::backpressure_overflow_strategy web_socket_overflow_policy();
 
   /// Points to the actor itself.
   caf::event_based_actor* self;
@@ -296,11 +274,6 @@ public:
   /// re-use the same heap-allocated buffer instead of always allocating fresh
   /// memory regions over and over again.
   caf::byte_buffer buf;
-
-  using disposable_list = std::vector<caf::disposable>;
-
-  /// Stores the subscriptions for our input sources to allow us to cancel them.
-  std::map<endpoint_id, disposable_list> subscriptions;
 
   /// Bundles state for a subscriber that does not integrate into the flows.
   struct legacy_subscriber {

@@ -275,7 +275,7 @@ a transport and consuming incoming events (pseudo code):
     void consume(consumer*, Payload)
 
     // Sends a control message to the producer.
-    void send(consumer*, T)`
+    void send(consumer*, T)
 
     // Process a lost event. The callback may abort further processing by
     // returning a non-default error. In this case, the consumer immediately

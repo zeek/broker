@@ -16,7 +16,6 @@ RUN apk add --no-cache \
   make \
   openssl-dev \
   py3-pip \
-  py3-websockets \
   python3 \
   python3-dev
 
