@@ -57,24 +57,15 @@ if (NOT broker_is_subproject)
         set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     endif ()
 
-    if (BROKER_SANITIZERS)
-        set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
-        set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
-        set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
+endif ()
 
-        # Technically, then we also need to use the compiler to drive linking and
-        # give the sanitizer flags there, too.  However, CMake, by default, uses
-        # the compiler for linking and so the flags automatically get used.  See
-        # https://cmake.org/pipermail/cmake/2014-August/058268.html
-        set(CAF_EXTRA_FLAGS "${_sanitizer_flags}")
-
-        # Set EXTRA_FLAGS if broker isn't being built as part of a Zeek build.
-        # The Zeek build sets it otherwise.
-        if (NOT ZEEK_SANITIZERS)
-            set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
-        endif ()
-    endif ()
-
+if (BROKER_SANITIZERS)
+    set(CAF_SANITIZERS "${BROKER_SANITIZERS}" CACHE STRING
+        "Comma separated sanitizers, e.g., 'address,undefined'" FORCE)
+    set(_sanitizer_flags
+        "-fsanitize=${BROKER_SANITIZERS}"
+        "-fno-omit-frame-pointer"
+        "-fno-optimize-sibling-calls")
 endif ()
 
 if (MSVC)
@@ -250,6 +241,11 @@ else ()
     message(STATUS "Using bundled CAF")
     add_bundled_caf()
     set(BROKER_USE_EXTERNAL_CAF OFF)
+endif ()
+
+if (BROKER_SANITIZERS)
+    add_compile_options(${_sanitizer_flags})
+    add_link_options(${_sanitizer_flags})
 endif ()
 
 if (NOT BROKER_DISABLE_TESTS)
