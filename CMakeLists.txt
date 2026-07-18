@@ -60,12 +60,10 @@ if (NOT broker_is_subproject)
 endif ()
 
 if (BROKER_SANITIZERS)
-    set(CAF_SANITIZERS "${BROKER_SANITIZERS}" CACHE STRING
-        "Comma separated sanitizers, e.g., 'address,undefined'" FORCE)
-    set(_sanitizer_flags
-        "-fsanitize=${BROKER_SANITIZERS}"
-        "-fno-omit-frame-pointer"
-        "-fno-optimize-sibling-calls")
+    set(CAF_SANITIZERS "${BROKER_SANITIZERS}"
+        CACHE STRING "Comma separated sanitizers, e.g., 'address,undefined'" FORCE)
+    set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}" "-fno-omit-frame-pointer"
+                         "-fno-optimize-sibling-calls")
 endif ()
 
 if (MSVC)
