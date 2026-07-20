@@ -154,3 +154,29 @@ TEST(a data message in JSON can be rewritten to the binary format) {
   REQUIRE(maybe_msg);
   CHECK_EQ((*maybe_msg)->value().to_data(), native()->value().to_data());
 }
+
+namespace {
+constexpr caf::string_view json_bad_address = R"_({
+  "type": "data-message",
+  "topic": "/test/cpp/internal/json-type-mapper",
+  "@data-type": "vector",
+  "data": [
+    {
+      "@data-type": "address",
+      "data": "123ns"
+    }
+  ]
+})_";
+
+}
+
+TEST(invalid address) {
+  using util = broker::internal::json;
+  auto bin = std::vector<std::byte>{};
+  auto val = caf::json_value::parse_shallow(json_bad_address);
+  REQUIRE(val);
+  auto obj = val->to_object();
+  CHECK_EQ(obj.value("type").to_string(), "data-message");
+  auto err = util::data_message_to_binary(obj, bin);
+  CHECK(err); // Error is expected. It's an invalid address.
+}
