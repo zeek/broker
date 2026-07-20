@@ -67,7 +67,7 @@ bool to_binary_impl(const caf::json_object& obj, OutIter& out) {
     auto val = dval.to_string();
     broker::address tmp;
     if (!convert(caf::to_string(val), tmp))
-      throw std::runtime_error("failed to convert address");
+      return false;
     out = bin_v1::encode_with_tag(tmp, out);
     return true;
   }
