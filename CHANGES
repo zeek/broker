@@ -1,3 +1,29 @@
+2.8.0-dev.329 | 2026-07-21 08:44:34 -0700
+
+  * Add GitHub CI setup based on the Cirrus configuration (Tim Wojtulewicz, Corelight)
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+  * internal/json: Do not throw on invalid addresses (Arne Welzel, Corelight)
+
+    A WebSocket client sending `{"@data-type": "address", "data": "123ns"}` can
+    trigger a runtime_error, resulting in process termination.
+
+  * Bump CAF for OpenBSD SIGPIPE fix (Dominik Charousset, Corelight)
+
+  * Make broker-node rate calculation more accurate (Dominik Charousset, Corelight)
+
+    Decouple the message processing from the rate calculation by pushing the
+    latter to a separate thread. By performing the rate calculation
+    separately, we get more accurate results and also keep the code more
+    structured.
+
+  * In Python bindings docs, tweak wording regarding alternatives. (Christian Kreibich, Corelight)
+
+  * Remove support for WebSocket clients (Dominik Charousset, Corelight)
+
+  * doc/web-socket: Add us entry to timespan (Arne Welzel, Corelight)
+
 2.8.0-dev.316 | 2026-05-07 16:57:57 -0700
 
   * CI: drop FreeBSD 13, add FreeBSD 15 (Christian Kreibich, Corelight)
