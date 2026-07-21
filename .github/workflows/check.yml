@@ -1,0 +1,236 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - 'release/**'
+
+env:
+  BROKER_CI_CPUS: 4
+  BROKER_CI_CONFIGURE_FLAGS: --build-type=release --enable-static -D FETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON
+  CTEST_OUTPUT_ON_FAILURE: 1
+
+jobs:
+  clang_tidy:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:13
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ./ci/debian-13/prepare.sh
+      - name: Run clang-tidy
+        run: ./ci/analyze.sh
+
+  debian_ubuntu:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: debian-13
+            image: debian:13
+            prepare: ./ci/debian-13/prepare.sh
+          - name: debian-12
+            image: debian:12
+            prepare: ./ci/debian-12/prepare.sh
+          - name: ubuntu-26
+            image: ubuntu:26.04
+            prepare: ./ci/ubuntu-26.04/prepare.sh
+          - name: ubuntu-24
+            image: ubuntu:24.04
+            prepare: ./ci/ubuntu-24.04/prepare.sh
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ${{ matrix.prepare }}
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-${{ matrix.name }}
+          path: tests/btest/tmp.tar.gz
+
+  fedora_centos:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: fedora-44
+            image: fedora:44
+            prepare: ./ci/fedora-44/prepare.sh
+          - name: fedora-43
+            image: fedora:43
+            prepare: ./ci/fedora-43/prepare.sh
+          - name: centos-stream-10
+            image: quay.io/centos/centos:stream10
+            prepare: ./ci/centos-stream-10/prepare.sh
+    steps:
+      - name: Install git
+        run: dnf install -y git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ${{ matrix.prepare }}
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-${{ matrix.name }}
+          path: tests/btest/tmp.tar.gz
+
+  opensuse:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: opensuse-leap-16
+            image: opensuse/leap:16.0
+            prepare: ./ci/opensuse-leap-16.0/prepare.sh
+          - name: opensuse-tumbleweed
+            image: opensuse/tumbleweed
+            prepare: ./ci/opensuse-tumbleweed/prepare.sh
+    steps:
+      - name: Install git
+        run: zypper install -y git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ${{ matrix.prepare }}
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-${{ matrix.name }}
+          path: tests/btest/tmp.tar.gz
+
+  alpine:
+    runs-on: ubuntu-latest
+    name: alpine
+    container:
+      image: alpine:latest
+    steps:
+      - name: Install git
+        run: apk add --no-cache git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ./ci/alpine/prepare.sh
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-alpine
+          path: tests/btest/tmp.tar.gz
+
+  macos:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-tahoe
+            runner: macos-15
+          - name: macos-sonoma
+            runner: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Prepare
+        run: ./ci/macos/prepare.sh
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-${{ matrix.name }}
+          path: tests/btest/tmp.tar.gz
+
+  memcheck:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:13
+    env:
+      BROKER_CI_CONFIGURE_FLAGS: --build-type=debug --sanitizers=address -D FETCHCONTENT_FULLY_DISCONNECTED:BOOL=ON
+      BROKER_CI_MEMCHECK: "true"
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ./ci/debian-13/prepare.sh
+      - name: Build
+        run: ./ci/build.sh
+      - name: Test
+        run: ./ci/test.sh
+      - name: Upload btest artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: btest-memcheck
+          path: tests/btest/tmp.tar.gz
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      BROKER_CI_CPUS: 4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          submodules: recursive
+      - name: Install dependencies
+        run: ./ci/windows/prepare.ps1
+      - name: Prepare
+        run: ./ci/windows/prepare.cmd
+      - name: Build
+        run: ./ci/windows/build.cmd
+      - name: Test
+        run: ./ci/windows/test.cmd
