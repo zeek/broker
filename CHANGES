@@ -1,3 +1,12 @@
+2.8.0-dev.310 | 2026-08-11 10:39:58 -0700
+
+  * Merge remote-tracking branch 'origin/topic/awelzel/fix-json-addr-runtime-error' (Arne Welzel, Corelight)
+
+    * origin/topic/awelzel/fix-json-addr-runtime-error:
+      internal/json: Do not throw on invalid addresses
+
+    (cherry picked from commit acc861565eb4a03fef03f625b19f9037213cbdee)
+
 2.8.0-dev.307 | 2026-04-01 15:40:43 -0700
 
   * Bump cmake submodule to disable c2y warnings (Tim Wojtulewicz, Corelight)
