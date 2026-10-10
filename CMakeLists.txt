@@ -57,42 +57,37 @@ if (NOT broker_is_subproject)
         set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     endif ()
 
-    if (BROKER_SANITIZERS)
-        set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}")
-        set(_sanitizer_flags "${_sanitizer_flags} -fno-omit-frame-pointer")
-        set(_sanitizer_flags "${_sanitizer_flags} -fno-optimize-sibling-calls")
+endif ()
 
-        # Technically, then we also need to use the compiler to drive linking and
-        # give the sanitizer flags there, too.  However, CMake, by default, uses
-        # the compiler for linking and so the flags automatically get used.  See
-        # https://cmake.org/pipermail/cmake/2014-August/058268.html
-        set(CAF_EXTRA_FLAGS "${_sanitizer_flags}")
+if (BROKER_SANITIZERS)
+    set(CAF_SANITIZERS "${BROKER_SANITIZERS}"
+        CACHE STRING "Comma separated sanitizers, e.g., 'address,undefined'" FORCE)
+    set(_sanitizer_flags "-fsanitize=${BROKER_SANITIZERS}" "-fno-omit-frame-pointer"
+                         "-fno-optimize-sibling-calls")
+endif ()
 
-        # Set EXTRA_FLAGS if broker isn't being built as part of a Zeek build.
-        # The Zeek build sets it otherwise.
-        if (NOT ZEEK_SANITIZERS)
-            set(EXTRA_FLAGS "${EXTRA_FLAGS} ${_sanitizer_flags}")
-        endif ()
+if (NOT TARGET broker_internal)
+    add_library(broker_internal INTERFACE)
+
+    if (MSVC)
+        # Allow more sections in object files, otherwise Broker fails to compile.
+        target_compile_options(broker_internal INTERFACE /bigobj)
+        # Similar to -funsigned-char on other platforms.
+        target_compile_options(broker_internal INTERFACE /J)
+    else ()
+        # Increase warnings.
+        target_compile_options(broker_internal INTERFACE -Wall -Wno-unused -pedantic)
+        # Increase maximum number of instantiations.
+        target_compile_options(broker_internal INTERFACE -ftemplate-depth=512)
+        # Make sure to get the full context on template errors.
+        target_compile_options(broker_internal INTERFACE -ftemplate-backtrace-limit=0)
     endif ()
 
+    if (_sanitizer_flags)
+        target_compile_options(broker_internal INTERFACE ${_sanitizer_flags})
+        target_link_options(broker_internal INTERFACE ${_sanitizer_flags})
+    endif ()
 endif ()
-
-if (MSVC)
-    # Allow more sections in object files, otherwise Broker fails to compile.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} /bigobj")
-    # Similar to -funsigned-char on other platforms.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} /J")
-else ()
-    # Increase warnings.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -Wall -Wno-unused -pedantic")
-    # Increase maximum number of instantiations.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-depth=512")
-    # Make sure to get the full context on template errors.
-    set(EXTRA_FLAGS "${EXTRA_FLAGS} -ftemplate-backtrace-limit=0")
-endif ()
-
-# Append our extra flags to the existing value of CXXFLAGS.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_FLAGS}")
 
 include(cmake/RequireCXXStd.cmake)
 include(CheckCXXSourceCompiles)
@@ -198,6 +193,8 @@ function (add_bundled_caf)
     set(CAF_ENABLE_TESTING OFF)
     set(CAF_ENABLE_TOOLS OFF)
     set(BUILD_SHARED_LIBS OFF)
+    add_library(caf_internal INTERFACE)
+    target_link_libraries(caf_internal INTERFACE $<BUILD_INTERFACE:broker_internal>)
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
         add_subdirectory(caf EXCLUDE_FROM_ALL SYSTEM)
     else ()
@@ -250,6 +247,11 @@ else ()
     message(STATUS "Using bundled CAF")
     add_bundled_caf()
     set(BROKER_USE_EXTERNAL_CAF OFF)
+endif ()
+
+if (BROKER_SANITIZERS)
+    add_compile_options(${_sanitizer_flags})
+    add_link_options(${_sanitizer_flags})
 endif ()
 
 if (NOT BROKER_DISABLE_TESTS)
@@ -371,6 +373,7 @@ endif ()
 
 # -- CMake package install ----------------------------------------------------
 
+install(TARGETS broker_internal EXPORT BrokerTargets)
 export(EXPORT BrokerTargets FILE BrokerTargets.cmake)
 
 install(EXPORT BrokerTargets DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Broker")
