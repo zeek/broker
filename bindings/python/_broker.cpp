@@ -340,6 +340,8 @@ PYBIND11_MODULE(_broker, m) {
     std::string openssl_certificate;
     std::string openssl_key;
     std::string openssl_passphrase;
+    std::string openssl_psk_identity;
+    std::string openssl_psk_key;
     int max_threads = 0;
   };
 
@@ -351,6 +353,8 @@ PYBIND11_MODULE(_broker, m) {
     .def_readwrite("openssl_certificate", &Configuration::openssl_certificate)
     .def_readwrite("openssl_key", &Configuration::openssl_key)
     .def_readwrite("openssl_passphrase", &Configuration::openssl_passphrase)
+    .def_readwrite("openssl_psk_identity", &Configuration::openssl_psk_identity)
+    .def_readwrite("openssl_psk_key", &Configuration::openssl_psk_key)
     .def_readwrite("max_threads", &Configuration::max_threads);
 
   py::class_<broker::endpoint>(m, "Endpoint")
@@ -362,6 +366,8 @@ PYBIND11_MODULE(_broker, m) {
       bcfg.openssl_cafile(cfg.openssl_cafile);
       bcfg.openssl_certificate(cfg.openssl_certificate);
       bcfg.openssl_key(cfg.openssl_key);
+      bcfg.openssl_psk_identity(cfg.openssl_psk_identity);
+      bcfg.openssl_psk_key(cfg.openssl_psk_key);
       if (cfg.max_threads > 0)
         bcfg.set("caf.scheduler.max-threads",
                  static_cast<uint64_t>(cfg.max_threads));

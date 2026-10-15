@@ -70,6 +70,16 @@ struct openssl_options {
   std::string capath;
   std::string cafile;
 
+  /// Identity of the TLS 1.3 pre-shared key. Only used when no certificates
+  /// are configured. An empty string selects `defaults::ssl::psk_identity`.
+  std::string psk_identity;
+
+  /// Hex-encoded TLS 1.3 pre-shared key of up to 48 bytes. Only used when no
+  /// certificates are configured. An empty string selects the well-known
+  /// `defaults::ssl::psk_key`.
+  std::string psk_key;
+
+  /// Returns whether certificate-based authentication is enabled.
   bool authentication_enabled() const noexcept;
 };
 
@@ -160,6 +170,14 @@ public:
   std::string openssl_cafile() const;
 
   void openssl_cafile(std::string);
+
+  std::string openssl_psk_identity() const;
+
+  void openssl_psk_identity(std::string);
+
+  std::string openssl_psk_key() const;
+
+  void openssl_psk_key(std::string);
 
   /// Returns all OpenSSL-related parameters or `nullptra` if OpenSSL has been
   /// disabled.

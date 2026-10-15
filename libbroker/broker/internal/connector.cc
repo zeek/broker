@@ -1,5 +1,6 @@
 #include "broker/internal/connector.hh"
 
+#include "broker/defaults.hh"
 #include "broker/detail/assert.hh"
 #include "broker/detail/overload.hh"
 #include "broker/endpoint.hh"
@@ -26,9 +27,14 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 // -- platform setup -----------------------------------------------------------
 
@@ -109,6 +115,136 @@ constexpr size_t max_ssl_passphrase_size = 127;
 /// Global buffer for the OpenSSL passphrase. Set by the connector constructor,
 /// read by the callback we provide to SSL_CTX_set_default_passwd_cb.
 char ssl_passphrase_buf[max_ssl_passphrase_size + 1]; // One extra for '\0'.
+
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+
+/// TLS 1.3 pre-shared key material, attached to the SSL context as ex data.
+struct psk_state {
+  std::string identity;
+  std::vector<unsigned char> key;
+  /// Whether to accept anonymous TLS 1.2 from peers without PSK support.
+  bool allow_anonymous = false;
+};
+
+void psk_state_free(void*, void* ptr, CRYPTO_EX_DATA*, int, long, void*) {
+  delete static_cast<psk_state*>(ptr);
+}
+
+int psk_state_index() {
+  static const int index = SSL_CTX_get_ex_new_index(0, nullptr, nullptr,
+                                                    nullptr, psk_state_free);
+  return index;
+}
+
+const psk_state* get_psk_state(SSL* ssl) {
+  return static_cast<const psk_state*>(
+    SSL_CTX_get_ex_data(SSL_get_SSL_CTX(ssl), psk_state_index()));
+}
+
+/// Decodes a hex string, returning an empty vector on invalid input.
+std::vector<unsigned char> decode_hex(std::string_view str) {
+  auto nibble = [](char c) -> int {
+    if (c >= '0' && c <= '9')
+      return c - '0';
+    if (c >= 'a' && c <= 'f')
+      return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+      return c - 'A' + 10;
+    return -1;
+  };
+  std::vector<unsigned char> result;
+  if (str.size() % 2 != 0)
+    return result;
+  result.reserve(str.size() / 2);
+  for (size_t i = 0; i < str.size(); i += 2) {
+    auto hi = nibble(str[i]);
+    auto lo = nibble(str[i + 1]);
+    if (hi < 0 || lo < 0)
+      return {};
+    result.push_back(static_cast<unsigned char>((hi << 4) | lo));
+  }
+  return result;
+}
+
+/// Creates a TLS 1.3 session for TLS_AES_256_GCM_SHA384 from the PSK.
+SSL_SESSION* make_psk_session(SSL* ssl, const psk_state& psk) {
+  static constexpr unsigned char tls_aes_256_gcm_sha384[] = {0x13, 0x02};
+  auto cipher = SSL_CIPHER_find(ssl, tls_aes_256_gcm_sha384);
+  if (cipher == nullptr)
+    return nullptr;
+  auto sess = SSL_SESSION_new();
+  if (sess == nullptr
+      || SSL_SESSION_set1_master_key(sess, psk.key.data(), psk.key.size()) != 1
+      || SSL_SESSION_set_cipher(sess, cipher) != 1
+      || SSL_SESSION_set_protocol_version(sess, TLS1_3_VERSION) != 1) {
+    SSL_SESSION_free(sess);
+    return nullptr;
+  }
+  return sess;
+}
+
+/// Client side: offers the PSK in the ClientHello.
+int psk_use_session_cb(SSL* ssl, const EVP_MD* md, const unsigned char** id,
+                       size_t* idlen, SSL_SESSION** sess) {
+  auto psk = get_psk_state(ssl);
+  if (psk == nullptr)
+    return 0;
+  auto result = make_psk_session(ssl, *psk);
+  if (result == nullptr)
+    return 0;
+  // After a HelloRetryRequest, the PSK hash must match the negotiated one.
+  if (md != nullptr
+      && md
+           != SSL_CIPHER_get_handshake_digest(
+             SSL_SESSION_get0_cipher(result))) {
+    SSL_SESSION_free(result);
+    *sess = nullptr;
+    *id = nullptr;
+    *idlen = 0;
+    return 1;
+  }
+  *sess = result; // OpenSSL takes ownership.
+  *id = reinterpret_cast<const unsigned char*>(psk->identity.data());
+  *idlen = psk->identity.size();
+  return 1;
+}
+
+/// Server side: accepts the PSK if the client presents our identity.
+int psk_find_session_cb(SSL* ssl, const unsigned char* id, size_t idlen,
+                        SSL_SESSION** sess) {
+  auto psk = get_psk_state(ssl);
+  if (psk == nullptr)
+    return 0;
+  if (idlen != psk->identity.size()
+      || memcmp(id, psk->identity.data(), idlen) != 0) {
+    broker::log::network::debug("ssl-psk-unknown-identity",
+                                "peer presented an unknown PSK identity");
+    *sess = nullptr; // No certificate to fall back to: the handshake fails.
+    return 1;
+  }
+  *sess = make_psk_session(ssl, *psk); // OpenSSL takes ownership.
+  return *sess != nullptr ? 1 : 0;
+}
+
+/// Server side: runs before version negotiation.
+int psk_client_hello_cb(SSL* ssl, int*, void*) {
+  // Clients authenticate with the PSK, not with certificates. The context
+  // requires certificates only to keep our client role from accepting rogue
+  // servers.
+  SSL_set_verify(ssl, SSL_VERIFY_NONE, nullptr);
+  // Peers without PSK support (older Broker versions) offer no PSK but TLS 1.3
+  // support. Without a certificate, we can only complete a handshake with
+  // them using anonymous TLS 1.2.
+  auto psk = get_psk_state(ssl);
+  const unsigned char* ext = nullptr;
+  size_t ext_len = 0;
+  if (psk != nullptr && psk->allow_anonymous
+      && SSL_client_hello_get0_ext(ssl, TLSEXT_TYPE_psk, &ext, &ext_len) == 0)
+    SSL_set_max_proto_version(ssl, TLS1_2_VERSION);
+  return SSL_CLIENT_HELLO_SUCCESS;
+}
+
+#endif // OPENSSL_VERSION_NUMBER >= 0x10101000L
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 
@@ -241,32 +377,57 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
                        nullptr);
     if (SSL_CTX_set_cipher_list(ctx.get(), "HIGH:!aNULL:!MD5") != 1)
       throw ssl_error("failed to set cipher list");
-  } else { // No authentication.
-    log::network::debug("ssl-disable-authentication",
-                        "disable SSL authentication");
+    // Prohibit outdated and insecure protocols.
+    SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION);
+  } else { // No certificates: authenticate with a pre-shared key.
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+    log::network::debug("ssl-enable-psk", "enable SSL PSK authentication");
     ERR_clear_error();
-    SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_NONE, nullptr);
-#if defined(SSL_CTX_set_ecdh_auto) && (OPENSSL_VERSION_NUMBER < 0x10100000L)
-    SSL_CTX_set_ecdh_auto(ctx.get(), 1);
-#elif OPENSSL_VERSION_NUMBER < 0x10101000L
-    auto ecdh = EC_KEY_new_by_curve_name(NID_secp384r1);
-    if (!ecdh)
-      throw ssl_error("failed to get ECDH curve");
-    SSL_CTX_set_tmp_ecdh(ctx.get(), ecdh);
-    EC_KEY_free(ecdh);
-#else // OPENSSL_VERSION_NUMBER < 0x10101000L
-    SSL_CTX_set1_groups_list(ctx.get(), "P-384");
-#endif
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
+    auto psk = std::make_unique<psk_state>();
+    psk->identity = cfg->psk_identity.empty()
+                      ? std::string{defaults::ssl::psk_identity}
+                      : cfg->psk_identity;
+    psk->key =
+      decode_hex(cfg->psk_key.empty() ? defaults::ssl::psk_key : cfg->psk_key);
+    if (psk->key.empty() || psk->key.size() > SSL_MAX_MASTER_KEY_LENGTH)
+      throw ssl_error("invalid PSK: expected 1 to 48 hex-encoded bytes");
+    // The well-known default PSK authenticates nobody. Hence, we lose nothing
+    // by also accepting anonymous TLS 1.2 for compatibility with older Broker
+    // versions. A custom PSK requires TLS 1.3, because accepting anonymous
+    // TLS 1.2 would allow peers without the PSK.
+    if (cfg->psk_key.empty()) {
+      log::network::debug("ssl-default-psk",
+                          "using the well-known default PSK, which does not "
+                          "authenticate peers");
+      if (SSL_CTX_set_cipher_list(ctx.get(), "AECDH-AES256-SHA@SECLEVEL=0")
+          == 1) {
+        psk->allow_anonymous = true;
+      } else {
+        log::network::debug("ssl-no-anonymous-cipher",
+                            "OpenSSL lacks AECDH-AES256-SHA: disable "
+                            "anonymous TLS 1.2 for older peers");
+        ERR_clear_error();
+      }
+    }
+    // Without a CA store, any certificate fails verification. PSK handshakes
+    // involve no certificates. Accepted connections override this setting,
+    // see psk_client_hello_cb.
+    SSL_CTX_set_verify(ctx.get(), SSL_VERIFY_PEER, nullptr);
+    auto min_version = psk->allow_anonymous ? TLS1_2_VERSION : TLS1_3_VERSION;
+    if (SSL_CTX_set_min_proto_version(ctx.get(), min_version) != 1)
+      throw ssl_error("failed to set minimum TLS version");
+    if (SSL_CTX_set_ciphersuites(ctx.get(), "TLS_AES_256_GCM_SHA384") != 1)
+      throw ssl_error("failed to set TLS 1.3 cipher suite");
+    if (SSL_CTX_set_ex_data(ctx.get(), psk_state_index(), psk.get()) != 1)
+      throw ssl_error("failed to attach PSK to SSL context");
+    psk.release(); // Now owned by the SSL context.
+    SSL_CTX_set_psk_use_session_callback(ctx.get(), psk_use_session_cb);
+    SSL_CTX_set_psk_find_session_callback(ctx.get(), psk_find_session_cb);
+    SSL_CTX_set_client_hello_cb(ctx.get(), psk_client_hello_cb, nullptr);
 #else
-    const char* cipher = "AECDH-AES256-SHA";
+    throw ssl_error("PSK authentication requires OpenSSL 1.1.1 or later");
 #endif
-    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
-      throw ssl_error("failed to set anonymous cipher");
   }
-  // Prohibit outdated and insecure protocols.
-  SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION);
   return ctx;
 }
 

@@ -150,7 +150,11 @@ struct configuration::impl : public caf::actor_system_config {
       .add(ssl_options->capath, "capath",
            "path to an OpenSSL-style directory of trusted certificates")
       .add(ssl_options->cafile, "cafile",
-           "path to a file of concatenated PEM-formatted certificates");
+           "path to a file of concatenated PEM-formatted certificates")
+      .add(ssl_options->psk_identity, "psk-identity",
+           "identity of the TLS 1.3 pre-shared key (without certificates)")
+      .add(ssl_options->psk_key, "psk-key",
+           "hex-encoded TLS 1.3 pre-shared key (without certificates)");
     // Ensure that we're only talking to compatible Broker instances.
     string_list ids{"broker.v" + std::to_string(version::protocol)};
     // Override CAF defaults.
@@ -378,6 +382,22 @@ std::string configuration::openssl_cafile() const {
 
 void configuration::openssl_cafile(std::string x) {
   impl_->ssl_options->cafile = std::move(x);
+}
+
+std::string configuration::openssl_psk_identity() const {
+  return impl_->ssl_options->psk_identity;
+}
+
+void configuration::openssl_psk_identity(std::string x) {
+  impl_->ssl_options->psk_identity = std::move(x);
+}
+
+std::string configuration::openssl_psk_key() const {
+  return impl_->ssl_options->psk_key;
+}
+
+void configuration::openssl_psk_key(std::string x) {
+  impl_->ssl_options->psk_key = std::move(x);
 }
 
 openssl_options_ptr configuration::openssl_options() const {

@@ -91,6 +91,70 @@ void println(const Ts&... xs) {
   (std::cout << ... << xs) << '\n';
 }
 
+struct psk_settings {
+  std::string identity;
+  std::string key;
+};
+
+/// Peers a client with a server, both using SSL without certificates, and
+/// returns the first error or `peer_added` status on the client, or `nil`
+/// on timeout.
+status_variant psk_peering(const char* test_name, const psk_settings& server,
+                           const psk_settings& client) {
+  auto port_promise = std::promise<uint16_t>{};
+  auto port_future = port_promise.get_future();
+  barrier checkpoint{2};
+  status_variant result;
+  auto t1 = std::thread{[&]() mutable {
+    auto cfg = make_config(test_name, 0, enable_ssl);
+    cfg.openssl_psk_identity(server.identity);
+    cfg.openssl_psk_key(server.key);
+    endpoint ep{std::move(cfg)};
+    auto port = ep.listen("127.0.0.1", 0);
+    if (port == 0)
+      hard_error("endpoint::listen failed");
+    port_promise.set_value(port);
+    checkpoint.arrive_and_wait();
+  }};
+  auto t2 = std::thread{[&, port{port_future.get()}] {
+    auto cfg = make_config(test_name, 1, enable_ssl);
+    cfg.openssl_psk_identity(client.identity);
+    cfg.openssl_psk_key(client.key);
+    endpoint ep{std::move(cfg)};
+    auto sub = ep.make_status_subscriber(true);
+    ep.peer_nosync("127.0.0.1", port, 0s);
+    // Skip over intermediate events such as endpoint_discovered.
+    auto deadline = broker::now() + 5s;
+    do {
+      result = sub.get(deadline);
+      MESSAGE("received message: " << std::visit(
+                [](const auto& val) { return to_string(val); }, result));
+    } while (std::holds_alternative<status>(result)
+             && std::get<status>(result).code() != sc::peer_added);
+    checkpoint.arrive_and_wait();
+  }};
+  t1.join();
+  t2.join();
+  return result;
+}
+
+bool is_peer_added(const status_variant& msg) {
+  auto st = std::get_if<status>(&msg);
+  return st != nullptr && st->code() == sc::peer_added;
+}
+
+bool is_peer_unavailable(const status_variant& msg) {
+  auto err = std::get_if<error>(&msg);
+  return err != nullptr && *err == ec::peer_unavailable;
+}
+
+constexpr std::string_view custom_psk_key =
+  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+  "202122232425262728292a2b2c2d2e2f";
+
+constexpr std::string_view other_psk_key =
+  "ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
+
 struct fixture {
   fixture() {
     for (auto& ptr : ep_logs)
@@ -562,6 +626,43 @@ SCENARIO("handshake fails if only one side enables encryption") {
         t1.join();
         t2.join();
       }
+    }
+  }
+}
+
+SCENARIO("SSL without certificates authenticates peers with a PSK") {
+  GIVEN("two endpoints with the default PSK settings") {
+    THEN("peering succeeds") {
+      CHECK(is_peer_added(psk_peering("psk-default", {}, {})));
+    }
+  }
+  GIVEN("two endpoints with the same custom PSK") {
+    THEN("peering succeeds") {
+      auto psk = psk_settings{"node", std::string{custom_psk_key}};
+      CHECK(is_peer_added(psk_peering("psk-custom", psk, psk)));
+    }
+  }
+  GIVEN("a client with a different PSK than the server") {
+    THEN("the handshake fails") {
+      auto server = psk_settings{"", std::string{custom_psk_key}};
+      auto client = psk_settings{"", std::string{other_psk_key}};
+      CHECK(
+        is_peer_unavailable(psk_peering("psk-key-mismatch", server, client)));
+    }
+  }
+  GIVEN("a client with the default PSK and a server with a custom PSK") {
+    THEN("the handshake fails") {
+      auto server = psk_settings{"", std::string{custom_psk_key}};
+      CHECK(
+        is_peer_unavailable(psk_peering("psk-default-vs-custom", server, {})));
+    }
+  }
+  GIVEN("a client with a different PSK identity than the server") {
+    THEN("the handshake fails") {
+      auto server = psk_settings{"alice", std::string{custom_psk_key}};
+      auto client = psk_settings{"bob", std::string{custom_psk_key}};
+      CHECK(is_peer_unavailable(
+        psk_peering("psk-identity-mismatch", server, client)));
     }
   }
 }

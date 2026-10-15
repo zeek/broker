@@ -70,6 +70,20 @@ constexpr timespan max_age = std::chrono::seconds{5};
 
 } // namespace broker::defaults::path_revocations
 
+namespace broker::defaults::ssl {
+
+/// Identity for the TLS 1.3 pre-shared key when not using certificates.
+constexpr std::string_view psk_identity = "zeek";
+
+/// Hex-encoded TLS 1.3 pre-shared key when not using certificates. This key is
+/// public knowledge and therefore provides no authentication. Users must
+/// configure their own key to keep unauthorized peers out.
+constexpr std::string_view psk_key =
+  "c1d571e49e39dc0ea55b444d55a0c6ccef858429d868311608198e1882d05af6"
+  "f0b64fde74de254f02664a707ce1c8ff";
+
+} // namespace broker::defaults::ssl
+
 namespace broker::defaults::metrics {
 
 constexpr timespan export_interval = std::chrono::seconds{1};
