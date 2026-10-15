@@ -145,6 +145,7 @@ set(BROKER_TEST_SRC
     broker/format/json.test.cc
     broker/hub.test.cc
     broker/internal/channel.test.cc
+    broker/internal/connector.test.cc
     broker/internal/json.test.cc
     broker/internal/wire_format.test.cc
     broker/peering.test.cc
