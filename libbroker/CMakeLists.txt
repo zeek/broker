@@ -94,7 +94,7 @@ if (ENABLE_SHARED)
                    VERSION ${BROKER_VERSION_MAJOR}.${BROKER_VERSION_MINOR}
                    MACOSX_RPATH true
                    OUTPUT_NAME broker)
-    target_link_libraries(broker PUBLIC ${LINK_LIBS})
+    target_link_libraries(broker PUBLIC $<BUILD_INTERFACE:broker_internal> ${LINK_LIBS})
     target_link_libraries(broker PRIVATE CAF::core CAF::io CAF::net broker-prometheus-cpp)
     install(TARGETS broker EXPORT BrokerTargets DESTINATION ${CMAKE_INSTALL_LIBDIR})
     target_include_directories(
@@ -108,7 +108,7 @@ if (ENABLE_STATIC)
     if (NOT DISABLE_PYTHON_BINDINGS)
         set_target_properties(broker_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
     endif ()
-    target_link_libraries(broker_static PUBLIC ${LINK_LIBS})
+    target_link_libraries(broker_static PUBLIC $<BUILD_INTERFACE:broker_internal> ${LINK_LIBS})
     target_link_libraries(broker_static PRIVATE CAF::core CAF::io CAF::net broker-prometheus-cpp)
     install(TARGETS broker_static EXPORT BrokerTargets DESTINATION ${CMAKE_INSTALL_LIBDIR})
     target_include_directories(

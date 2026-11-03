@@ -1,3 +1,20 @@
+2.8.0-dev.333 | 2026-11-03 09:39:21 -0700
+
+  * Add `broker_internal` as customizable base target (Dominik Charousset, Corelight)
+
+    The `broker_internal` target bundles all flags that should be present on
+    all Broker targets. We also have CAF targets depend on it so that flags
+    are applied uniformly and consistently.
+
+    If the target already exists, we use it as-is. This gives Zeek full
+    control over the flags that are present on Broker targets.
+
+    Also update the bundled CAF version to pick up a patch that leaves build
+    options alone if `caf_internal` is pre-defined (and pre-define it to
+    have perfect forwarding of build flags from `broker_internal`).
+
+  * Fix sanitizer instrumentation in subproject builds (Dominik Charousset, Corelight)
+
 2.8.0-dev.329 | 2026-07-21 08:44:34 -0700
 
   * Add GitHub CI setup based on the Cirrus configuration (Tim Wojtulewicz, Corelight)
