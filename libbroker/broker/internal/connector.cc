@@ -24,6 +24,9 @@
 #include <caf/net/tcp_accept_socket.hpp>
 #include <caf/net/tcp_stream_socket.hpp>
 
+#include <openssl/evp.h>
+#include <openssl/x509.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <type_traits>
@@ -183,9 +186,7 @@ void endpoint::init_ssl_api() {
 
 void endpoint::deinit_ssl_api() {
   BROKER_ASSERT(init_ssl_api_called);
-  ERR_free_strings();
-  EVP_cleanup();
-  CRYPTO_cleanup_all_ex_data();
+  // Since OpenSSL 1.1.0, cleanup happens automatically at exit.
 }
 
 #endif
@@ -193,6 +194,47 @@ void endpoint::deinit_ssl_api() {
 } // namespace broker
 
 namespace broker::internal {
+
+namespace {
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+/// Generates a self-signed P-384 ECDSA certificate for `ctx`. Peers do not
+/// verify it. It only allows TLS 1.3, which requires the server to present a
+/// certificate. Returns `false` on error.
+bool use_self_signed_certificate(SSL_CTX* ctx) {
+  auto key = EVP_PKEY_Q_keygen(nullptr, nullptr, "EC", "P-384");
+  auto cert = X509_new();
+  // OpenSSL 4 returns a const name from X509_get_subject_name, so build the
+  // name separately and copy it into the certificate.
+  auto name = X509_NAME_new();
+  auto guard = caf::detail::scope_guard{[&]() noexcept {
+    X509_NAME_free(name);
+    X509_free(cert);
+    EVP_PKEY_free(key);
+  }};
+  if (key == nullptr || cert == nullptr || name == nullptr)
+    return false;
+  constexpr long validity = 10L * 365 * 24 * 60 * 60; // ~10 years
+  return X509_set_version(cert, 2) == 1
+         && ASN1_INTEGER_set(X509_get_serialNumber(cert), 1) == 1
+         && X509_gmtime_adj(X509_getm_notBefore(cert), 0) != nullptr
+         && X509_gmtime_adj(X509_getm_notAfter(cert), validity) != nullptr
+         && X509_set_pubkey(cert, key) == 1
+         && X509_NAME_add_entry_by_txt(
+              name, "CN", MBSTRING_ASC,
+              reinterpret_cast<const unsigned char*>("broker"), -1, -1, 0)
+              == 1
+         && X509_set_subject_name(cert, name) == 1
+         && X509_set_issuer_name(cert, name) == 1
+         && X509_sign(cert, key, EVP_sha384()) > 0
+         && SSL_CTX_use_certificate(ctx, cert) == 1
+         && SSL_CTX_use_PrivateKey(ctx, key) == 1;
+}
+
+#endif
+
+} // namespace
 
 /// Creates an SSL context for the connector.
 caf::net::openssl::ctx_ptr
@@ -257,13 +299,29 @@ ssl_context_from_cfg(const openssl_options_ptr& cfg) {
 #else // OPENSSL_VERSION_NUMBER < 0x10101000L
     SSL_CTX_set1_groups_list(ctx.get(), "P-384");
 #endif
+    // Anonymous TLS 1.2 for compatibility with older peers. Not all OpenSSL
+    // builds include anonymous ciphers, e.g., FIPS builds.
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
     const char* cipher = "AECDH-AES256-SHA@SECLEVEL=0";
 #else
     const char* cipher = "AECDH-AES256-SHA";
 #endif
-    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1)
-      throw ssl_error("failed to set anonymous cipher");
+    if (SSL_CTX_set_cipher_list(ctx.get(), cipher) != 1) {
+      log::network::debug("ssl-no-anonymous-cipher",
+                          "OpenSSL lacks {}: disable anonymous TLS 1.2",
+                          cipher);
+      ERR_clear_error();
+    }
+    // TLS 1.3 has no anonymous mode. A self-signed certificate that nobody
+    // verifies provides the equivalent.
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    if (!use_self_signed_certificate(ctx.get())) {
+      log::network::debug("ssl-no-self-signed-certificate",
+                          "failed to generate a self-signed certificate: "
+                          "disable TLS 1.3 when accepting connections");
+      ERR_clear_error();
+    }
+#endif
   }
   // Prohibit outdated and insecure protocols.
   SSL_CTX_set_min_proto_version(ctx.get(), TLS1_2_VERSION);
